@@ -1,0 +1,41 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #1A1612;
+  --ink2: #2C2420;
+  --parchment: #F8F3EC;
+  --warm: #F2EBE0;
+  --sand: #E2D5C3;
+  --clay: #B8874A;
+  --clay-l: #D4A46A;
+  --ember: #C05C30;
+  --sage: #6B7E67;
+  --sage-l: #8FA889;
+  --cream: #FBF8F3;
+  --mid: #7A6C5E;
+  --light: #B5A898;
+}
+
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+body {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300;
+  color: var(--ink);
+  background: var(--cream);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid rgba(184,135,74,0.2);
+  border-top-color: var(--clay);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
