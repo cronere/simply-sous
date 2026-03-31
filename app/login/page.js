@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap');
@@ -39,7 +40,7 @@ const css = `
     font-family:'Outfit',sans-serif;padding:0}
   .ghost:hover{color:var(--cl)}
   .foot{margin-top:28px;font-size:.8rem;color:rgba(248,243,236,.25)}
-  .foot a{color:var(--clay)}
+  .foot a{color:var(--clay);text-decoration:none}
   .sw{margin-top:20px;font-size:.85rem;color:rgba(248,243,236,.35)}
   .sw a{color:var(--clay);cursor:pointer;font-weight:500}
   .sp{width:18px;height:18px;border:2px solid rgba(26,22,18,.2);border-top-color:var(--ink);
@@ -48,25 +49,25 @@ const css = `
   @media(max-width:480px){.c{padding:36px 20px}}
 `
 
+const getClient = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
+
 export default function LoginPage() {
   const router = useRouter()
-  const [sb, setSb]                 = useState(null)
-  const [email, setEmail]           = useState('')
-  const [password, setPassword]     = useState('')
-  const [loading, setLoading]       = useState(false)
-  const [error, setError]           = useState('')
-  const [showReset, setShowReset]   = useState(false)
-  const [resetSent, setResetSent]   = useState(false)
-
-  useEffect(() => {
-    import('@supabase/supabase-js').then(({ createClient }) => setSb(createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)))
-  }, [])
+  const [email, setEmail]         = useState('')
+  const [password, setPassword]   = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
+  const [showReset, setShowReset] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   const login = async () => {
     if (!email || !password) { setError('Please enter your email and password.'); return }
-    if (!sb) return
     setLoading(true); setError('')
     try {
+      const sb = getClient()
       const { error } = await sb.auth.signInWithPassword({ email, password })
       if (error) throw error
       const { data: { session } } = await sb.auth.getSession()
@@ -82,10 +83,9 @@ export default function LoginPage() {
 
   const reset = async () => {
     if (!email) { setError('Enter your email above first.'); return }
-    if (!sb) return
     setLoading(true); setError('')
     try {
-      await sb.auth.resetPasswordForEmail(email, {
+      await getClient().auth.resetPasswordForEmail(email, {
         redirectTo: 'https://app.simplysous.com/reset-password',
       })
       setResetSent(true)
@@ -99,7 +99,6 @@ export default function LoginPage() {
       <div className="c">
         <div className="logo">Simply <span>Sous</span></div>
         <div className="tag">Dinner, decided.</div>
-
         {!showReset ? (
           <>
             <h1 className="title">Welcome back</h1>
@@ -116,7 +115,7 @@ export default function LoginPage() {
                 value={password} onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && login()} autoComplete="current-password" />
             </div>
-            <button className="btn" onClick={login} disabled={loading || !sb}>
+            <button className="btn" onClick={login} disabled={loading}>
               {loading ? <><span className="sp"/>Signing in...</> : 'Sign In →'}
             </button>
             {error && <div className="err">{error}</div>}
@@ -140,7 +139,7 @@ export default function LoginPage() {
                 value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
             </div>
             {!resetSent
-              ? <button className="btn" onClick={reset} disabled={loading || !sb}>
+              ? <button className="btn" onClick={reset} disabled={loading}>
                   {loading ? <><span className="sp"/>Sending...</> : 'Send Reset Link →'}
                 </button>
               : <div className="ok">✓ Reset link sent to {email}. Check your inbox.</div>
