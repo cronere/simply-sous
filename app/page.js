@@ -1,7 +1,9 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
+// Domain-aware root: simplysous.com → landing, app.simplysous.com → auth check
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -12,26 +14,28 @@ export default function RootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // Check if onboarding is complete
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('onboarding_complete')
-          .eq('id', session.user.id)
-          .single();
+    const hostname = window.location.hostname;
+    const isApp = hostname.startsWith('app.');
 
-        if (profile?.onboarding_complete) {
-          router.replace('/today');
+    if (isApp) {
+      const checkSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('onboarding_complete')
+            .eq('id', session.user.id)
+            .single();
+          router.replace(profile?.onboarding_complete ? '/today' : '/onboarding');
         } else {
-          router.replace('/onboarding');
+          router.replace('/login');
         }
-      } else {
-        router.replace('/login');
-      }
-    };
-    checkSession();
+      };
+      checkSession();
+    } else {
+      // Marketing site — redirect to landing page
+      router.replace('/landing');
+    }
   }, [router]);
 
   return (
