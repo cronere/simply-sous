@@ -396,7 +396,7 @@ export default function PlanPage() {
             <span className="generate-ico">📅</span>
             <div className="generate-title">No plan yet for this week</div>
             <div className="generate-sub">Dot will pick meals from your vault, respect your preferences and blackout days, and build a balanced week of dinners automatically.</div>
-            <button className="generate-btn" onClick={generatePlan}>✨ Generate my week →</button>
+            <button className="generate-btn" onClick={() => generatePlan(null)}>✨ Generate my week →</button>
           </div>
         </div>
       )}
@@ -458,7 +458,7 @@ export default function PlanPage() {
           <div className="plan-actions">
             {planStatus !== 'confirmed' ? (
               <>
-                <button className="regen-btn" onClick={generatePlan} disabled={generating}>↺ Regenerate</button>
+                <button className="regen-btn" onClick={() => generatePlan(null)} disabled={generating}>↺ Regenerate</button>
                 <button className="confirm-btn" onClick={confirmPlan} disabled={confirming}>
                   {confirming ? <><span className="sp"/>Saving...</> : '✓ Confirm & build grocery list →'}
                 </button>
