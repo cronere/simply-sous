@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap');
@@ -25,7 +26,7 @@ const css = `
     font-size:.95rem;outline:none;transition:border-color .2s}
   .inp:focus{border-color:var(--clay);background:rgba(184,135,74,.05)}
   .inp::placeholder{color:rgba(248,243,236,.15)}
-  .inp:disabled{opacity:.4}
+  .inp:disabled{opacity:.4;cursor:not-allowed}
   .btn{width:100%;background:var(--clay);color:var(--ink);border:none;padding:14px;
     border-radius:10px;font-size:.95rem;font-weight:600;cursor:pointer;
     transition:all .2s;font-family:'Outfit',sans-serif;margin-top:8px}
@@ -40,9 +41,13 @@ const css = `
   @keyframes spin{to{transform:rotate(360deg)}}
 `
 
+const getClient = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
+
 export default function ResetPasswordPage() {
   const router = useRouter()
-  const [sb, setSb]           = useState(null)
   const [ready, setReady]     = useState(false)
   const [pass, setPass]       = useState('')
   const [conf, setConf]       = useState('')
@@ -51,13 +56,10 @@ export default function ResetPasswordPage() {
   const [done, setDone]       = useState(false)
 
   useEffect(() => {
-    import('@supabase/supabase-js').then(({ createClient }) => {
-      const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-      setSb(client)
-      client.auth.getSession().then(({ data: { session } }) => {
-        if (session) setReady(true)
-        else setError('Invalid or expired reset link. Please request a new one.')
-      })
+    // Check if we have a valid session from the reset link
+    getClient().auth.getSession().then(({ data: { session } }) => {
+      if (session) setReady(true)
+      else setError('Invalid or expired reset link. Please request a new one.')
     })
   }, [])
 
@@ -65,14 +67,15 @@ export default function ResetPasswordPage() {
     if (!pass || !conf) { setError('Please fill in both fields.'); return }
     if (pass.length < 8) { setError('Password must be at least 8 characters.'); return }
     if (pass !== conf) { setError('Passwords do not match.'); return }
-    if (!sb) return
     setLoading(true); setError('')
     try {
-      const { error } = await sb.auth.updateUser({ password: pass })
+      const { error } = await getClient().auth.updateUser({ password: pass })
       if (error) throw error
       setDone(true)
       setTimeout(() => router.push('/today'), 2500)
-    } catch (e) { setError(e.message || 'Could not reset password.') }
+    } catch (e) {
+      setError(e.message || 'Could not reset password. Please try again.')
+    }
     setLoading(false)
   }
 
@@ -91,15 +94,17 @@ export default function ResetPasswordPage() {
             <div className="fld">
               <label className="lbl">New password</label>
               <input className="inp" type="password" placeholder="••••••••"
-                value={pass} onChange={e => setPass(e.target.value)} disabled={!ready} />
+                value={pass} onChange={e => setPass(e.target.value)}
+                disabled={!ready} autoComplete="new-password" />
             </div>
             <div className="fld">
               <label className="lbl">Confirm new password</label>
               <input className="inp" type="password" placeholder="••••••••"
                 value={conf} onChange={e => setConf(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && update()} disabled={!ready} />
+                onKeyDown={e => e.key === 'Enter' && update()}
+                disabled={!ready} autoComplete="new-password" />
             </div>
-            <button className="btn" onClick={update} disabled={loading || !ready || !sb}>
+            <button className="btn" onClick={update} disabled={loading || !ready}>
               {loading ? <><span className="sp"/>Updating...</> : 'Update Password →'}
             </button>
           </>
