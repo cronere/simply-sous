@@ -4,10 +4,16 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
-const getClient = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+// Singleton — one instance per page load, no duplicate warnings
+let _client = null
+const getClient = () => {
+  if (_client) return _client
+  _client = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+  return _client
+}
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap');
@@ -334,12 +340,12 @@ export default function AddRecipePage() {
         {/* Loading state */}
         {loading && (
           <div className="loading-wrap">
-            <span className="loading-ico">🤖</span>
-            <div className="loading-title">Extracting your recipe...</div>
+            <span className="loading-ico">👵</span>
+            <div className="loading-title">Dot is on it...</div>
             <div className="loading-sub">
-              Dot is reading the {method === 'url' ? 'page' : method === 'image' ? 'image' : 'text'},
-              pulling out ingredients and steps, and tagging everything for your vault.
-              <br />This takes about 10–15 seconds.
+              She&apos;s reading your {method === 'url' ? 'recipe page' : method === 'image' ? 'image' : 'text'},
+              pulling out every ingredient and step, and tagging it all for your vault.
+              <br />Takes about 10&ndash;15 seconds.
             </div>
           </div>
         )}
