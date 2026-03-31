@@ -245,6 +245,9 @@ export default function AddRecipePage() {
       if (!session) { router.replace('/login'); return }
       const currentUserId = session.user.id
 
+      console.log('Attempting save with profile_id:', currentUserId)
+      console.log('Session:', session)
+
       const insertData = {
         profile_id: currentUserId,
         title: recipe.title,
