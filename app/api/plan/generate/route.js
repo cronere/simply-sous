@@ -371,7 +371,8 @@ RULES:
 6. Respect weeknight time limits (${prefs?.max_weeknight_mins || 45} min max on weekdays)
 7. Never repeat same recipe in same week
 
-Return ONLY a JSON array covering ALL 7 days:
+CRITICAL: Your response must be ONLY a valid JSON array. No explanation. No preamble. No markdown. Start your response with [ and end with ]. Nothing else.
+
 [
   { "date": "YYYY-MM-DD", "recipe_id": "the-id-exactly-as-shown", "is_skipped": false, "skip_reason": null },
   { "date": "YYYY-MM-DD", "recipe_id": null, "is_skipped": true, "skip_reason": "blackout day" }
@@ -380,12 +381,36 @@ Return ONLY a JSON array covering ALL 7 days:
     const response = await callWithRetry(() => anthropic.messages.create({
       model: 'claude-opus-4-6',
       max_tokens: 1000,
+      system: 'You are a meal planning API. You respond ONLY with valid JSON arrays. Never explain. Never add text before or after the JSON. Your entire response is always a JSON array starting with [ and ending with ].',
       messages: [{ role: 'user', content: prompt }],
     }))
 
-    const raw = response.content[0]?.text?.trim()
-    const cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-    const planSlots = JSON.parse(cleaned)
+    const raw = response.content[0]?.text?.trim() || ''
+    console.log('Plan generation raw response:', raw.substring(0, 200))
+
+    // Robust extraction — find the JSON array even if Claude added surrounding text
+    let planSlots
+    try {
+      // Try direct parse first
+      const directCleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+      planSlots = JSON.parse(directCleaned)
+    } catch {
+      // Fall back to extracting the JSON array from the response
+      const arrayMatch = raw.match(/\[\s*\{[\s\S]*\}\s*\]/)
+      if (!arrayMatch) {
+        console.error('Could not find JSON array in response:', raw)
+        return Response.json({
+          error: 'Plan generation failed — AI returned unexpected format. Please try again.'
+        }, { status: 500 })
+      }
+      planSlots = JSON.parse(arrayMatch[0])
+    }
+
+    if (!Array.isArray(planSlots)) {
+      return Response.json({
+        error: 'Plan generation failed — invalid response format. Please try again.'
+      }, { status: 500 })
+    }
 
     // Enrich with full recipe data
     const recipeMap = {}
