@@ -9,7 +9,7 @@ const getClient = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
 
-// ── APP SUBDOMAIN: auth check + redirect ──────────────────
+// ── APP SUBDOMAIN: auth check + redirect ─────────────────
 function AppRedirect() {
   const router = useRouter()
 
@@ -39,7 +39,6 @@ function AppRedirect() {
 
 // ── MARKETING SITE: landing page ─────────────────────────
 function LandingPage() {
-
   useEffect(() => {
     // FAQ accordion
     document.querySelectorAll('.faq-item').forEach(item => {
@@ -51,11 +50,13 @@ function LandingPage() {
     })
     // Scroll reveal
     const obs = new IntersectionObserver(entries => {
-      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('vis'); obs.unobserve(e.target) } })
+      entries.forEach(e => {
+        if (e.isIntersecting) { e.target.classList.add('vis'); obs.unobserve(e.target) }
+      })
     }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' })
     document.querySelectorAll('.reveal').forEach(el => obs.observe(el))
     // Nav scroll
-    const nav = document.getElementById('main-nav')
+    const nav = document.getElementById('nav')
     const onScroll = () => nav?.classList.toggle('scrolled', window.scrollY > 50)
     window.addEventListener('scroll', onScroll)
     // Smooth scroll
@@ -65,6 +66,15 @@ function LandingPage() {
         if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
       })
     })
+    // Mobile nav
+    window.openMob = () => {
+      document.getElementById('mobNav')?.classList.add('open')
+      document.getElementById('overlay')?.classList.add('open')
+    }
+    window.closeMob = () => {
+      document.getElementById('mobNav')?.classList.remove('open')
+      document.getElementById('overlay')?.classList.remove('open')
+    }
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
@@ -76,7 +86,7 @@ function LandingPage() {
   )
 }
 
-// ── ROOT: detect hostname and render correct experience ───
+// ── ROOT: detect hostname ─────────────────────────────────
 export default function RootPage() {
   const [isApp, setIsApp] = useState(null)
 
@@ -94,8 +104,7 @@ export default function RootPage() {
   return isApp ? <AppRedirect /> : <LandingPage />
 }
 
-
-// ── LANDING PAGE CONTENT ─────────────────────────────────
+// ── LANDING PAGE CONTENT ────────────────────────────────
 const LANDING_CSS = `
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -408,6 +417,7 @@ const LANDING_HTML = `
   <a href="#sharing" onclick="closeMob()">Sharing</a>
   <a href="#pricing" onclick="closeMob()">Pricing</a>
   <a href="#faq" onclick="closeMob()">FAQ</a>
+  <a href="https://app.simplysous.com/login" onclick="closeMob()">Sign in</a>
   <a href="https://app.simplysous.com/signup" class="nav-btn" onclick="closeMob()">Start free trial</a>
 </div>
 
@@ -419,6 +429,7 @@ const LANDING_HTML = `
     <a href="#features" class="nav-r-links">Features</a>
     <a href="#sharing" class="nav-r-links">Sharing</a>
     <a href="#pricing" class="nav-r-links">Pricing</a>
+    <a href="https://app.simplysous.com/login" class="nav-r-links">Sign in</a>
     <a href="https://app.simplysous.com/signup" class="nav-btn">Start free trial</a>
     <div class="nav-menu" id="menuBtn" onclick="openMob()">
       <span></span><span></span><span></span>
@@ -812,7 +823,7 @@ const LANDING_HTML = `
           <div class="pcf">Recipe sharing</div>
           <div class="pcf">All core features</div>
         </div>
-        <a href="#" class="pc-cta">Start free trial</a>
+        <a href="https://app.simplysous.com/signup" class="pc-cta">Start free trial</a>
       </div>
       <div class="pc pop">
         <div class="pc-top-bar"></div>
@@ -829,7 +840,7 @@ const LANDING_HTML = `
           <div class="pcf">Built-in recipe database</div>
           <div class="pcf">Vault follow for family</div>
         </div>
-        <a href="#" class="pc-cta">Start free trial</a>
+        <a href="https://app.simplysous.com/signup" class="pc-cta">Start free trial</a>
       </div>
       <div class="pc">
         <div class="pc-top-bar"></div>
@@ -845,7 +856,7 @@ const LANDING_HTML = `
           <div class="pcf">Early access to new features</div>
           <div class="pcf">Founding member status</div>
         </div>
-        <a href="#" class="pc-cta">Get lifetime access</a>
+        <a href="https://app.simplysous.com/signup" class="pc-cta">Get lifetime access</a>
       </div>
     </div>
     <p class="pricing-note">All plans include a 14-day free trial · Your recipes, your data, always yours · Cancel in one click</p>
@@ -912,6 +923,4 @@ const LANDING_HTML = `
       <a href="#">Contact</a>
     </div>
   </div>
-</section>
-
 `
