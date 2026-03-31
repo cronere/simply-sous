@@ -62,7 +62,7 @@ export default function SignupPage() {
   const [done, setDone]         = useState(false)
 
   useEffect(() => {
-    import('../../lib/supabase').then(m => setSb(m.getSupabase()))
+    import('@supabase/supabase-js').then(({ createClient }) => setSb(createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)))
   }, [])
 
   const signup = async () => {
