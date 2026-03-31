@@ -2,42 +2,40 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 
 export default function RootPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Only runs in browser — safe to use window and Supabase here
-    async function redirect() {
-      const hostname = window.location.hostname
-      const isApp = hostname.startsWith('app.')
+    async function go() {
+      try {
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        )
 
-      if (!isApp) {
-        // Marketing site — show landing page
-        router.replace('/landing')
-        return
-      }
+        const { data: { session } } = await supabase.auth.getSession()
 
-      // App subdomain — check auth state
-      const { getSupabase } = await import('../lib/supabase')
-      const supabase = getSupabase()
-      const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          router.replace('/login')
+          return
+        }
 
-      if (!session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('onboarding_complete')
+          .eq('id', session.user.id)
+          .single()
+
+        router.replace(profile?.onboarding_complete ? '/today' : '/onboarding')
+      } catch (err) {
+        console.error('Root redirect error:', err)
         router.replace('/login')
-        return
       }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('onboarding_complete')
-        .eq('id', session.user.id)
-        .single()
-
-      router.replace(profile?.onboarding_complete ? '/today' : '/onboarding')
     }
 
-    redirect()
+    go()
   }, [router])
 
   return (
@@ -48,7 +46,15 @@ export default function RootPage() {
       alignItems: 'center',
       justifyContent: 'center',
     }}>
-      <div className="spinner" />
+      <div style={{
+        width: '24px',
+        height: '24px',
+        border: '2px solid rgba(184,135,74,0.2)',
+        borderTopColor: '#B8874A',
+        borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite',
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
