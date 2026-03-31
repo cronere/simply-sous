@@ -166,13 +166,16 @@ export default function AddRecipePage() {
 
   useEffect(() => {
     const sb = getClient()
-    sb.auth.getSession().then(async ({ data: { session } }) => {
+    const init = async () => {
+      const { data: { session } } = await sb.auth.getSession()
       if (!session) { router.replace('/login'); return }
+      console.log('Session user id:', session.user.id)
       setUserId(session.user.id)
       const { data: profile } = await sb
         .from('profiles').select('family_size').eq('id', session.user.id).maybeSingle()
       if (profile?.family_size) setFamilySize(profile.family_size)
-    })
+    }
+    init()
   }, [router])
 
   const handleImage = (e) => {
@@ -237,12 +240,13 @@ export default function AddRecipePage() {
     try {
       const sb = getClient()
 
-      // Verify session is still active
+      // Always get fresh session at save time
       const { data: { session } } = await sb.auth.getSession()
       if (!session) { router.replace('/login'); return }
+      const currentUserId = session.user.id
 
       const insertData = {
-        profile_id: userId,
+        profile_id: currentUserId,
         title: recipe.title,
         description: recipe.description || null,
         source_type: method === 'url' ? 'url' : method === 'image' ? 'screenshot' : 'manual',
