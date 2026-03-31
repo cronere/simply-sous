@@ -163,8 +163,10 @@ export default function AddRecipePage() {
   const [saving, setSaving] = useState(false)
   const [userId, setUserId] = useState(null)
   const [familySize, setFamilySize] = useState(4)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     const sb = getClient()
     const init = async () => {
       const { data: { session } } = await sb.auth.getSession()
@@ -293,6 +295,13 @@ export default function AddRecipePage() {
     return [amt, unit].filter(Boolean).join(' ')
   }
 
+  if (!mounted) return (
+    <div style={{minHeight:'100vh',background:'#1A1612',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{width:24,height:24,border:'2px solid rgba(184,135,74,0.2)',borderTopColor:'#B8874A',borderRadius:'50%',animation:'spin .7s linear infinite'}}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+
   return (
     <div className="add-root">
       <style>{css}</style>
@@ -364,6 +373,7 @@ export default function AddRecipePage() {
                   <input type="file" accept="image/*" onChange={handleImage} />
                   {imagePreview ? (
                     <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={imagePreview} alt="Preview" className="img-preview" />
                       <div style={{marginTop:'1rem',fontSize:'.85rem',color:'rgba(248,243,236,.4)'}}>
                         {imageFile?.name} · Tap to change
