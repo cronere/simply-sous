@@ -152,10 +152,13 @@ const css = `
 
   /* ── RESPONSIVE ── */
   @media(max-width:768px){
-    .sidebar{display:none}
-    .shell-main{margin-left:0;padding-top:56px;padding-bottom:72px}
+    .sidebar{display:none !important}
+    .shell-main{margin-left:0 !important;padding-top:56px;padding-bottom:80px}
     .mob-topbar{display:flex}
     .mob-tabs{display:flex}
+  }
+  @media(max-width:480px){
+    .mob-tab-label{font-size:.52rem}
   }
 `
 
@@ -169,11 +172,12 @@ const NAV_ITEMS = [
 ]
 
 const MOB_TABS = [
-  { path: '/today',   ico: '☀️',  label: 'Today'   },
-  { path: '/vault',   ico: '📚',  label: 'Vault'   },
-  { path: '/plan',    ico: '📅',  label: 'Plan'    },
-  { path: '/grocery', ico: '🛒',  label: 'Grocery' },
-  { path: '/chat',    ico: '✨',  label: 'Dot'     },
+  { path: '/today',    ico: '☀️',  label: 'Today'   },
+  { path: '/vault',    ico: '📚',  label: 'Vault'   },
+  { path: '/plan',     ico: '📅',  label: 'Plan'    },
+  { path: '/grocery',  ico: '🛒',  label: 'Grocery' },
+  { path: '/chat',     ico: '✨',  label: 'Dot'     },
+  { path: '/settings', ico: '⚙️',  label: 'Settings'},
 ]
 
 export default function AppLayout({ children }) {
