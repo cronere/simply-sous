@@ -1,12 +1,17 @@
 'use client';
-export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  .auth-root { --ink: #1A1612; --clay: #B8874A; --clay-l: #D4A46A; --parchment: #F8F3EC; --sage-l: #8FA889; min-height: 100vh; background: var(--ink); display: flex; align-items: center; justify-content: center; padding: 24px; font-family: 'Outfit', sans-serif; background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(184,135,74,0.15) 0%, transparent 60%); }
+  .auth-root {
+    --ink: #1A1612; --clay: #B8874A; --clay-l: #D4A46A; --parchment: #F8F3EC; --sage-l: #8FA889;
+    min-height: 100vh; background: var(--ink); display: flex; align-items: center; justify-content: center;
+    padding: 24px; font-family: 'Outfit', sans-serif;
+    background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(184,135,74,0.15) 0%, transparent 60%);
+  }
   .auth-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; padding: 52px 44px; width: 100%; max-width: 420px; text-align: center; }
   .auth-logo { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; font-weight: 600; color: var(--parchment); margin-bottom: 4px; }
   .auth-logo span { color: var(--clay); font-style: italic; }
@@ -27,16 +32,21 @@ const styles = `
   @keyframes spin { to { transform: rotate(360deg); } }
 `;
 
+let supabaseClient = null;
 function getSupabase() {
+  if (typeof window === 'undefined') return null;
+  if (supabaseClient) return supabaseClient;
   const { createClient } = require('@supabase/supabase-js');
-  return createClient(
+  supabaseClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
+  return supabaseClient;
 }
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const [mounted, setMounted]   = useState(false);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm]   = useState('');
   const [loading, setLoading]   = useState(false);
@@ -45,8 +55,8 @@ export default function ResetPasswordPage() {
   const [ready, setReady]       = useState(false);
 
   useEffect(() => {
-    const supabase = getSupabase();
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    setMounted(true);
+    getSupabase().auth.getSession().then(({ data: { session } }) => {
       if (session) setReady(true);
       else setError('Invalid or expired reset link. Please request a new one.');
     });
@@ -58,16 +68,20 @@ export default function ResetPasswordPage() {
     if (password !== confirm) { setError('Passwords do not match.'); return; }
     setLoading(true); setError('');
     try {
-      const supabase = getSupabase();
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await getSupabase().auth.updateUser({ password });
       if (error) throw error;
       setSuccess(true);
       setTimeout(() => router.push('/today'), 2500);
-    } catch (err) {
-      setError(err.message || 'Could not reset password. Please try again.');
-    }
+    } catch (err) { setError(err.message || 'Could not reset password. Please try again.'); }
     setLoading(false);
   };
+
+  if (!mounted) return (
+    <div style={{ minHeight:'100vh', background:'#1A1612', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ width:20, height:20, border:'2px solid rgba(184,135,74,0.2)', borderTopColor:'#B8874A', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
 
   return (
     <div className="auth-root">
