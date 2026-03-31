@@ -27,11 +27,26 @@ const ALLERGENS = [
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 
+const FRIDGE = [
+  'Eggs','Milk','Butter','Cheese','Yogurt',
+  'Leftover chicken','Ground beef','Bacon',
+  'Carrots','Celery','Bell peppers','Spinach','Lettuce',
+  'Broccoli','Zucchini','Mushrooms','Tomatoes',
+  'Lemons','Limes','Fresh ginger','Fresh herbs',
+  'Condiments','Salsa','Hummus','Sour cream'
+]
+
 const PANTRY = [
-  'Olive oil','Butter','Garlic','Onion','Salt','Pepper',
-  'Pasta','Rice','Canned tomatoes','Chicken broth','Flour',
-  'Sugar','Eggs','Milk','Soy sauce','Hot sauce','Lemon juice',
-  'Cumin','Paprika','Italian seasoning','Red pepper flakes'
+  'Olive oil','Avocado oil','Garlic','Onion','Salt','Pepper',
+  'Pasta','Rice','Canned tomatoes','Chicken broth','Vegetable broth',
+  'Flour','Sugar','Brown sugar','Soy sauce','Fish sauce',
+  'Hot sauce','Lemon juice','Apple cider vinegar',
+  'Canned beans','Black beans','Chickpeas','Lentils',
+  'Bread','Tortillas','Breadcrumbs','Oats',
+  'Cumin','Paprika','Chili powder','Italian seasoning',
+  'Garlic powder','Onion powder','Red pepper flakes','Oregano',
+  'Honey','Maple syrup','Peanut butter','Coconut milk',
+  'Dijon mustard','Worcestershire sauce'
 ]
 
 const TIMES = [
@@ -320,7 +335,12 @@ function Step3({ data, onChange }) {
           <label className="ob-label">Reminder time</label>
           <select className="ob-select" value={data.planningTime}
             onChange={e => onChange('planningTime', e.target.value)}>
-            {['7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM'].map(t => (
+            {[
+              '12:00 AM','1:00 AM','2:00 AM','3:00 AM','4:00 AM','5:00 AM',
+              '6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM',
+              '12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM',
+              '6:00 PM','7:00 PM','8:00 PM','9:00 PM','10:00 PM','11:00 PM'
+            ].map(t => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
@@ -377,24 +397,46 @@ function Step3({ data, onChange }) {
 }
 
 function Step4({ data, onChange }) {
-  const toggle = (item) => {
+  const togglePantry = (item) => {
     const arr = data.pantryStaples || []
     onChange('pantryStaples', arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item])
+  }
+
+  const toggleFridge = (item) => {
+    const arr = data.fridgeStaples || []
+    onChange('fridgeStaples', arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item])
   }
 
   return (
     <div>
       <div className="ob-eyebrow">Step 4 of 5</div>
-      <h1 className="ob-title">What&apos;s always<br /><em>in your pantry?</em></h1>
-      <p className="ob-sub">Mark the ingredients you always have on hand. AI will prioritize meals that use these and shrink your shopping list automatically.</p>
+      <h1 className="ob-title">What&apos;s in your<br /><em>kitchen?</em></h1>
+      <p className="ob-sub">Tell us what you keep stocked. AI uses this to prioritize meals that use what you already have — shrinking your shopping list automatically.</p>
 
       <div className="ob-field">
-        <label className="ob-label">Tap everything you keep stocked</label>
+        <label className="ob-label">🧊 Fridge — what do you usually have?</label>
+        <div style={{fontSize:'.78rem',color:'rgba(248,243,236,.3)',marginBottom:'.75rem',lineHeight:1.6}}>
+          These are common fridge items. Tap everything that&apos;s typically in yours.
+        </div>
+        <div className="ob-pills">
+          {FRIDGE.map(item => (
+            <button key={item}
+              className={`ob-pill${(data.fridgeStaples||[]).includes(item) ? ' on' : ''}`}
+              onClick={() => toggleFridge(item)}>{item}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="ob-field" style={{marginTop:'2rem'}}>
+        <label className="ob-label">🫙 Pantry — what do you always keep stocked?</label>
+        <div style={{fontSize:'.78rem',color:'rgba(248,243,236,.3)',marginBottom:'.75rem',lineHeight:1.6}}>
+          Oils, spices, grains, canned goods — the things you never run out of.
+        </div>
         <div className="ob-pills">
           {PANTRY.map(item => (
             <button key={item}
               className={`ob-pill${(data.pantryStaples||[]).includes(item) ? ' on' : ''}`}
-              onClick={() => toggle(item)}>{item}</button>
+              onClick={() => togglePantry(item)}>{item}</button>
           ))}
         </div>
       </div>
@@ -402,11 +444,11 @@ function Step4({ data, onChange }) {
       <div className="ob-field" style={{marginTop:'1.5rem'}}>
         <label className="ob-label">Anything else? Add your own</label>
         <input className="ob-input" type="text"
-          placeholder="e.g. coconut milk, fish sauce, tahini"
+          placeholder="e.g. tahini, miso paste, truffle oil"
           value={data.customPantry || ''}
           onChange={e => onChange('customPantry', e.target.value)} />
         <div style={{fontSize:'.75rem',color:'rgba(248,243,236,.25)',marginTop:'.4rem'}}>
-          Separate with commas.
+          Separate with commas. Fridge or pantry — add anything here.
         </div>
       </div>
     </div>
@@ -490,6 +532,7 @@ export default function OnboardingPage() {
     cookingSkill: 2,
     // Step 4
     pantryStaples: [],
+    fridgeStaples: [],
     customPantry: '',
     // Step 5
     uploadedFiles: [],
@@ -618,6 +661,8 @@ export default function OnboardingPage() {
             allergens: form.allergens,
             spice_level: form.spiceLevel,
             disliked_ingredients: disliked,
+            fridge_staples: [],
+            pantry_staples: [],
           })
         }
         await sb.from('profiles').update({ onboarding_step: nextStep }).eq('id', userId)
@@ -659,23 +704,34 @@ export default function OnboardingPage() {
             profile_id: userId,
             max_weeknight_mins: form.maxWeeknightMins,
             cooking_skill: form.cookingSkill,
+            fridge_staples: [],
+            pantry_staples: [],
           })
         }
       }
 
       if (step === 4) {
-        // Combine selected + custom pantry items
+        // Save pantry and fridge separately
         const custom = form.customPantry.split(',').map(s => s.trim()).filter(Boolean)
-        const all = [...new Set([...form.pantryStaples, ...custom])]
+        // Split custom items evenly — all go to pantry for simplicity
+        const pantryAll = [...new Set([...form.pantryStaples, ...custom])]
+        const fridgeAll = [...new Set([...form.fridgeStaples])]
 
         const { data: existing } = await sb
           .from('user_preferences')
           .select('id').eq('profile_id', userId).single()
 
         if (existing) {
-          await sb.from('user_preferences').update({ pantry_staples: all }).eq('profile_id', userId)
+          await sb.from('user_preferences').update({
+            pantry_staples: pantryAll,
+            fridge_staples: fridgeAll,
+          }).eq('profile_id', userId)
         } else {
-          await sb.from('user_preferences').insert({ profile_id: userId, pantry_staples: all })
+          await sb.from('user_preferences').insert({
+            profile_id: userId,
+            pantry_staples: pantryAll,
+            fridge_staples: fridgeAll,
+          })
         }
         await sb.from('profiles').update({ onboarding_step: nextStep }).eq('id', userId)
       }
