@@ -134,6 +134,8 @@ export default function PlanPage() {
   const [generating, setGenerating] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState('')
+  const [showVarietyPrompt, setShowVarietyPrompt] = useState(false)
+  const [pendingGenerate, setPendingGenerate] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -189,13 +191,31 @@ export default function PlanPage() {
     }
   }
 
-  const generatePlan = async () => {
+  const generatePlan = async (useVariety = null) => {
+    // If useVariety hasn't been decided and vault is large enough, ask first
+    if (useVariety === null) {
+      const sb = getClient()
+      const { count } = await sb
+        .from('recipes')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', userId)
+
+      const cookingDaysCount = 7 - 2 // rough estimate
+      if ((count || 0) >= cookingDaysCount) {
+        setShowVarietyPrompt(true)
+        setPendingGenerate(true)
+        return
+      }
+    }
+
+    setShowVarietyPrompt(false)
+    setPendingGenerate(false)
     setGenerating(true); setError('')
     try {
       const res = await fetch('/api/plan/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, weekStartDate: weekStartStr }),
+        body: JSON.stringify({ userId, weekStartDate: weekStartStr, useVariety: useVariety ?? false }),
       })
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Generation failed')
@@ -204,6 +224,37 @@ export default function PlanPage() {
       setError(e.message || 'Could not generate plan. Please try again.')
     }
     setGenerating(false)
+  }
+
+  const swapMeal = async (date) => {
+    if (!plan || generating) return
+    setError('')
+    // Remove this day's meal and re-ask Claude for just that day
+    // For now: cycle to next available vault recipe not already in plan
+    const sb = getClient()
+    const { data: vaultRecipes } = await sb
+      .from('recipes')
+      .select('id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite')
+      .eq('profile_id', userId)
+      .eq('is_published', true)
+
+    if (!vaultRecipes?.length) {
+      setError('Add more recipes to your vault to enable swapping.')
+      return
+    }
+
+    const usedIds = plan.filter(s => s.date !== date && !s.is_skipped).map(s => s.recipe_id)
+    const available = vaultRecipes.filter(r => !usedIds.includes(r.id))
+    const pool = available.length > 0 ? available : vaultRecipes
+
+    // Pick a random one from the pool
+    const pick = pool[Math.floor(Math.random() * pool.length)]
+
+    setPlan(prev => prev.map(slot =>
+      slot.date === date
+        ? { ...slot, recipe_id: pick.id, recipe: pick }
+        : slot
+    ))
   }
 
   const confirmPlan = async () => {
@@ -280,14 +331,54 @@ export default function PlanPage() {
       </div>
 
       <div className="week-nav">
-        <button className="wn-btn" onClick={() => setWeekOffset(o => o-1)}>← Prev</button>
+        <button className="wn-btn"
+          onClick={() => setWeekOffset(o => Math.max(o-1, -2))}
+          disabled={weekOffset <= -2}
+          style={{opacity: weekOffset <= -2 ? .3 : 1}}>
+          ← Prev
+        </button>
         <span className="week-label">
           {weekOffset === 0 ? 'This week' : weekOffset === 1 ? 'Next week' : weekOffset === -1 ? 'Last week' : `${weekOffset > 0 ? '+':''}${weekOffset} weeks`}
         </span>
-        <button className="wn-btn" onClick={() => setWeekOffset(o => o+1)}>Next →</button>
+        <button className="wn-btn"
+          onClick={() => setWeekOffset(o => Math.min(o+1, 4))}
+          disabled={weekOffset >= 4}
+          style={{opacity: weekOffset >= 4 ? .3 : 1}}>
+          Next →
+        </button>
       </div>
 
       {error && <div className="plan-err">{error}</div>}
+
+      {/* Variety prompt */}
+      {showVarietyPrompt && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',zIndex:200,
+          display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
+          <div style={{background:'#2C2420',border:'1px solid rgba(255,255,255,.1)',
+            borderRadius:'1.5rem',padding:'2.5rem',maxWidth:'420px',width:'100%',textAlign:'center'}}>
+            <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>🍽️</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.5rem',
+              color:'#F8F3EC',marginBottom:'.6rem'}}>Your vault covers this week</div>
+            <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.5)',lineHeight:1.7,marginBottom:'2rem'}}>
+              You have enough personal recipes to fill the whole week. Would you like Dot to stick to your vault, or mix in some new ideas from our recipe database?
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'.75rem'}}>
+              <button onClick={() => generatePlan(false)}
+                style={{background:'#B8874A',color:'#1A1612',border:'none',padding:'.9rem',
+                  borderRadius:'2rem',fontFamily:"'Outfit',sans-serif",fontSize:'.95rem',
+                  fontWeight:600,cursor:'pointer'}}>
+                Use my vault only
+              </button>
+              <button onClick={() => generatePlan(true)}
+                style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',
+                  color:'rgba(248,243,236,.7)',padding:'.9rem',borderRadius:'2rem',
+                  fontFamily:"'Outfit',sans-serif",fontSize:'.92rem',cursor:'pointer'}}>
+                Mix in some new recipes ✨
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {generating && (
         <div className="generate-wrap">
@@ -325,20 +416,35 @@ export default function PlanPage() {
                     {slot.is_skipped ? (
                       <div className="skip-slot"><div className="skip-label">{slot.skip_reason || 'Eating out / skipped'}</div></div>
                     ) : slot.recipe ? (
-                      <div className={`recipe-slot${tod ? ' tonight' : ''}`}
-                        onClick={() => slot.recipe_id && !String(slot.recipe_id).startsWith('sys-') && router.push(`/vault/${slot.recipe_id}`)}>
-                        {tod && <div className="tonight-badge">☀️ Tonight</div>}
-                        <div className="slot-title">{slot.recipe.title}</div>
-                        <div className="slot-meta">
-                          {slot.recipe.cuisine && <span>🌍 {slot.recipe.cuisine}</span>}
-                          {slot.recipe.total_time_mins && <span>⏱ {slot.recipe.total_time_mins} min</span>}
-                          {slot.recipe.is_favorite && <span>❤️ Favorite</span>}
+                      <div className={`recipe-slot${tod ? ' tonight' : ''}`}>
+                        <div style={{display:'flex',alignItems:'flex-start',gap:'.5rem'}}>
+                          <div style={{flex:1,minWidth:0}}
+                            onClick={() => slot.recipe_id && !String(slot.recipe_id).startsWith('sys-') && router.push(`/vault/${slot.recipe_id}`)}>
+                            {tod && <div className="tonight-badge">☀️ Tonight</div>}
+                            <div className="slot-title">{slot.recipe.title}</div>
+                            <div className="slot-meta">
+                              {slot.recipe.cuisine && <span>🌍 {slot.recipe.cuisine}</span>}
+                              {slot.recipe.total_time_mins && <span>⏱ {slot.recipe.total_time_mins} min</span>}
+                              {slot.recipe.is_favorite && <span>❤️ Favorite</span>}
+                            </div>
+                            {slot.start_cooking_at && planStatus === 'confirmed' && (
+                              <span className="slot-cook-time">
+                                Start by {new Date(`2000-01-01T${slot.start_cooking_at}`).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
+                              </span>
+                            )}
+                          </div>
+                          {planStatus !== 'confirmed' && (
+                            <button
+                              onClick={() => swapMeal(slot.date)}
+                              title="Swap this meal"
+                              style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',
+                                borderRadius:'.5rem',padding:'.3rem .55rem',fontSize:'.7rem',
+                                color:'rgba(248,243,236,.4)',cursor:'pointer',transition:'all .2s',
+                                fontFamily:"'Outfit',sans-serif",flexShrink:0,marginTop:'.15rem'}}>
+                              ↺ Swap
+                            </button>
+                          )}
                         </div>
-                        {slot.start_cooking_at && planStatus === 'confirmed' && (
-                          <span className="slot-cook-time">
-                            Start by {new Date(`2000-01-01T${slot.start_cooking_at}`).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
-                          </span>
-                        )}
                       </div>
                     ) : (
                       <div className="empty-slot"><div className="empty-label">+ Add a meal</div></div>
