@@ -221,7 +221,12 @@ export default function PlanPage() {
       if (!res.ok || data.error) throw new Error(data.error || 'Generation failed')
       setPlan(data.plan); setPlanStatus('draft')
     } catch (e) {
-      setError(e.message || 'Could not generate plan. Please try again.')
+      const msg = e.message || ''
+      if (msg.includes('529') || msg.includes('overload') || msg.includes('Overloaded')) {
+        setError("Dot is a little busy right now — Anthropic's servers are at capacity. Wait 30 seconds and try again.")
+      } else {
+        setError(msg || 'Could not generate plan. Please try again.')
+      }
     }
     setGenerating(false)
   }
