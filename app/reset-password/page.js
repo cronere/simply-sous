@@ -51,8 +51,8 @@ export default function ResetPasswordPage() {
   const [done, setDone]       = useState(false)
 
   useEffect(() => {
-    import('../../lib/supabase').then(m => {
-      const client = m.getSupabase()
+    import('@supabase/supabase-js').then(({ createClient }) => {
+      const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
       setSb(client)
       client.auth.getSession().then(({ data: { session } }) => {
         if (session) setReady(true)
