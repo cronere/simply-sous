@@ -465,22 +465,83 @@ function Step5({ data, onChange }) {
     onChange('uploadedFiles', (data.uploadedFiles || []).filter((_, idx) => idx !== i))
   }
 
+  const addUrl = () => {
+    const url = (data.currentUrl || '').trim()
+    if (!url) return
+    if (!url.startsWith('http')) { onChange('urlError', 'Please enter a valid URL starting with http'); return }
+    onChange('recipeUrls', [...(data.recipeUrls || []), url])
+    onChange('currentUrl', '')
+    onChange('urlError', '')
+  }
+
+  const removeUrl = (i) => {
+    onChange('recipeUrls', (data.recipeUrls || []).filter((_, idx) => idx !== i))
+  }
+
   return (
     <div>
       <div className="ob-eyebrow">Step 5 of 5</div>
       <h1 className="ob-title">Seed your<br /><em>recipe vault.</em></h1>
-      <p className="ob-sub">Add a few recipes now to get started. You can add as many as you want later from the vault.</p>
+      <p className="ob-sub">Add a few recipes now to get started. Photos, screenshots, or URLs from your favorite recipe sites — AI handles the rest.</p>
 
       <div className="ob-hint">
-        <strong>What you can upload:</strong> Screenshots from Instagram/TikTok, photos of cookbook pages, photos of handwritten recipe cards. AI will extract and organize everything automatically.
+        <strong>Three ways to add recipes:</strong> Paste a URL from any recipe website, upload screenshots from Instagram or TikTok, or snap photos of cookbook pages. AI extracts and organizes everything automatically.
       </div>
 
-      <div className="ob-upload">
-        <input type="file" multiple accept="image/*,.pdf"
-          onChange={handleFiles} />
-        <div className="ob-upload-ico">📸</div>
-        <div className="ob-upload-title">Drop files or tap to browse</div>
-        <div className="ob-upload-sub">Photos, screenshots, PDFs · Max 10MB each</div>
+      {/* URL input */}
+      <div className="ob-field">
+        <label className="ob-label">🔗 Paste recipe URLs</label>
+        <div style={{display:'flex',gap:'.5rem'}}>
+          <input
+            className="ob-input"
+            type="url"
+            placeholder="https://www.foodblog.com/chicken-tacos"
+            value={data.currentUrl || ''}
+            onChange={e => { onChange('currentUrl', e.target.value); onChange('urlError', '') }}
+            onKeyDown={e => e.key === 'Enter' && addUrl()}
+            style={{flex:1}}
+          />
+          <button
+            onClick={addUrl}
+            style={{
+              background:'rgba(184,135,74,.15)',border:'1px solid rgba(184,135,74,.3)',
+              color:'#D4A46A',borderRadius:'10px',padding:'0 1.25rem',
+              fontFamily:"'Outfit',sans-serif",fontSize:'.9rem',cursor:'pointer',
+              whiteSpace:'nowrap',transition:'all .2s'
+            }}>
+            Add →
+          </button>
+        </div>
+        {data.urlError && (
+          <div style={{fontSize:'.75rem',color:'#EF4444',marginTop:'.4rem'}}>{data.urlError}</div>
+        )}
+        <div style={{fontSize:'.75rem',color:'rgba(248,243,236,.25)',marginTop:'.4rem'}}>
+          Works with AllRecipes, NYT Cooking, Half Baked Harvest, Food Network, and most recipe blogs.
+        </div>
+      </div>
+
+      {/* URL list */}
+      {(data.recipeUrls || []).length > 0 && (
+        <div className="ob-files" style={{marginBottom:'1.5rem'}}>
+          {(data.recipeUrls || []).map((url, i) => (
+            <div key={i} className="ob-file">
+              <span style={{fontSize:'1rem'}}>🔗</span>
+              <span className="ob-file-name">{url}</span>
+              <button className="ob-file-remove" onClick={() => removeUrl(i)}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* File upload */}
+      <div className="ob-field">
+        <label className="ob-label">📸 Upload photos or screenshots</label>
+        <div className="ob-upload">
+          <input type="file" multiple accept="image/*,.pdf" onChange={handleFiles} />
+          <div className="ob-upload-ico">📱</div>
+          <div className="ob-upload-title">Drop files or tap to browse</div>
+          <div className="ob-upload-sub">Instagram/TikTok screenshots · Cookbook photos · Recipe cards · Max 10MB each</div>
+        </div>
       </div>
 
       {(data.uploadedFiles || []).length > 0 && (
@@ -497,7 +558,7 @@ function Step5({ data, onChange }) {
 
       <div style={{marginTop:'1.5rem',padding:'1.25rem',background:'rgba(255,255,255,.03)',borderRadius:'10px',border:'1px solid rgba(255,255,255,.06)'}}>
         <p style={{fontSize:'.85rem',color:'rgba(248,243,236,.35)',lineHeight:1.7}}>
-          💡 <strong style={{color:'rgba(248,243,236,.5)'}}>Tip:</strong> Even just 3–5 recipes is enough to generate your first week&apos;s plan. You can always add more from the vault later. If you&apos;d rather start from our built-in recipe database, just skip this step.
+          💡 <strong style={{color:'rgba(248,243,236,.5)'}}>Tip:</strong> Even 3–5 recipes is enough for your first week&apos;s plan. Add more anytime from the vault. Prefer to browse our built-in recipe database first? Just skip this step.
         </p>
       </div>
     </div>
@@ -511,6 +572,7 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [userId, setUserId] = useState(null)
+  const [saved, setSaved] = useState(false)
 
   const [form, setForm] = useState({
     // Step 1
@@ -536,6 +598,9 @@ export default function OnboardingPage() {
     customPantry: '',
     // Step 5
     uploadedFiles: [],
+    recipeUrls: [],
+    currentUrl: '',
+    urlError: '',
   })
 
   // Load session + any saved progress
@@ -551,7 +616,7 @@ export default function OnboardingPage() {
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
-        .single()
+        .maybeSingle()
 
       if (profile) {
         // If already complete, skip to app
@@ -578,7 +643,7 @@ export default function OnboardingPage() {
         .from('user_preferences')
         .select('*')
         .eq('profile_id', session.user.id)
-        .single()
+        .maybeSingle()
 
       if (prefs) {
         setForm(f => ({
@@ -643,7 +708,7 @@ export default function OnboardingPage() {
 
         const { data: existing } = await sb
           .from('user_preferences')
-          .select('id').eq('profile_id', userId).single()
+          .select('id').eq('profile_id', userId).maybeSingle()
 
         if (existing) {
           await sb.from('user_preferences').update({
@@ -692,7 +757,7 @@ export default function OnboardingPage() {
         // Save weeknight time + skill to preferences
         const { data: existing } = await sb
           .from('user_preferences')
-          .select('id').eq('profile_id', userId).single()
+          .select('id').eq('profile_id', userId).maybeSingle()
 
         if (existing) {
           await sb.from('user_preferences').update({
@@ -719,7 +784,7 @@ export default function OnboardingPage() {
 
         const { data: existing } = await sb
           .from('user_preferences')
-          .select('id').eq('profile_id', userId).single()
+          .select('id').eq('profile_id', userId).maybeSingle()
 
         if (existing) {
           await sb.from('user_preferences').update({
@@ -750,7 +815,6 @@ export default function OnboardingPage() {
             const { error: uploadErr } = await sb.storage
               .from('onboarding-uploads')
               .upload(path, file)
-
             if (!uploadErr) {
               await sb.from('onboarding_uploads').insert({
                 profile_id: userId,
@@ -762,10 +826,26 @@ export default function OnboardingPage() {
             }
           }
         }
+
+        // Queue recipe URLs for AI processing
+        if ((form.recipeUrls || []).length > 0) {
+          for (const url of form.recipeUrls) {
+            await sb.from('onboarding_uploads').insert({
+              profile_id: userId,
+              storage_path: url,
+              file_type: 'image',
+              original_name: url,
+              status: 'pending',
+            })
+          }
+        }
+
         router.push('/today')
         return
       }
 
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
       setStep(nextStep)
       window.scrollTo(0, 0)
     } catch (e) {
@@ -807,7 +887,12 @@ export default function OnboardingPage() {
       {/* Header */}
       <div className="ob-hd">
         <div className="ob-logo">Simply <span>Sous</span></div>
-        <div className="ob-steps">Step {step} of 5</div>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'.2rem'}}>
+          <div className="ob-steps">Step {step} of 5</div>
+          <div style={{fontSize:'.65rem',color:'rgba(248,243,236,.2)',letterSpacing:'.06em'}}>
+            Auto-saves as you go
+          </div>
+        </div>
       </div>
 
       {/* Step content */}
@@ -815,6 +900,20 @@ export default function OnboardingPage() {
         {error && <div className="ob-err">{error}</div>}
         {stepComponents[step]}
       </div>
+
+      {/* Auto-save indicator */}
+      {saved && (
+        <div style={{
+          position:'fixed',bottom:'6rem',left:'50%',transform:'translateX(-50%)',
+          background:'rgba(107,126,103,.15)',border:'1px solid rgba(107,126,103,.3)',
+          borderRadius:'2rem',padding:'.5rem 1.25rem',
+          fontSize:'.8rem',color:'#8FA889',
+          display:'flex',alignItems:'center',gap:'.5rem',
+          zIndex:60,animation:'fadeIn .3s ease',whiteSpace:'nowrap'
+        }}>
+          ✓ Progress saved — you can come back anytime
+        </div>
+      )}
 
       {/* Bottom navigation */}
       <div className="ob-nav">
