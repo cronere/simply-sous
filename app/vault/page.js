@@ -115,8 +115,10 @@ export default function VaultPage() {
   const [filter, setFilter] = useState('all')
   const [userId, setUserId] = useState(null)
   const [recipeCount, setRecipeCount] = useState(0)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     const sb = getClient()
     sb.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
@@ -162,6 +164,13 @@ export default function VaultPage() {
 
     return matchSearch && matchFilter
   })
+
+  if (!mounted) return (
+    <div style={{minHeight:'100vh',background:'#1A1612',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{width:24,height:24,border:'2px solid rgba(184,135,74,0.2)',borderTopColor:'#B8874A',borderRadius:'50%',animation:'spin .7s linear infinite'}}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
 
   return (
     <div className="vault-root">
