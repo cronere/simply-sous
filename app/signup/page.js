@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap');
@@ -40,7 +41,7 @@ const css = `
   .ok{background:rgba(143,168,137,.1);border:1px solid rgba(143,168,137,.25);border-radius:8px;
     color:var(--sl);font-size:.88rem;padding:16px;margin-top:12px;text-align:left;line-height:1.7}
   .terms{font-size:.75rem;color:rgba(248,243,236,.25);margin-top:14px;line-height:1.6}
-  .terms a{color:var(--clay)}
+  .terms a{color:var(--clay);text-decoration:none}
   .sw{margin-top:20px;font-size:.85rem;color:rgba(248,243,236,.35)}
   .sw a{color:var(--clay);cursor:pointer;font-weight:500}
   .sp{width:18px;height:18px;border:2px solid rgba(26,22,18,.2);border-top-color:var(--ink);
@@ -51,28 +52,27 @@ const css = `
 
 export default function SignupPage() {
   const router = useRouter()
-  const [sb, setSb]             = useState(null)
-  const [first, setFirst]       = useState('')
-  const [last, setLast]         = useState('')
-  const [email, setEmail]       = useState('')
-  const [pass, setPass]         = useState('')
-  const [conf, setConf]         = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
-  const [done, setDone]         = useState(false)
+  const [first, setFirst]     = useState('')
+  const [last, setLast]       = useState('')
+  const [email, setEmail]     = useState('')
+  const [pass, setPass]       = useState('')
+  const [conf, setConf]       = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState('')
+  const [done, setDone]       = useState(false)
 
-  useEffect(() => {
-    import('@supabase/supabase-js').then(({ createClient }) => setSb(createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)))
-  }, [])
+  const getClient = () => createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
 
   const signup = async () => {
     if (!first || !email || !pass || !conf) { setError('Please fill in all required fields.'); return }
     if (pass.length < 8) { setError('Password must be at least 8 characters.'); return }
     if (pass !== conf) { setError('Passwords do not match.'); return }
-    if (!sb) return
     setLoading(true); setError('')
     try {
-      const { error } = await sb.auth.signUp({
+      const { error } = await getClient().auth.signUp({
         email, password: pass,
         options: {
           data: { full_name: `${first} ${last}`.trim() },
@@ -141,7 +141,7 @@ export default function SignupPage() {
             onChange={e => setConf(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && signup()} autoComplete="new-password" />
         </div>
-        <button className="btn" onClick={signup} disabled={loading || !sb}>
+        <button className="btn" onClick={signup} disabled={loading}>
           {loading ? <><span className="sp"/>Creating account...</> : 'Start Free Trial →'}
         </button>
         {error && <div className="err">{error}</div>}
