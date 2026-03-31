@@ -137,6 +137,7 @@ export default function RecipePage() {
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [toggling, setToggling] = useState(false)
+  const [showRotationPicker, setShowRotationPicker] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -170,6 +171,18 @@ export default function RecipePage() {
     await sb.from('recipes').update({ is_favorite: newVal }).eq('id', recipe.id)
     setRecipe(r => ({ ...r, is_favorite: newVal }))
     setToggling(false)
+  }
+
+  const setRotation = async (frequency) => {
+    if (!recipe) return
+    const sb = getClient()
+    const inRotation = frequency !== null
+    await sb.from('recipes').update({
+      in_rotation: inRotation,
+      rotation_frequency: frequency,
+    }).eq('id', recipe.id)
+    setRecipe(r => ({ ...r, in_rotation: inRotation, rotation_frequency: frequency }))
+    setShowRotationPicker(false)
   }
 
   const deleteRecipe = async () => {
@@ -226,6 +239,36 @@ export default function RecipePage() {
     <div style={{minHeight:'100vh',background:'#1A1612'}}>
       <style>{css}</style>
 
+      {/* Rotation frequency picker */}
+      {showRotationPicker && (
+        <div className="modal-overlay" onClick={() => setShowRotationPicker(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <span className="modal-ico">🔄</span>
+            <div className="modal-title">Add to rotation</div>
+            <div className="modal-sub">
+              How often should <strong style={{color:'#F8F3EC'}}>{recipe.title}</strong> appear in your weekly plan?
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'.6rem',marginBottom:'1rem'}}>
+              {[
+                {value:'weekly',   label:'Every week',    sub:'In the plan every single week'},
+                {value:'biweekly', label:'Every 2 weeks', sub:'Twice a month'},
+                {value:'monthly',  label:'Once a month',  sub:'AI picks the best week for it'},
+              ].map(opt => (
+                <button key={opt.value} onClick={() => setRotation(opt.value)}
+                  style={{background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.1)',
+                    borderRadius:'10px',padding:'1rem 1.25rem',cursor:'pointer',
+                    transition:'all .2s',textAlign:'left',width:'100%',fontFamily:"'Outfit',sans-serif"}}>
+                  <div style={{fontSize:'.95rem',color:'#F8F3EC',fontWeight:400,marginBottom:'.2rem'}}>{opt.label}</div>
+                  <div style={{fontSize:'.78rem',color:'rgba(248,243,236,.4)'}}>{opt.sub}</div>
+                </button>
+              ))}
+            </div>
+            <button className="modal-cancel" style={{width:'100%'}}
+              onClick={() => setShowRotationPicker(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       {/* Delete confirmation modal */}
       {showDelete && (
         <div className="modal-overlay" onClick={() => setShowDelete(false)}>
@@ -259,6 +302,16 @@ export default function RecipePage() {
               onClick={toggleFavorite}
               disabled={toggling}>
               {recipe.is_favorite ? '❤️ Favorited' : '🤍 Favorite'}
+            </button>
+            <button
+              className="rp-fav-btn"
+              onClick={() => recipe.in_rotation ? setRotation(null) : setShowRotationPicker(true)}
+              style={recipe.in_rotation
+                ? {background:'rgba(107,126,103,.1)',borderColor:'rgba(107,126,103,.3)',color:'#8FA889'}
+                : {}}>
+              {recipe.in_rotation
+                ? `🔄 ${recipe.rotation_frequency === 'weekly' ? 'Weekly' : recipe.rotation_frequency === 'biweekly' ? 'Bi-weekly' : 'Monthly'}`
+                : '🔄 Rotation'}
             </button>
             <button className="rp-delete-btn" onClick={() => setShowDelete(true)}>
               🗑️ Delete
