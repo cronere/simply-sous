@@ -22,7 +22,7 @@ export default function Page() {
       <div style={{fontSize:'3.5rem',marginBottom:'1.5rem'}}>{ico}</div>
       <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'2rem',fontWeight:300,
         color:'#F8F3EC',marginBottom:'.75rem'}}>{title}</h1>
-      <p style={{fontSize:'.92rem',color:'rgba(248,243,236,.35)',lineHeight:1.8,
+      <p style={{fontSize:'.92rem',color:'rgba(248,243,236,.65)',lineHeight:1.8,
         maxWidth:'360px',marginBottom:'2rem'}}>{sub}</p>
       <button onClick={() => router.push('/vault')}
         style={{background:'rgba(184,135,74,.12)',border:'1px solid rgba(184,135,74,.25)',
