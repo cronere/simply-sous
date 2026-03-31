@@ -102,15 +102,7 @@ const SOURCE_ICONS = {
   url: '🔗', screenshot: '📸', photo: '📷', manual: '✍️', system: '📚', spoonacular: '📚'
 }
 
-const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'favorites', label: '❤️ Favorites' },
-  { id: 'chicken', label: 'Chicken' },
-  { id: 'beef', label: 'Beef' },
-  { id: 'vegetarian', label: 'Vegetarian' },
-  { id: 'under-30-min', label: 'Under 30 min' },
-  { id: 'kid-friendly', label: 'Kid-friendly' },
-]
+// Filters generated dynamically from vault tags
 
 export default function VaultPage() {
   const router = useRouter()
@@ -154,6 +146,24 @@ export default function VaultPage() {
     await sb.from('recipes').update({ is_favorite: !current }).eq('id', recipeId)
     setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, is_favorite: !current } : r))
   }
+
+  // Build dynamic filters from top tags in the vault
+  const dynamicFilters = (() => {
+    const tagCount = {}
+    recipes.forEach(r => {
+      ;[...(r.tags || []), ...(r.dietary_flags || [])].forEach(t => {
+        tagCount[t] = (tagCount[t] || 0) + 1
+      })
+    })
+    // Sort by frequency, take top 8, capitalize
+    return Object.entries(tagCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([tag]) => ({
+        id: tag,
+        label: tag.charAt(0).toUpperCase() + tag.slice(1).replace(/-/g, ' ')
+      }))
+  })()
 
   const filtered = recipes.filter(r => {
     const q = search.toLowerCase()
@@ -203,7 +213,17 @@ export default function VaultPage() {
               placeholder="Search recipes, cuisines, tags..."
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          {FILTERS.map(f => (
+          <button
+            className={`filter-btn${filter === 'all' ? ' active' : ''}`}
+            onClick={() => setFilter('all')}>
+            All
+          </button>
+          <button
+            className={`filter-btn${filter === 'favorites' ? ' active' : ''}`}
+            onClick={() => setFilter('favorites')}>
+            ❤️ Favorites
+          </button>
+          {dynamicFilters.map(f => (
             <button key={f.id}
               className={`filter-btn${filter === f.id ? ' active' : ''}`}
               onClick={() => setFilter(f.id)}>
