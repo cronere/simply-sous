@@ -2,22 +2,11 @@
 export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  .auth-root {
-    --ink: #1A1612; --clay: #B8874A; --clay-l: #D4A46A; --parchment: #F8F3EC; --sage-l: #8FA889;
-    min-height: 100vh; background: var(--ink); display: flex; align-items: center; justify-content: center;
-    padding: 24px; font-family: 'Outfit', sans-serif;
-    background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(184,135,74,0.15) 0%, transparent 60%);
-  }
+  .auth-root { --ink: #1A1612; --clay: #B8874A; --clay-l: #D4A46A; --parchment: #F8F3EC; --sage-l: #8FA889; min-height: 100vh; background: var(--ink); display: flex; align-items: center; justify-content: center; padding: 24px; font-family: 'Outfit', sans-serif; background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(184,135,74,0.15) 0%, transparent 60%); }
   .auth-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; padding: 52px 44px; width: 100%; max-width: 420px; text-align: center; }
   .auth-logo { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; font-weight: 600; color: var(--parchment); margin-bottom: 4px; }
   .auth-logo span { color: var(--clay); font-style: italic; }
@@ -38,6 +27,14 @@ const styles = `
   @keyframes spin { to { transform: rotate(360deg); } }
 `;
 
+function getSupabase() {
+  const { createClient } = require('@supabase/supabase-js');
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState('');
@@ -48,13 +45,10 @@ export default function ResetPasswordPage() {
   const [ready, setReady]       = useState(false);
 
   useEffect(() => {
-    // Supabase puts the recovery token in the URL hash
-    // getSession() handles it automatically
+    const supabase = getSupabase();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setReady(true);
-      else {
-        setError('Invalid or expired reset link. Please request a new one.');
-      }
+      else setError('Invalid or expired reset link. Please request a new one.');
     });
   }, []);
 
@@ -62,10 +56,9 @@ export default function ResetPasswordPage() {
     if (!password || !confirm) { setError('Please fill in both fields.'); return; }
     if (password.length < 8) { setError('Password must be at least 8 characters.'); return; }
     if (password !== confirm) { setError('Passwords do not match.'); return; }
-
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
+      const supabase = getSupabase();
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       setSuccess(true);
@@ -82,45 +75,25 @@ export default function ResetPasswordPage() {
       <div className="auth-card">
         <div className="auth-logo">Simply <span>Sous</span></div>
         <div className="auth-tagline">Dinner, decided.</div>
-
         <h1 className="auth-title">Set new password</h1>
         <p className="auth-sub">Choose a strong password for your Simply Sous account.</p>
-
         {success ? (
-          <div className="auth-success">
-            ✓ Password updated! Taking you to your dashboard...
-          </div>
+          <div className="auth-success">✓ Password updated! Taking you to your dashboard...</div>
         ) : (
           <>
             <div className="auth-field">
               <label className="auth-label">New password</label>
-              <input
-                className="auth-input"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                disabled={!ready}
-              />
+              <input className="auth-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={!ready} />
             </div>
             <div className="auth-field">
               <label className="auth-label">Confirm new password</label>
-              <input
-                className="auth-input"
-                type="password"
-                placeholder="••••••••"
-                value={confirm}
-                onChange={e => setConfirm(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleReset()}
-                disabled={!ready}
-              />
+              <input className="auth-input" type="password" placeholder="••••••••" value={confirm} onChange={e => setConfirm(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleReset()} disabled={!ready} />
             </div>
             <button className="auth-btn" onClick={handleReset} disabled={loading || !ready}>
               {loading ? <><span className="spinner" />Updating...</> : 'Update Password →'}
             </button>
           </>
         )}
-
         {error && <div className="auth-error">{error}</div>}
       </div>
     </div>
