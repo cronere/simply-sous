@@ -4,17 +4,24 @@ import { createClient } from '@supabase/supabase-js'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // Retry wrapper for Anthropic API calls — handles 529 overload gracefully
-async function callWithRetry(fn, maxRetries = 3) {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+async function callWithRetry(fn, maxRetries) {
+  var max = maxRetries || 3
+  for (var attempt = 0; attempt <= max; attempt++) {
     try {
       return await fn()
     } catch (err) {
-      const isOverloaded = err.status === 529 || err.message?.includes('overloaded')
-      const isRateLimit = err.status === 429
-      if ((isOverloaded || isRateLimit) && attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500
-        console.log(`Anthropic overloaded, retrying in ${Math.round(delay)}ms (attempt ${attempt + 1}/${maxRetries})`)
-        await new Promise(r => setTimeout(r, delay))
+      // Anthropic SDK error can have status, statusCode, or error.type
+      var statusCode = err.status || err.statusCode || (err.error && err.error.type === 'overloaded_error' ? 529 : 0)
+      var isOverloaded = statusCode === 529 ||
+        (err.message && err.message.toLowerCase().includes('overload')) ||
+        (err.error && err.error.type === 'overloaded_error')
+      var isRateLimit = statusCode === 429
+
+      if ((isOverloaded || isRateLimit) && attempt < max) {
+        var delay = Math.pow(2, attempt) * 2000 + Math.random() * 1000
+        var msg = 'Anthropic overloaded (attempt ' + (attempt + 1) + '/' + max + '), retrying in ' + Math.round(delay / 1000) + 's...'
+        console.log(msg)
+        await new Promise(function(resolve) { setTimeout(resolve, delay) })
         continue
       }
       throw err
