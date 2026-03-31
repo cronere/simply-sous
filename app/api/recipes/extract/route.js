@@ -4,6 +4,24 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
+async function callWithRetry(fn, maxRetries = 3) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      const isOverloaded = err.status === 529 || err.message?.includes('overloaded')
+      const isRateLimit = err.status === 429
+      if ((isOverloaded || isRateLimit) && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500
+        console.log(\`Anthropic overloaded, retrying in \${Math.round(delay)}ms (attempt \${attempt + 1}/\${maxRetries})\`)
+        await new Promise(r => setTimeout(r, delay))
+        continue
+      }
+      throw err
+    }
+  }
+}
+
 // ── SYSTEM PROMPT ────────────────────────────────────────────
 const SYSTEM = `You are a recipe extraction expert for Simply Sous, a family meal planning app.
 Your job is to extract recipe information from URLs, images, or text and return it as clean structured JSON.
@@ -143,12 +161,12 @@ Return the recipe as JSON.`
     }
 
     // ── Call Claude ──
-    const response = await anthropic.messages.create({
+    const response = await callWithRetry(() => anthropic.messages.create({
       model: 'claude-opus-4-6',
       max_tokens: 4000,
       system: SYSTEM,
       messages,
-    })
+    }))
 
     const rawText = response.content[0]?.text?.trim()
     if (!rawText) {
