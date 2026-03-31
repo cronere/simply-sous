@@ -3,6 +3,25 @@ import { createClient } from '@supabase/supabase-js'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// Retry wrapper for Anthropic API calls — handles 529 overload gracefully
+async function callWithRetry(fn, maxRetries = 3) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      const isOverloaded = err.status === 529 || err.message?.includes('overloaded')
+      const isRateLimit = err.status === 429
+      if ((isOverloaded || isRateLimit) && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500
+        console.log(`Anthropic overloaded, retrying in ${Math.round(delay)}ms (attempt ${attempt + 1}/${maxRetries})`)
+        await new Promise(r => setTimeout(r, delay))
+        continue
+      }
+      throw err
+    }
+  }
+}
+
 // ── SYSTEM RECIPE LOOKUP + GENERATION ───────────────────────
 // 1. Search system_recipes database first (zero cost)
 // 2. If no match, generate with Claude and save to database
@@ -124,11 +143,11 @@ Return ONLY valid JSON matching this structure:
 
 Return ONLY the JSON, no markdown, no explanation.`
 
-  const response = await anthropic.messages.create({
+  const response = await callWithRetry(() => anthropic.messages.create({
     model: 'claude-opus-4-6',
     max_tokens: 2000,
     messages: [{ role: 'user', content: prompt }],
-  })
+  }))
 
   const raw = response.content[0]?.text?.trim()
   const cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
@@ -330,11 +349,11 @@ Return ONLY a JSON array covering ALL 7 days:
   { "date": "YYYY-MM-DD", "recipe_id": null, "is_skipped": true, "skip_reason": "blackout day" }
 ]`
 
-    const response = await anthropic.messages.create({
+    const response = await callWithRetry(() => anthropic.messages.create({
       model: 'claude-opus-4-6',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
-    })
+    }))
 
     const raw = response.content[0]?.text?.trim()
     const cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
