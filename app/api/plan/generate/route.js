@@ -224,14 +224,35 @@ export async function POST(request) {
       sb.from('user_preferences').select('*').eq('profile_id', userId).maybeSingle(),
       sb.from('blackout_days').select('day_of_week').eq('profile_id', userId),
       sb.from('recipes')
-        .select('id, title, cuisine, meal_type, total_time_mins, tags, dietary_flags, base_servings, is_favorite, times_made, average_rating, in_rotation, rotation_frequency, last_planned_date')
+        .select('id, title, cuisine, meal_type, total_time_mins, tags, dietary_flags, base_servings, is_favorite, times_made, average_rating')
         .eq('profile_id', userId),
     ])
 
     const profile = profileRes.data
     const prefs = prefsRes.data
     const blackoutDays = (blackoutRes.data || []).map(b => b.day_of_week)
-    const vaultRecipes = recipesRes.data || []
+    const baseRecipes = recipesRes.data || []
+
+    // Fetch rotation fields separately — safe if columns don't exist yet
+    let rotationData = {}
+    try {
+      const { data: rotData } = await sb
+        .from('recipes')
+        .select('id, in_rotation, rotation_frequency, last_planned_date')
+        .eq('profile_id', userId)
+      if (rotData) {
+        rotData.forEach(r => { rotationData[r.id] = r })
+      }
+    } catch (e) {
+      console.log('Rotation columns not yet available, skipping rotation logic')
+    }
+
+    const vaultRecipes = baseRecipes.map(r => ({
+      ...r,
+      in_rotation: rotationData[r.id]?.in_rotation || false,
+      rotation_frequency: rotationData[r.id]?.rotation_frequency || null,
+      last_planned_date: rotationData[r.id]?.last_planned_date || null,
+    }))
 
     // Build week dates
     const weekDates = []
