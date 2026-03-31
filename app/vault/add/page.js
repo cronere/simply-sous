@@ -233,9 +233,15 @@ export default function AddRecipePage() {
   const saveRecipe = async () => {
     if (!recipe || !userId) return
     setSaving(true)
+    setError('')
     try {
       const sb = getClient()
-      const { data, error: saveErr } = await sb.from('recipes').insert({
+
+      // Verify session is still active
+      const { data: { session } } = await sb.auth.getSession()
+      if (!session) { router.replace('/login'); return }
+
+      const insertData = {
         profile_id: userId,
         title: recipe.title,
         description: recipe.description || null,
@@ -252,13 +258,23 @@ export default function AddRecipePage() {
         tags: recipe.tags || [],
         dietary_flags: recipe.dietary_flags || [],
         ai_processed: true,
-      }).select().single()
+      }
 
-      if (saveErr) throw saveErr
+      const { error: saveErr } = await sb
+        .from('recipes')
+        .insert(insertData)
+
+      if (saveErr) {
+        console.error('Supabase insert error:', saveErr)
+        setError(`Save failed: ${saveErr.message}`)
+        setSaving(false)
+        return
+      }
+
       router.push('/vault')
     } catch (e) {
-      setError('Could not save recipe. Please try again.')
-      console.error(e)
+      console.error('Save recipe exception:', e)
+      setError(`Error: ${e.message || 'Something went wrong. Please try again.'}`)
     }
     setSaving(false)
   }
