@@ -3,24 +3,21 @@ import { createClient } from '@supabase/supabase-js'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// Retry wrapper for Anthropic API calls — handles 529 overload gracefully
+// ── RETRY WRAPPER ────────────────────────────────────────────
 async function callWithRetry(fn, maxRetries) {
   var max = maxRetries || 3
   for (var attempt = 0; attempt <= max; attempt++) {
     try {
       return await fn()
     } catch (err) {
-      // Anthropic SDK error can have status, statusCode, or error.type
       var statusCode = err.status || err.statusCode || (err.error && err.error.type === 'overloaded_error' ? 529 : 0)
       var isOverloaded = statusCode === 529 ||
         (err.message && err.message.toLowerCase().includes('overload')) ||
         (err.error && err.error.type === 'overloaded_error')
       var isRateLimit = statusCode === 429
-
       if ((isOverloaded || isRateLimit) && attempt < max) {
         var delay = Math.pow(2, attempt) * 2000 + Math.random() * 1000
-        var msg = 'Anthropic overloaded (attempt ' + (attempt + 1) + '/' + max + '), retrying in ' + Math.round(delay / 1000) + 's...'
-        console.log(msg)
+        console.log('Anthropic overloaded (attempt ' + (attempt + 1) + '/' + max + '), retrying in ' + Math.round(delay / 1000) + 's...')
         await new Promise(function(resolve) { setTimeout(resolve, delay) })
         continue
       }
@@ -29,53 +26,55 @@ async function callWithRetry(fn, maxRetries) {
   }
 }
 
-// ── SYSTEM RECIPE LOOKUP + GENERATION ───────────────────────
-// 1. Search system_recipes database first (zero cost)
-// 2. If no match, generate with Claude and save to database
-// 3. Every generation enriches the shared database for future users
+// ── INCREMENT SERVED ─────────────────────────────────────────
+async function incrementServed(sb, systemRecipeIds) {
+  if (!systemRecipeIds.length) return
+  for (var i = 0; i < systemRecipeIds.length; i++) {
+    try {
+      await sb.rpc('increment_recipe_served', { recipe_id: systemRecipeIds[i] })
+    } catch (e) {
+      // Non-critical
+    }
+  }
+}
 
-async function getSystemRecipes(sb, prefs, count, excludeIds = []) {
-  const dietaryFlags = (prefs?.dietary_flags || []).map(f => f.toLowerCase())
-  const allergens = (prefs?.allergens || []).map(a => a.toLowerCase())
-  const restrictions = [...dietaryFlags, ...allergens]
-  const maxTime = prefs?.max_weeknight_mins || 60
-  const cuisines = prefs?.cuisine_loves || []
+// ── SYSTEM RECIPE LOOKUP ─────────────────────────────────────
+async function getSystemRecipes(sb, prefs, count, excludeIds) {
+  var excluded = excludeIds || []
+  var dietaryFlags = (prefs && prefs.dietary_flags ? prefs.dietary_flags : []).map(function(f) { return f.toLowerCase() })
+  var allergens = (prefs && prefs.allergens ? prefs.allergens : []).map(function(a) { return a.toLowerCase() })
+  var restrictions = dietaryFlags.concat(allergens)
+  var maxTime = (prefs && prefs.max_weeknight_mins) ? prefs.max_weeknight_mins : 60
+  var cuisines = (prefs && prefs.cuisine_loves) ? prefs.cuisine_loves : []
 
-  // Build search query — find recipes matching preferences
-  let query = sb
+  var query = sb
     .from('system_recipes')
     .select('id, title, cuisine, meal_type, total_time_mins, tags, dietary_flags, base_servings')
-    .lte('total_time_mins', maxTime + 15) // slight buffer
-    .order('times_served', { ascending: true }) // prefer less-served for variety
+    .lte('total_time_mins', maxTime + 15)
+    .order('times_served', { ascending: true })
 
-  // Filter out already-selected recipes
-  if (excludeIds.length > 0) {
-    query = query.not('id', 'in', `(${excludeIds.join(',')})`)
+  if (excluded.length > 0) {
+    query = query.not('id', 'in', '(' + excluded.join(',') + ')')
   }
 
-  // Dietary restriction filters
-  if (restrictions.includes('vegan')) {
+  if (restrictions.indexOf('vegan') >= 0) {
     query = query.contains('dietary_flags', ['vegan'])
-  } else if (restrictions.includes('vegetarian')) {
+  } else if (restrictions.indexOf('vegetarian') >= 0) {
     query = query.or('dietary_flags.cs.{"vegetarian"},dietary_flags.cs.{"vegan"}')
   }
-  if (restrictions.includes('gluten-free')) {
-    query = query.contains('dietary_flags', ['gluten-free'])
-  }
 
-  // Try with cuisine preference first
-  let results = []
+  var results = []
+
   if (cuisines.length > 0) {
-    const cuisineQuery = query.in('cuisine', cuisines).limit(count * 2)
-    const { data } = await cuisineQuery
-    results = data || []
+    var cuisineQuery = query.in('cuisine', cuisines).limit(count * 2)
+    var cuisineRes = await cuisineQuery
+    results = cuisineRes.data || []
   }
 
-  // If not enough cuisine matches, fill with any matching recipes
   if (results.length < count) {
-    const needed = count - results.length
-    const existingIds = [...excludeIds, ...results.map(r => r.id)]
-    let fillQuery = sb
+    var needed = count - results.length
+    var existingIds = excluded.concat(results.map(function(r) { return r.id }))
+    var fillQuery = sb
       .from('system_recipes')
       .select('id, title, cuisine, meal_type, total_time_mins, tags, dietary_flags, base_servings')
       .lte('total_time_mins', maxTime + 15)
@@ -83,95 +82,101 @@ async function getSystemRecipes(sb, prefs, count, excludeIds = []) {
       .limit(needed * 2)
 
     if (existingIds.length > 0) {
-      fillQuery = fillQuery.not('id', 'in', `(${existingIds.join(',')})`)
+      fillQuery = fillQuery.not('id', 'in', '(' + existingIds.join(',') + ')')
     }
-    if (restrictions.includes('vegan')) fillQuery = fillQuery.contains('dietary_flags', ['vegan'])
-    else if (restrictions.includes('vegetarian')) fillQuery = fillQuery.or('dietary_flags.cs.{"vegetarian"},dietary_flags.cs.{"vegan"}')
 
-    const { data: fillData } = await fillQuery
-    results = [...results, ...(fillData || [])]
+    var fillRes = await fillQuery
+    results = results.concat(fillRes.data || [])
   }
 
-  // Map to our standard format
-  return results.slice(0, count).map(r => ({
-    id: `sys-${r.id}`,
-    system_recipe_id: r.id,
-    title: r.title,
-    cuisine: r.cuisine,
-    total_time_mins: r.total_time_mins,
-    tags: r.tags || [],
-    dietary_flags: r.dietary_flags || [],
-    base_servings: r.base_servings || 4,
-    from_database: true,
-  }))
+  return results.slice(0, count).map(function(r) {
+    return {
+      id: 'sys-' + r.id,
+      system_recipe_id: r.id,
+      title: r.title,
+      cuisine: r.cuisine,
+      total_time_mins: r.total_time_mins,
+      tags: r.tags || [],
+      dietary_flags: r.dietary_flags || [],
+      base_servings: r.base_servings || 4,
+      from_database: true,
+    }
+  })
 }
 
-// Generate multiple recipes in one Claude call — much more efficient
+// ── BATCH RECIPE GENERATION ──────────────────────────────────
 async function generateAndSaveRecipes(sb, prefs, existingTitles, count) {
-  const restrictions = [
-    ...(prefs?.dietary_flags || []),
-    ...(prefs?.allergens || []),
+  var restrictions = [].concat(
+    prefs && prefs.dietary_flags ? prefs.dietary_flags : [],
+    prefs && prefs.allergens ? prefs.allergens : []
+  )
+  var cuisines = (prefs && prefs.cuisine_loves && prefs.cuisine_loves.length)
+    ? prefs.cuisine_loves
+    : ['American', 'Italian', 'Mexican', 'Asian', 'Mediterranean']
+  var maxTime = (prefs && prefs.max_weeknight_mins) ? prefs.max_weeknight_mins : 45
+  var disliked = (prefs && prefs.disliked_ingredients) ? prefs.disliked_ingredients : []
+
+  var restrictionStr = restrictions.length ? restrictions.join(', ') : 'none'
+  var dislikedStr = disliked.length ? disliked.join(', ') : 'none'
+  var cuisineStr = cuisines.join(', ')
+  var existingStr = existingTitles.slice(0, 15).join(', ')
+
+  var promptLines = [
+    'Generate ' + count + ' different dinner recipes for a family.',
+    'Requirements:',
+    '- Max total time: ' + maxTime + ' minutes each',
+    '- Dietary restrictions (MUST follow): ' + restrictionStr,
+    '- Avoid these ingredients: ' + dislikedStr,
+    '- Preferred cuisines: ' + cuisineStr,
+    '- Different from these existing recipes: ' + existingStr,
+    '- Family-friendly, serves 4, variety of proteins and cuisines',
+    '',
+    'Return ONLY a valid JSON array of ' + count + ' recipe objects.',
+    'Each recipe object must have these exact keys:',
+    'title, description, cuisine, meal_type, difficulty, prep_time_mins, cook_time_mins, total_time_mins, base_servings, ingredients, instructions, tags, dietary_flags',
+    '',
+    'Start your response with [ and end with ]. No explanation, no markdown.',
   ]
-  const cuisines = prefs?.cuisine_loves || ['American', 'Italian', 'Mexican', 'Asian', 'Mediterranean']
-  const maxTime = prefs?.max_weeknight_mins || 45
-  const disliked = prefs?.disliked_ingredients || []
 
-  const prompt = 'Generate ' + count + ' different dinner recipes for a family with these requirements:
-' +
-    '- Max total time: ' + maxTime + ' minutes each
-' +
-    '- Dietary restrictions (MUST follow): ' + (restrictions.length ? restrictions.join(', ') : 'none') + '
-' +
-    '- Avoid these ingredients: ' + (disliked.length ? disliked.join(', ') : 'none') + '
-' +
-    '- Preferred cuisines: ' + cuisines.join(', ') + '
-' +
-    '- Different from these existing recipes: ' + existingTitles.slice(0, 15).join(', ') + '
-' +
-    '- Family-friendly, serves 4, variety of proteins and cuisines
+  var prompt = promptLines.join('\n')
 
-' +
-    'Return ONLY a valid JSON array of ' + count + ' recipes. Each recipe must have:
-' +
-    '{"title":"","description":"","cuisine":"","meal_type":"dinner","difficulty":2,' +
-    '"prep_time_mins":10,"cook_time_mins":25,"total_time_mins":35,"base_servings":4,' +
-    '"ingredients":[{"name":"","amount":1,"unit":"","notes":""}],' +
-    '"instructions":[{"step":1,"text":"","timer_minutes":null}],' +
-    '"tags":[],"dietary_flags":[]}
-
-' +
-    'Start with [ and end with ]. Nothing else.'
-
-  const response = await callWithRetry(function() {
+  var response = await callWithRetry(function() {
     return anthropic.messages.create({
       model: 'claude-opus-4-6',
       max_tokens: 4000,
-      system: 'You are a recipe generation API. Return ONLY valid JSON arrays of recipe objects. No explanation, no markdown.',
+      system: 'You are a recipe generation API. Return ONLY valid JSON arrays. No explanation, no markdown fences.',
       messages: [{ role: 'user', content: prompt }],
     })
   })
 
-  const raw = response.content[0] && response.content[0].text ? response.content[0].text.trim() : '[]'
-  const cleaned = raw.replace(/^```json
-?/, '').replace(/
-?```$/, '').trim()
-  const recipes = JSON.parse(cleaned)
+  var raw = (response.content[0] && response.content[0].text) ? response.content[0].text.trim() : '[]'
 
-  if (!Array.isArray(recipes)) throw new Error('Invalid recipe batch response')
+  // Extract JSON array robustly
+  var parsed
+  try {
+    var directCleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+    parsed = JSON.parse(directCleaned)
+  } catch (e) {
+    var match = raw.match(/\[\s*\{[\s\S]*\}\s*\]/)
+    if (!match) throw new Error('Could not parse recipe batch response')
+    parsed = JSON.parse(match[0])
+  }
 
-  // Save all to system_recipes
-  const saved = []
-  for (const recipe of recipes) {
+  if (!Array.isArray(parsed)) throw new Error('Invalid recipe batch response')
+
+  var saved = []
+  for (var i = 0; i < parsed.length; i++) {
+    var recipe = parsed[i]
     try {
-      const { data, error } = await sb.from('system_recipes').insert({
+      var res = await sb.from('system_recipes').insert({
         title: recipe.title,
         description: recipe.description || null,
         cuisine: recipe.cuisine,
         meal_type: recipe.meal_type || 'dinner',
         difficulty: recipe.difficulty || 2,
-        prep_time_mins: recipe.prep_time_mins,
-        cook_time_mins: recipe.cook_time_mins,
-        total_time_mins: recipe.total_time_mins,
+        prep_time_mins: recipe.prep_time_mins || null,
+        cook_time_mins: recipe.cook_time_mins || null,
+        total_time_mins: recipe.total_time_mins || null,
         base_servings: recipe.base_servings || 4,
         ingredients: recipe.ingredients || [],
         instructions: recipe.instructions || [],
@@ -181,11 +186,11 @@ async function generateAndSaveRecipes(sb, prefs, existingTitles, count) {
         times_served: 1,
       }).select('id').single()
 
-      if (!error && data) {
-        console.log('Saved new system recipe: "' + recipe.title + '" (' + data.id + ')')
+      if (!res.error && res.data) {
+        console.log('Saved system recipe: "' + recipe.title + '"')
         saved.push({
-          id: 'sys-' + data.id,
-          system_recipe_id: data.id,
+          id: 'sys-' + res.data.id,
+          system_recipe_id: res.data.id,
           title: recipe.title,
           cuisine: recipe.cuisine,
           total_time_mins: recipe.total_time_mins,
@@ -196,389 +201,262 @@ async function generateAndSaveRecipes(sb, prefs, existingTitles, count) {
         })
       }
     } catch (saveErr) {
-      console.error('Failed to save recipe "' + recipe.title + '":', saveErr)
+      console.error('Failed to save recipe "' + recipe.title + '":', saveErr.message)
     }
   }
 
   return saved
 }
 
-// Keep single recipe generator for backwards compatibility
-async function generateAndSaveRecipe(sb, prefs, existingTitles) {
-  const restrictions = [
-    ...(prefs?.dietary_flags || []),
-    ...(prefs?.allergens || []),
-  ]
-  const cuisines = prefs?.cuisine_loves || ['American', 'Italian', 'Mexican']
-  const maxTime = prefs?.max_weeknight_mins || 45
-  const disliked = prefs?.disliked_ingredients || []
-
-  // Pick a random cuisine from preferences for variety
-  const cuisine = cuisines[Math.floor(Math.random() * cuisines.length)]
-
-  const prompt = `Generate a complete dinner recipe with these requirements:
-- Cuisine: ${cuisine}
-- Max total time: ${maxTime} minutes
-- Dietary restrictions (MUST follow): ${restrictions.length ? restrictions.join(', ') : 'none'}
-- Avoid these ingredients: ${disliked.length ? disliked.join(', ') : 'none'}
-- Different from these existing recipes: ${existingTitles.slice(0, 10).join(', ')}
-- Family-friendly, serves 4
-
-Return ONLY valid JSON matching this structure:
-{
-  "title": "Recipe name",
-  "description": "1-2 sentence description",
-  "cuisine": "${cuisine}",
-  "meal_type": "dinner",
-  "difficulty": 2,
-  "prep_time_mins": 15,
-  "cook_time_mins": 25,
-  "total_time_mins": 40,
-  "base_servings": 4,
-  "ingredients": [
-    { "name": "chicken breast", "amount": 1.5, "unit": "lbs", "notes": "sliced thin" }
-  ],
-  "instructions": [
-    { "step": 1, "text": "instruction here", "timer_minutes": null }
-  ],
-  "tags": ["chicken", "weeknight", "under-45-min"],
-  "dietary_flags": []
-}
-
-Return ONLY the JSON, no markdown, no explanation.`
-
-  const response = await callWithRetry(() => anthropic.messages.create({
-    model: 'claude-opus-4-6',
-    max_tokens: 2000,
-    messages: [{ role: 'user', content: prompt }],
-  }))
-
-  const raw = response.content[0]?.text?.trim()
-  const cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-  const recipe = JSON.parse(cleaned)
-
-  // Save to system_recipes database for future users
-  const { data: saved, error: saveErr } = await sb
-    .from('system_recipes')
-    .insert({
-      title: recipe.title,
-      description: recipe.description,
-      cuisine: recipe.cuisine,
-      meal_type: recipe.meal_type || 'dinner',
-      difficulty: recipe.difficulty || 2,
-      prep_time_mins: recipe.prep_time_mins,
-      cook_time_mins: recipe.cook_time_mins,
-      total_time_mins: recipe.total_time_mins,
-      base_servings: recipe.base_servings || 4,
-      ingredients: recipe.ingredients,
-      instructions: recipe.instructions,
-      tags: recipe.tags || [],
-      dietary_flags: recipe.dietary_flags || [],
-      source: 'ai_generated',
-      times_served: 1,
-    })
-    .select('id')
-    .single()
-
-  if (saveErr) {
-    console.error('Failed to save generated recipe:', saveErr)
-  } else {
-    console.log(`Generated + saved new system recipe: "${recipe.title}" (${saved?.id})`)
-  }
-
-  return {
-    id: saved?.id ? `sys-${saved.id}` : `sys-gen-${Date.now()}`,
-    system_recipe_id: saved?.id || null,
-    title: recipe.title,
-    cuisine: recipe.cuisine,
-    total_time_mins: recipe.total_time_mins,
-    tags: recipe.tags || [],
-    dietary_flags: recipe.dietary_flags || [],
-    base_servings: recipe.base_servings || 4,
-    from_generated: true,
-  }
-}
-
-// Increment times_served counter for used system recipes
-async function incrementServed(sb, systemRecipeIds) {
-  if (!systemRecipeIds.length) return
-  for (const id of systemRecipeIds) {
-    try {
-      await sb.rpc('increment_recipe_served', { recipe_id: id })
-    } catch {
-      // Non-critical — ignore errors
-    }
-  }
-}
-
 // ── MAIN ROUTE ───────────────────────────────────────────────
 export async function POST(request) {
   try {
-    const { userId, weekStartDate } = await request.json()
+    var body = await request.json()
+    var userId = body.userId
+    var weekStartDate = body.weekStartDate
+
     if (!userId || !weekStartDate) {
       return Response.json({ error: 'Missing userId or weekStartDate' }, { status: 400 })
     }
 
-    const sb = createClient(
+    var sb = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     )
 
-    // Fetch user data in parallel
-    const [profileRes, prefsRes, blackoutRes, recipesRes] = await Promise.all([
+    // Fetch all data in parallel
+    var results = await Promise.all([
       sb.from('profiles').select('family_size, dinner_hour, family_name').eq('id', userId).single(),
       sb.from('user_preferences').select('*').eq('profile_id', userId).maybeSingle(),
       sb.from('blackout_days').select('day_of_week').eq('profile_id', userId),
-      sb.from('recipes')
-        .select('id, title, cuisine, meal_type, total_time_mins, tags, dietary_flags, base_servings, is_favorite, times_made, average_rating')
-        .eq('profile_id', userId),
+      sb.from('recipes').select('id, title, cuisine, meal_type, total_time_mins, tags, dietary_flags, base_servings, is_favorite, times_made, average_rating').eq('profile_id', userId),
     ])
 
-    const profile = profileRes.data
-    const prefs = prefsRes.data
-    const blackoutDays = (blackoutRes.data || []).map(b => b.day_of_week)
-    const baseRecipes = recipesRes.data || []
+    var profile = results[0].data
+    var prefs = results[1].data
+    var blackoutDays = (results[2].data || []).map(function(b) { return b.day_of_week })
+    var baseRecipes = results[3].data || []
 
     // Fetch rotation fields separately — safe if columns don't exist yet
-    let rotationData = {}
+    var rotationData = {}
     try {
-      const { data: rotData } = await sb
-        .from('recipes')
-        .select('id, in_rotation, rotation_frequency, last_planned_date')
-        .eq('profile_id', userId)
-      if (rotData) {
-        rotData.forEach(r => { rotationData[r.id] = r })
+      var rotRes = await sb.from('recipes').select('id, in_rotation, rotation_frequency, last_planned_date').eq('profile_id', userId)
+      if (rotRes.data) {
+        rotRes.data.forEach(function(r) { rotationData[r.id] = r })
       }
     } catch (e) {
-      console.log('Rotation columns not yet available, skipping rotation logic')
+      console.log('Rotation columns not available yet')
     }
 
-    const vaultRecipes = baseRecipes.map(r => ({
-      ...r,
-      in_rotation: rotationData[r.id]?.in_rotation || false,
-      rotation_frequency: rotationData[r.id]?.rotation_frequency || null,
-      last_planned_date: rotationData[r.id]?.last_planned_date || null,
-    }))
+    var vaultRecipes = baseRecipes.map(function(r) {
+      return Object.assign({}, r, {
+        in_rotation: (rotationData[r.id] && rotationData[r.id].in_rotation) || false,
+        rotation_frequency: (rotationData[r.id] && rotationData[r.id].rotation_frequency) || null,
+        last_planned_date: (rotationData[r.id] && rotationData[r.id].last_planned_date) || null,
+      })
+    })
 
-    // Build week dates
-    const weekDates = []
-    const start = new Date(weekStartDate)
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(start)
+    // Build week dates using local timezone
+    var weekDates = []
+    var start = new Date(weekStartDate + 'T12:00:00')
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(start)
       d.setDate(start.getDate() + i)
       weekDates.push({
-        date: d.toISOString().split('T')[0],
+        date: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
         dayOfWeek: d.getDay(),
         dayName: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()],
       })
     }
 
-    const cookingDays = weekDates.filter(d => !blackoutDays.includes(d.dayOfWeek))
-    const skippedDays = weekDates.filter(d => blackoutDays.includes(d.dayOfWeek))
-    const mealsNeeded = cookingDays.length
+    var cookingDays = weekDates.filter(function(d) { return blackoutDays.indexOf(d.dayOfWeek) < 0 })
+    var skippedDays = weekDates.filter(function(d) { return blackoutDays.indexOf(d.dayOfWeek) >= 0 })
+    var mealsNeeded = cookingDays.length
 
-    // Step 1: How many fallback recipes do we need?
-    // Categorize vault recipes by priority
-    const today = new Date()
-    const rotationRecipes = vaultRecipes.filter(r => r.in_rotation).map(r => ({
-      ...r,
-      priority: 1,
-      // Check if due based on frequency + last_planned_date
-      isDue: (() => {
-        if (!r.last_planned_date) return true // never planned, always due
-        const last = new Date(r.last_planned_date)
-        const daysSince = (today - last) / (1000 * 60 * 60 * 24)
-        if (r.rotation_frequency === 'weekly') return daysSince >= 6
-        if (r.rotation_frequency === 'biweekly') return daysSince >= 13
-        if (r.rotation_frequency === 'monthly') return daysSince >= 27
-        return true
-      })()
-    }))
+    // Categorize vault recipes
+    var today = new Date()
+    var rotationRecipes = vaultRecipes.filter(function(r) { return r.in_rotation }).map(function(r) {
+      var isDue = true
+      if (r.last_planned_date) {
+        var last = new Date(r.last_planned_date)
+        var daysSince = (today - last) / (1000 * 60 * 60 * 24)
+        if (r.rotation_frequency === 'weekly') isDue = daysSince >= 6
+        else if (r.rotation_frequency === 'biweekly') isDue = daysSince >= 13
+        else if (r.rotation_frequency === 'monthly') isDue = daysSince >= 27
+      }
+      return Object.assign({}, r, { isDue: isDue })
+    })
 
-    const dueRotation = rotationRecipes.filter(r => r.isDue)
-    const otherVault = vaultRecipes.filter(r => !r.in_rotation).map(r => ({...r, priority: 2}))
+    var dueRotation = rotationRecipes.filter(function(r) { return r.isDue })
+    var otherVault = vaultRecipes.filter(function(r) { return !r.in_rotation })
+    var vaultCount = vaultRecipes.length
+    var fallbacksNeeded = Math.max(0, mealsNeeded - vaultCount + 2)
 
-    // How many fallbacks do we need after vault recipes?
-    const vaultCount = vaultRecipes.length
-    const fallbacksNeeded = Math.max(0, mealsNeeded - vaultCount + 2) // +2 for variety
-
-    // Step 2: Try system_recipes database first
-    let systemRecipes = []
+    // Get system recipes first
+    var systemRecipes = []
     if (fallbacksNeeded > 0) {
-      console.log(`Vault has ${vaultCount} recipes, fetching ${fallbacksNeeded} from system database...`)
+      console.log('Vault has ' + vaultCount + ' recipes, fetching ' + fallbacksNeeded + ' from system database...')
       systemRecipes = await getSystemRecipes(sb, prefs, fallbacksNeeded)
-      console.log(`Found ${systemRecipes.length} system recipes`)
+      console.log('Found ' + systemRecipes.length + ' system recipes')
     }
 
-    // Step 3: If system database doesn't have enough, generate with Claude
-    const stillNeeded = fallbacksNeeded - systemRecipes.length
-    const generatedRecipes = []
+    // Generate if still needed
+    var stillNeeded = fallbacksNeeded - systemRecipes.length
+    var generatedRecipes = []
 
     if (stillNeeded > 0) {
       console.log('Generating ' + stillNeeded + ' new recipes with Claude...')
-      const existingTitles = [...vaultRecipes, ...systemRecipes].map(r => r.title)
+      var existingTitles = vaultRecipes.concat(systemRecipes).map(function(r) { return r.title })
       try {
-        const batchGenerated = await generateAndSaveRecipes(sb, prefs, existingTitles, stillNeeded)
-        batchGenerated.forEach(r => generatedRecipes.push(r))
-        console.log('Generated ' + generatedRecipes.length + ' new recipes, saved to system database')
+        var batchGenerated = await generateAndSaveRecipes(sb, prefs, existingTitles, stillNeeded)
+        batchGenerated.forEach(function(r) { generatedRecipes.push(r) })
+        console.log('Generated ' + generatedRecipes.length + ' new recipes')
       } catch (genErr) {
-        console.error('Batch recipe generation failed:', genErr)
-        // Emergency fallback — static recipes so plan always has something
-        const emergency = [
+        console.error('Batch generation failed:', genErr.message)
+        // Emergency fallback
+        var emergency = [
           { id: 'emg-1', title: 'Garlic Butter Chicken', cuisine: 'American', total_time_mins: 30, tags: ['chicken','weeknight'], dietary_flags: [], base_servings: 4 },
           { id: 'emg-2', title: 'Simple Beef Tacos', cuisine: 'Mexican', total_time_mins: 25, tags: ['beef','weeknight'], dietary_flags: [], base_servings: 4 },
           { id: 'emg-3', title: 'Lemon Pasta', cuisine: 'Italian', total_time_mins: 20, tags: ['vegetarian','pasta'], dietary_flags: ['vegetarian'], base_servings: 4 },
           { id: 'emg-4', title: 'Honey Soy Salmon', cuisine: 'Asian', total_time_mins: 25, tags: ['seafood','healthy'], dietary_flags: [], base_servings: 4 },
           { id: 'emg-5', title: 'Black Bean Bowls', cuisine: 'Mexican', total_time_mins: 20, tags: ['vegetarian','healthy'], dietary_flags: ['vegetarian'], base_servings: 4 },
         ]
-        emergency.slice(0, stillNeeded).forEach(r => generatedRecipes.push(r))
+        emergency.slice(0, stillNeeded).forEach(function(r) { generatedRecipes.push(r) })
       }
     }
 
-    const allRecipes = [...dueRotation, ...otherVault, ...systemRecipes, ...generatedRecipes]
+    var allRecipes = dueRotation.concat(otherVault).concat(systemRecipes).concat(generatedRecipes)
 
-    // Step 4: Ask Claude to assign recipes to days
-    const restrictions = [
-      ...(prefs?.dietary_flags || []),
-      ...(prefs?.allergens || []),
+    // Build prompt for Claude to assign recipes to days
+    var restrictions2 = [].concat(
+      prefs && prefs.dietary_flags ? prefs.dietary_flags : [],
+      prefs && prefs.allergens ? prefs.allergens : []
+    )
+
+    var rotationSection = dueRotation.length > 0
+      ? dueRotation.map(function(r) { return '- ID: "' + r.id + '" | "' + r.title + '" | ' + (r.rotation_frequency || '') + ' | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min' }).join('\n')
+      : 'None due this week'
+
+    var vaultSection = otherVault.length > 0
+      ? otherVault.map(function(r) { return '- ID: "' + r.id + '" | "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min | Favorite: ' + (r.is_favorite ? 'YES' : 'no') }).join('\n')
+      : 'None'
+
+    var systemSection = systemRecipes.concat(generatedRecipes).length > 0
+      ? systemRecipes.concat(generatedRecipes).map(function(r) { return '- ID: "' + r.id + '" | "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min' }).join('\n')
+      : 'None'
+
+    var promptLines2 = [
+      'You are the meal planning AI for Simply Sous.',
+      '',
+      'FAMILY: ' + (profile && profile.family_size ? profile.family_size : 4) + ' people',
+      'DIETARY RESTRICTIONS (never violate): ' + (restrictions2.length ? restrictions2.join(', ') : 'none'),
+      'CUISINE PREFERENCES: ' + (prefs && prefs.cuisine_loves ? prefs.cuisine_loves.join(', ') : 'varied'),
+      'DISLIKED INGREDIENTS: ' + (prefs && prefs.disliked_ingredients ? prefs.disliked_ingredients.join(', ') : 'none'),
+      'MAX WEEKNIGHT COOK TIME: ' + (prefs && prefs.max_weeknight_mins ? prefs.max_weeknight_mins : 45) + ' minutes',
+      '',
+      'DAYS TO PLAN:',
+      cookingDays.map(function(d) { return '- ' + d.dayName + ' ' + d.date }).join('\n'),
+      '',
+      'SKIPPED DAYS: ' + (skippedDays.length ? skippedDays.map(function(d) { return d.dayName }).join(', ') : 'none'),
+      '',
+      'ROTATION RECIPES (schedule these first):',
+      rotationSection,
+      '',
+      'OTHER VAULT RECIPES (use after rotation):',
+      vaultSection,
+      '',
+      'SYSTEM DATABASE RECIPES (fill remaining days):',
+      systemSection,
+      '',
+      'RULES:',
+      '1. Assign exactly one recipe per cooking day',
+      '2. ALWAYS schedule due rotation recipes first',
+      '3. Fill remaining days from vault then system database',
+      '4. No same cuisine two days in a row',
+      '5. Balance proteins across the week',
+      '6. Never repeat same recipe in same week',
+      '',
+      'CRITICAL: Return ONLY a valid JSON array covering ALL ' + cookingDays.length + ' cooking days.',
+      'Start with [ and end with ]. Nothing else.',
+      '',
+      'Format: [{"date":"YYYY-MM-DD","recipe_id":"exact-id","is_skipped":false,"skip_reason":null}]',
     ]
 
-    const prompt = `You are the meal planning AI for Simply Sous.
+    var prompt2 = promptLines2.join('\n')
 
-FAMILY: ${profile?.family_size || 4} people
-DIETARY RESTRICTIONS (never violate): ${restrictions.length ? restrictions.join(', ') : 'none'}
-CUISINE PREFERENCES: ${prefs?.cuisine_loves?.join(', ') || 'varied'}
-DISLIKED INGREDIENTS: ${(prefs?.disliked_ingredients || []).join(', ') || 'none'}
-MAX WEEKNIGHT COOK TIME: ${prefs?.max_weeknight_mins || 45} minutes
-COOKING SKILL: ${prefs?.cooking_skill || 2}/5
+    var response2 = await callWithRetry(function() {
+      return anthropic.messages.create({
+        model: 'claude-opus-4-6',
+        max_tokens: 1000,
+        system: 'You are a meal planning API. Respond ONLY with a valid JSON array. No explanation, no markdown.',
+        messages: [{ role: 'user', content: prompt2 }],
+      })
+    })
 
-DAYS TO PLAN:
-${cookingDays.map(d => `- ${d.dayName} ${d.date} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.dayOfWeek]})`).join('\n')}
+    var raw2 = (response2.content[0] && response2.content[0].text) ? response2.content[0].text.trim() : '[]'
+    console.log('Plan response preview:', raw2.substring(0, 150))
 
-SKIPPED DAYS: ${skippedDays.map(d => d.dayName).join(', ') || 'none'}
-
-ROTATION RECIPES (schedule these first — user has explicitly requested them):
-${dueRotation.length > 0 ? dueRotation.map(r => `- ID: "${r.id}" | "${r.title}" | ${r.rotation_frequency} | ${r.cuisine || 'various'} | ${r.total_time_mins || '?'} min`).join('\n') : 'None due this week'}
-
-OTHER VAULT RECIPES (use after rotation is satisfied):
-${otherVault.map(r => `- ID: "${r.id}" | "${r.title}" | ${r.cuisine || 'various'} | ${r.total_time_mins || '?'} min | Favorite: ${r.is_favorite ? 'YES':'no'} | Made: ${r.times_made||0}x`).join('\n') || 'None'}
-
-SYSTEM DATABASE RECIPES (use to fill remaining days):
-${[...systemRecipes, ...generatedRecipes].map(r => `- ID: "${r.id}" | "${r.title}" | ${r.cuisine || 'various'} | ${r.total_time_mins || '?'} min`).join('\n') || 'None'}
-
-RULES:
-1. Assign exactly one recipe per cooking day
-2. ALWAYS schedule due rotation recipes first — these are the user's explicit requests
-3. Fill remaining days from Other Vault recipes, then System Database
-4. No same cuisine two days in a row
-5. Balance proteins across the week
-6. Respect weeknight time limits (${prefs?.max_weeknight_mins || 45} min max on weekdays)
-7. Never repeat same recipe in same week
-
-CRITICAL: Your response must be ONLY a valid JSON array. No explanation. No preamble. No markdown. Start your response with [ and end with ]. Nothing else.
-
-[
-  { "date": "YYYY-MM-DD", "recipe_id": "the-id-exactly-as-shown", "is_skipped": false, "skip_reason": null },
-  { "date": "YYYY-MM-DD", "recipe_id": null, "is_skipped": true, "skip_reason": "blackout day" }
-]`
-
-    const response = await callWithRetry(() => anthropic.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 1000,
-      system: 'You are a meal planning API. You respond ONLY with valid JSON arrays. Never explain. Never add text before or after the JSON. Your entire response is always a JSON array starting with [ and ending with ].',
-      messages: [{ role: 'user', content: prompt }],
-    }))
-
-    const raw = response.content[0]?.text?.trim() || ''
-    console.log('Plan generation raw response:', raw.substring(0, 200))
-
-    // Robust extraction — find the JSON array even if Claude added surrounding text
-    let planSlots
+    // Parse robustly
+    var planSlots
     try {
-      // Try direct parse first
-      const directCleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-      planSlots = JSON.parse(directCleaned)
-    } catch {
-      // Fall back to extracting the JSON array from the response
-      const arrayMatch = raw.match(/\[\s*\{[\s\S]*\}\s*\]/)
-      if (!arrayMatch) {
-        console.error('Could not find JSON array in response:', raw)
-        return Response.json({
-          error: 'Plan generation failed — AI returned unexpected format. Please try again.'
-        }, { status: 500 })
+      var cleaned2 = raw2.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+      planSlots = JSON.parse(cleaned2)
+    } catch (e) {
+      var match2 = raw2.match(/\[\s*\{[\s\S]*\}\s*\]/)
+      if (!match2) {
+        return Response.json({ error: 'Plan generation failed — unexpected format. Please try again.' }, { status: 500 })
       }
-      planSlots = JSON.parse(arrayMatch[0])
+      planSlots = JSON.parse(match2[0])
     }
 
     if (!Array.isArray(planSlots)) {
-      return Response.json({
-        error: 'Plan generation failed — invalid response format. Please try again.'
-      }, { status: 500 })
+      return Response.json({ error: 'Plan generation failed — invalid response. Please try again.' }, { status: 500 })
     }
 
-    // Inject blackout days server-side — Claude only plans cooking days
-    // Merge Claude's response with skipped days to always get all 7 days
-    const skippedSlots = skippedDays.map(d => ({
-      date: d.date,
-      recipe_id: null,
-      is_skipped: true,
-      skip_reason: 'blackout day',
-    }))
+    // Inject blackout days server-side
+    var claudeSlotMap = {}
+    planSlots.forEach(function(s) { claudeSlotMap[s.date] = s })
 
-    // Merge: start with all 7 dates, fill from Claude + skipped
-    const claudeSlotMap = {}
-    planSlots.forEach(s => { claudeSlotMap[s.date] = s })
-
-    const mergedSlots = weekDates.map(d => {
-      if (blackoutDays.includes(d.dayOfWeek)) {
+    var mergedSlots = weekDates.map(function(d) {
+      if (blackoutDays.indexOf(d.dayOfWeek) >= 0) {
         return { date: d.date, recipe_id: null, is_skipped: true, skip_reason: 'blackout day' }
       }
       return claudeSlotMap[d.date] || { date: d.date, recipe_id: null, is_skipped: false, skip_reason: null }
     })
 
-    // Replace planSlots with merged version
-    planSlots.length = 0
-    mergedSlots.forEach(s => planSlots.push(s))
-
-    // Deduplicate — if Claude assigned the same recipe twice, replace the duplicate
-    // with a different recipe from the pool
-    const usedRecipeIds = new Set()
-    const deduped = planSlots.map(slot => {
+    // Deduplicate
+    var usedIds = new Set()
+    var deduped = mergedSlots.map(function(slot) {
       if (slot.is_skipped || !slot.recipe_id) return slot
-      if (usedRecipeIds.has(slot.recipe_id)) {
-        // Find an unused recipe from the pool
-        const unused = allRecipes.find(r =>
-          !usedRecipeIds.has(r.id) &&
-          r.id !== slot.recipe_id
-        )
+      if (usedIds.has(slot.recipe_id)) {
+        var unused = allRecipes.find(function(r) { return !usedIds.has(r.id) && r.id !== slot.recipe_id })
         if (unused) {
-          usedRecipeIds.add(unused.id)
-          return { ...slot, recipe_id: unused.id }
+          usedIds.add(unused.id)
+          return Object.assign({}, slot, { recipe_id: unused.id })
         }
-        // If truly no alternatives, leave it (better than empty)
         return slot
       }
-      usedRecipeIds.add(slot.recipe_id)
+      usedIds.add(slot.recipe_id)
       return slot
     })
-    const finalSlots = deduped
 
-    // Enrich with full recipe data
-    const recipeMap = {}
-    allRecipes.forEach(r => { recipeMap[r.id] = r })
+    // Build recipe map and enrich
+    var recipeMap = {}
+    allRecipes.forEach(function(r) { recipeMap[r.id] = r })
 
-    const enriched = finalSlots.map(slot => ({
-      ...slot,
-      recipe: slot.recipe_id ? (recipeMap[slot.recipe_id] || null) : null,
-      dayName: weekDates.find(d => d.date === slot.date)?.dayName || '',
-    }))
+    var enriched = deduped.map(function(slot) {
+      return Object.assign({}, slot, {
+        recipe: slot.recipe_id ? (recipeMap[slot.recipe_id] || null) : null,
+        dayName: (weekDates.find(function(d) { return d.date === slot.date }) || {}).dayName || '',
+      })
+    })
 
-    // Increment served count for system recipes that were used
-    const usedSystemIds = finalSlots
-      .filter(s => s.recipe_id?.startsWith('sys-') && !s.recipe_id?.startsWith('sys-gen-'))
-      .map(s => {
-        const match = allRecipes.find(r => r.id === s.recipe_id)
-        return match?.system_recipe_id || null
+    // Increment served for used system recipes
+    var usedSystemIds = deduped
+      .filter(function(s) { return s.recipe_id && String(s.recipe_id).startsWith('sys-') && !String(s.recipe_id).startsWith('sys-emg') })
+      .map(function(s) {
+        var r = allRecipes.find(function(r2) { return r2.id === s.recipe_id })
+        return r ? r.system_recipe_id : null
       })
       .filter(Boolean)
 
@@ -586,19 +464,17 @@ CRITICAL: Your response must be ONLY a valid JSON array. No explanation. No prea
       incrementServed(sb, usedSystemIds)
     }
 
-    // Update last_planned_date for rotation recipes that were used
-    const usedRotationIds = finalSlots
-      .filter(s => s.recipe_id && !String(s.recipe_id).startsWith('sys-'))
-      .map(s => s.recipe_id)
-      .filter(id => rotationRecipes.some(r => r.id === id))
+    // Update last_planned_date for rotation recipes used
+    var usedRotationIds = deduped
+      .filter(function(s) { return s.recipe_id && !String(s.recipe_id).startsWith('sys-') })
+      .map(function(s) { return s.recipe_id })
+      .filter(function(id) { return rotationRecipes.some(function(r) { return r.id === id }) })
 
     if (usedRotationIds.length > 0) {
-      const today = new Date().toISOString().split('T')[0]
-      for (const id of usedRotationIds) {
+      var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0')
+      for (var j = 0; j < usedRotationIds.length; j++) {
         try {
-          await sb.from('recipes')
-            .update({ last_planned_date: today })
-            .eq('id', id)
+          await sb.from('recipes').update({ last_planned_date: todayStr }).eq('id', usedRotationIds[j])
         } catch (err) {
           console.error('Failed to update last_planned_date:', err)
         }
@@ -607,7 +483,7 @@ CRITICAL: Your response must be ONLY a valid JSON array. No explanation. No prea
 
     return Response.json({
       plan: enriched,
-      weekStartDate,
+      weekStartDate: weekStartDate,
       stats: {
         vaultRecipes: vaultCount,
         systemRecipesUsed: systemRecipes.length,
@@ -617,6 +493,10 @@ CRITICAL: Your response must be ONLY a valid JSON array. No explanation. No prea
 
   } catch (err) {
     console.error('Plan generate error:', err)
-    return Response.json({ error: err.message || 'Failed to generate plan' }, { status: 500 })
+    var msg = err.message || 'Failed to generate plan'
+    if (msg.includes('529') || msg.toLowerCase().includes('overload')) {
+      msg = 'Dot is a little busy right now. Wait 30 seconds and try again.'
+    }
+    return Response.json({ error: msg }, { status: 500 })
   }
 }
