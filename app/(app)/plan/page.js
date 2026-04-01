@@ -141,6 +141,9 @@ export default function PlanPage() {
   const [error, setError] = useState('')
   const [showVarietyPrompt, setShowVarietyPrompt] = useState(false)
   const [pendingGenerate, setPendingGenerate] = useState(false)
+  const [pickerDate, setPickerDate] = useState(null)
+  const [pickerSearch, setPickerSearch] = useState('')
+  const [vaultRecipes, setVaultRecipes] = useState([])
 
   useEffect(() => {
     setMounted(true)
@@ -167,6 +170,16 @@ export default function PlanPage() {
     if (!userId || !weekStartStr) return
     loadPlan()
   }, [userId, weekStartStr])
+
+  useEffect(() => {
+    if (!userId) return
+    getClient()
+      .from('recipes')
+      .select('id, title, cuisine, total_time_mins, tags, is_favorite')
+      .eq('profile_id', userId)
+      .order('is_favorite', { ascending: false })
+      .then(({ data }) => { if (data) setVaultRecipes(data) })
+  }, [userId])
 
   const loadPlan = async () => {
     const sb = getClient()
@@ -535,13 +548,101 @@ export default function PlanPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="empty-slot"><div className="empty-label">+ Add a meal</div></div>
+                      <div className="empty-slot" onClick={() => { setPickerDate(slot.date); setPickerSearch('') }}>
+                        <div className="empty-label">+ Add a meal</div>
+                      </div>
                     )}
                   </div>
                 </div>
               )
             })}
           </div>
+
+          {/* Recipe picker modal */}
+          {pickerDate && (
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.8)',zIndex:200,
+              display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+              onClick={() => setPickerDate(null)}>
+              <div style={{background:'#2C2420',borderRadius:'1.5rem 1.5rem 0 0',
+                width:'100%',maxWidth:'640px',maxHeight:'80vh',display:'flex',
+                flexDirection:'column',overflow:'hidden'}}
+                onClick={e => e.stopPropagation()}>
+                {/* Picker header */}
+                <div style={{padding:'1.25rem 1.5rem',borderBottom:'1px solid rgba(255,255,255,.08)',
+                  display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.2rem',color:'#F8F3EC'}}>
+                    Pick a meal
+                  </div>
+                  <button onClick={() => setPickerDate(null)}
+                    style={{background:'none',border:'none',color:'rgba(248,243,236,.5)',
+                      fontSize:'1.25rem',cursor:'pointer',lineHeight:1}}>✕</button>
+                </div>
+                {/* Search */}
+                <div style={{padding:'.75rem 1.5rem',borderBottom:'1px solid rgba(255,255,255,.06)'}}>
+                  <input
+                    type="text"
+                    placeholder="Search your vault..."
+                    value={pickerSearch}
+                    onChange={e => setPickerSearch(e.target.value)}
+                    autoFocus
+                    style={{width:'100%',background:'rgba(255,255,255,.06)',
+                      border:'1px solid rgba(255,255,255,.1)',borderRadius:'2rem',
+                      padding:'.65rem 1.1rem',color:'#F8F3EC',fontFamily:"'Outfit',sans-serif",
+                      fontSize:'1rem',outline:'none'}}
+                  />
+                </div>
+                {/* Recipe list */}
+                <div style={{flex:1,overflowY:'auto',padding:'.5rem .75rem'}}>
+                  {vaultRecipes.length === 0 ? (
+                    <div style={{textAlign:'center',padding:'2rem',color:'rgba(248,243,236,.5)',fontSize:'.97rem'}}>
+                      No recipes in your vault yet.{' '}
+                      <span style={{color:'#B8874A',cursor:'pointer'}}
+                        onClick={() => router.push('/vault/add')}>
+                        Add one →
+                      </span>
+                    </div>
+                  ) : (
+                    vaultRecipes
+                      .filter(r => !pickerSearch ||
+                        r.title.toLowerCase().includes(pickerSearch.toLowerCase()) ||
+                        (r.cuisine && r.cuisine.toLowerCase().includes(pickerSearch.toLowerCase())) ||
+                        (r.tags && r.tags.some(t => t.toLowerCase().includes(pickerSearch.toLowerCase())))
+                      )
+                      .map(r => (
+                        <div key={r.id}
+                          onClick={() => {
+                            setPlan(prev => prev.map(s =>
+                              s.date === pickerDate
+                                ? { ...s, recipe_id: r.id, recipe: r, is_skipped: false, skip_reason: null }
+                                : s
+                            ))
+                            setPickerDate(null)
+                            setPickerSearch('')
+                          }}
+                          style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                            padding:'.85rem 1rem',borderRadius:'.75rem',cursor:'pointer',
+                            transition:'background .15s',marginBottom:'.25rem'}}
+                          onMouseOver={e => e.currentTarget.style.background='rgba(255,255,255,.06)'}
+                          onMouseOut={e => e.currentTarget.style.background='transparent'}>
+                          <div>
+                            <div style={{fontSize:'1rem',color:'#F8F3EC',marginBottom:'.2rem'}}>
+                              {r.is_favorite && '❤️ '}{r.title}
+                            </div>
+                            <div style={{fontSize:'.85rem',color:'rgba(248,243,236,.55)',display:'flex',gap:'.75rem'}}>
+                              {r.cuisine && <span>🌍 {r.cuisine}</span>}
+                              {r.total_time_mins && <span>⏱ {r.total_time_mins} min</span>}
+                            </div>
+                          </div>
+                          <div style={{color:'rgba(184,135,74,.7)',fontSize:.9+'rem',flexShrink:0,marginLeft:'1rem'}}>
+                            Add →
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="plan-actions">
             {planStatus !== 'confirmed' ? (
