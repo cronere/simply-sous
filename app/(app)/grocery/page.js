@@ -141,6 +141,7 @@ export default function GroceryPage() {
   const [mealCount, setMealCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [hasPlan, setHasPlan] = useState(false)
+  const [noIngredients, setNoIngredients] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -165,7 +166,10 @@ export default function GroceryPage() {
       const day = d.getDay()
       d.setDate(d.getDate() - day + (day === 0 ? -6 : 1))
       d.setHours(0,0,0,0)
-      return d.toISOString().split('T')[0]
+      // Use local date to avoid UTC timezone shift
+      return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0')
     })()
 
     const { data: plan } = await sb
@@ -207,12 +211,37 @@ export default function GroceryPage() {
     ]
 
     // Build grocery list from meals
-    const meals = (plan.planned_meals || []).filter(m => !m.is_skipped && m.recipes)
-    setMealCount(meals.length)
+    const allMeals = (plan.planned_meals || []).filter(m => !m.is_skipped)
+    setMealCount(allMeals.length)
 
-    const { toBuy, youHave } = buildGroceryList(meals, allStaples)
+    // Meals with real vault recipes have ingredients
+    const mealsWithRecipes = allMeals.filter(m => m.recipes?.ingredients?.length > 0)
+
+    // Try to fetch ingredients for system recipes from system_recipes table
+    const systemMealTitles = allMeals
+      .filter(m => !m.recipes && m.notes)
+      .map(m => m.notes)
+
+    let systemIngredients = []
+    if (systemMealTitles.length > 0) {
+      const { data: sysRecipes } = await sb
+        .from('system_recipes')
+        .select('title, ingredients')
+        .in('title', systemMealTitles)
+      if (sysRecipes) {
+        systemIngredients = sysRecipes.map(r => ({
+          recipe: { title: r.title, ingredients: r.ingredients }
+        }))
+      }
+    }
+
+    const { toBuy, youHave } = buildGroceryList([...mealsWithRecipes, ...systemIngredients], allStaples)
     setGroceryItems(toBuy)
     setStapleItems(youHave)
+
+    if (toBuy.length === 0 && youHave.length === 0 && allMeals.length > 0) {
+      setNoIngredients(true)
+    }
     setLoading(false)
   }, [userId])
 
@@ -335,9 +364,29 @@ export default function GroceryPage() {
             {/* Empty — all checked */}
             {groceryItems.length === 0 && stapleItems.length === 0 && (
               <div style={{textAlign:'center',padding:'3rem 0'}}>
-                <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>✓</div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'#F8F3EC',marginBottom:'.5rem'}}>Nothing to buy</div>
-                <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.35)'}}>Your pantry covers everything this week.</div>
+                {noIngredients ? (
+                  <>
+                    <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>📋</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'#F8F3EC',marginBottom:'.5rem'}}>
+                      No ingredients found
+                    </div>
+                    <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.5)',lineHeight:1.7,maxWidth:'340px',margin:'0 auto .5rem'}}>
+                      This week&apos;s plan uses recipes from our database that don&apos;t have ingredient details yet. Add your own recipes to the vault to get a full grocery list.
+                    </div>
+                    <button onClick={() => router.push('/vault/add')}
+                      style={{marginTop:'1rem',background:'#B8874A',color:'#1A1612',border:'none',
+                        padding:'.75rem 1.75rem',borderRadius:'2rem',fontFamily:"'Outfit',sans-serif",
+                        fontSize:'.9rem',fontWeight:600,cursor:'pointer'}}>
+                      Add recipes to vault →
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>✓</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'#F8F3EC',marginBottom:'.5rem'}}>Nothing to buy</div>
+                    <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.35)'}}>Your pantry covers everything this week.</div>
+                  </>
+                )}
               </div>
             )}
           </div>
