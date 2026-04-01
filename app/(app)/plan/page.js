@@ -204,8 +204,10 @@ export default function PlanPage() {
           recipe_id: m.recipes?.id || null,
           // Use vault recipe if available, fall back to snapshot (system recipes), then title-only
           recipe: m.recipes || m.recipe_snapshot || (m.notes ? { title: m.notes, cuisine: null, total_time_mins: null } : null),
-          // Preserve recipe_id for sys recipes so modal can re-fetch if needed
-          recipe_id: m.recipes?.id || (m.recipe_snapshot?.system_recipe_id ? 'sys-' + m.recipe_snapshot.system_recipe_id : null),
+          recipe_id: m.recipes?.id
+            || (m.recipe_snapshot?.system_recipe_id ? 'sys-' + m.recipe_snapshot.system_recipe_id : null)
+            || m.recipe_id
+            || null,
           is_skipped: m.is_skipped,
           skip_reason: m.skip_reason,
           start_cooking_at: m.start_cooking_at,
@@ -258,21 +260,26 @@ export default function PlanPage() {
         start_cooking_at: null,
         // Always store recipe title in notes as fallback for display
         notes: slot.recipe?.title || null,
-        recipe_snapshot: slot.recipe ? {
-          id: slot.recipe.id || null,
-          system_recipe_id: slot.recipe_id && String(slot.recipe_id).startsWith('sys-')
-            ? String(slot.recipe_id).replace('sys-', '') : null,
-          title: slot.recipe.title,
-          description: slot.recipe.description || null,
-          cuisine: slot.recipe.cuisine || null,
-          total_time_mins: slot.recipe.total_time_mins || null,
-          tags: slot.recipe.tags || [],
-          dietary_flags: slot.recipe.dietary_flags || [],
-          is_favorite: slot.recipe.is_favorite || false,
-          base_servings: slot.recipe.base_servings || 4,
-          ingredients: slot.recipe.ingredients || [],
-          instructions: slot.recipe.instructions || [],
-        } : null,
+        recipe_snapshot: slot.recipe ? (() => {
+          // Derive system_recipe_id from the slot's recipe_id (strips 'sys-' prefix)
+          const sysId = slot.recipe_id && String(slot.recipe_id).startsWith('sys-')
+            ? String(slot.recipe_id).replace('sys-', '')
+            : (slot.recipe.system_recipe_id || null)
+          return {
+            id: slot.recipe.id || null,
+            system_recipe_id: sysId,
+            title: slot.recipe.title,
+            description: slot.recipe.description || null,
+            cuisine: slot.recipe.cuisine || null,
+            total_time_mins: slot.recipe.total_time_mins || null,
+            tags: slot.recipe.tags || [],
+            dietary_flags: slot.recipe.dietary_flags || [],
+            is_favorite: slot.recipe.is_favorite || false,
+            base_servings: slot.recipe.base_servings || 4,
+            ingredients: slot.recipe.ingredients || [],
+            instructions: slot.recipe.instructions || [],
+          }
+        })() : null,
       }))
 
       const { error: insertErr } = await sb.from('planned_meals').insert(meals)
