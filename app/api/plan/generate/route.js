@@ -61,6 +61,46 @@ export async function POST(request) {
 
     console.log('[plan/generate] userId=' + userId + ' vault=' + vaultRecipes.length + ' useVariety=' + useVariety)
 
+    // Fetch rotation fields
+    var rotationData = {}
+    try {
+      var rotRes = await sb.from('recipes')
+        .select('id, in_rotation, rotation_frequency, last_planned_date')
+        .eq('profile_id', userId)
+      if (rotRes.data) rotRes.data.forEach(function(r) { rotationData[r.id] = r })
+    } catch(e) {}
+
+    var today = new Date()
+
+    // Mark recipes as eligible based on rotation frequency
+    vaultRecipes = vaultRecipes.map(function(r) {
+      var rot = rotationData[r.id] || {}
+      var inRotation = rot.in_rotation || false
+      var freq = rot.rotation_frequency || null
+      var lastPlanned = rot.last_planned_date || null
+      var eligible = true
+
+      if (inRotation && lastPlanned && freq) {
+        var daysSince = (today - new Date(lastPlanned)) / 86400000
+        if (freq === 'weekly') eligible = daysSince >= 6
+        else if (freq === 'biweekly') eligible = daysSince >= 12
+        else if (freq === 'monthly') eligible = daysSince >= 26
+      }
+
+      return Object.assign({}, r, {
+        in_rotation: inRotation,
+        rotation_frequency: freq,
+        last_planned_date: lastPlanned,
+        eligible: eligible
+      })
+    })
+
+    // Split into eligible and not-yet-due
+    var eligibleVault = vaultRecipes.filter(function(r) { return r.eligible })
+    var notDueVault = vaultRecipes.filter(function(r) { return !r.eligible })
+
+    console.log('[plan/generate] eligible=' + eligibleVault.length + ' not-due=' + notDueVault.length)
+
     // Build week dates
     var weekDates = []
     var start = new Date(weekStartDate + 'T12:00:00')
@@ -81,7 +121,7 @@ export async function POST(request) {
     // Get system recipes if needed
     var systemRecipes = []
     if (useVariety || vaultRecipes.length < mealsNeeded) {
-      var needed = useVariety ? Math.max(mealsNeeded, 8) : (mealsNeeded - vaultRecipes.length + 2)
+      var needed = useVariety ? Math.max(Math.ceil(mealsNeeded / 2), 4) : Math.max(mealsNeeded - eligibleVault.length, 2)
       systemRecipes = await getSystemRecipes(sb, prefs, needed)
       console.log('[plan/generate] system recipes fetched=' + systemRecipes.length)
     }
@@ -90,7 +130,12 @@ export async function POST(request) {
     var recipeIndex = {}
     var allRecipes = []
 
-    vaultRecipes.forEach(function(r, i) {
+    // Use eligible vault recipes first, then not-due as fallback if needed
+    var recipesToUse = eligibleVault.length >= mealsNeeded
+      ? eligibleVault
+      : eligibleVault.concat(notDueVault).slice(0, Math.max(eligibleVault.length, mealsNeeded))
+
+    recipesToUse.forEach(function(r, i) {
       var code = 'V' + (i + 1)
       recipeIndex[code] = r.id
       allRecipes.push(r)
@@ -119,9 +164,10 @@ export async function POST(request) {
 
     var dayLines = cookingDays.map(function(d) { return d.dayName + ' ' + d.date }).join('\n')
 
+    var sysCount = systemRecipes.length
     var modeNote = useVariety
-      ? 'Mix personal recipes (V codes) and general recipes (S codes) for variety.'
-      : 'Use ONLY personal recipes (V codes). Only use S codes if you run out of V codes.'
+      ? 'Mix personal and general recipes. Aim for roughly half personal (V codes) and half general (S codes) — use about ' + Math.ceil(mealsNeeded/2) + ' V codes and ' + Math.floor(mealsNeeded/2) + ' S codes.'
+      : 'Use ONLY personal recipes (V codes). Only fall back to S codes if absolutely no V codes remain.'
 
     var prompt = [
       'Plan dinners for a family of ' + ((profile && profile.family_size) || 4) + '.',
@@ -227,6 +273,19 @@ export async function POST(request) {
     var matched = enriched.filter(function(s) { return !s.is_skipped && s.recipe }).length
     var missing = enriched.filter(function(s) { return !s.is_skipped && !s.recipe }).length
     console.log('[plan/generate] matched=' + matched + ' missing=' + missing)
+
+    // Update last_planned_date for vault recipes used in this plan
+    var todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0')
+    var usedVaultIds = deduped
+      .filter(function(s) { return s.recipe_id && !String(s.recipe_id).startsWith('sys-') && !String(s.recipe_id).startsWith('emg-') })
+      .map(function(s) { return s.recipe_id })
+
+    for (var j = 0; j < usedVaultIds.length; j++) {
+      try {
+        await sb.from('recipes').update({ last_planned_date: todayStr }).eq('id', usedVaultIds[j])
+      } catch(e) {}
+    }
+    console.log('[plan/generate] updated last_planned_date for ' + usedVaultIds.length + ' vault recipes')
 
     return Response.json({
       plan: enriched,
