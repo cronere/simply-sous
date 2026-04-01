@@ -199,6 +199,17 @@ export default function PlanPage() {
       setPlanStatus(data.status)
       const meals = (data.planned_meals || []).sort((a,b) => a.meal_date.localeCompare(b.meal_date))
 
+      // Debug: log what came back from DB
+      meals.forEach(m => {
+        console.log('loadPlan meal:', m.meal_date,
+          '| recipe_id:', m.recipes?.id || 'null',
+          '| notes:', m.notes || 'null',
+          '| snap_title:', m.recipe_snapshot?.title || 'null',
+          '| snap_sys_id:', m.recipe_snapshot?.system_recipe_id || 'null',
+          '| snap_ing:', (m.recipe_snapshot?.ingredients || []).length
+        )
+      })
+
       // Collect system recipe IDs that need full data fetched
       const sysIdsNeeded = meals
         .filter(m => !m.recipes && m.recipe_snapshot?.system_recipe_id)
