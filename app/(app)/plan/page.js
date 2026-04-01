@@ -169,6 +169,10 @@ export default function PlanPage() {
 
   useEffect(() => {
     if (!userId || !weekStartStr) return
+    // Reset planId when week changes to prevent stale ID from previous week
+    setPlanId(null)
+    setPlanStatus(null)
+    setPlan(null)
     loadPlan()
   }, [userId, weekStartStr])
 
@@ -445,7 +449,15 @@ export default function PlanPage() {
     setConfirming(true); setError('')
     const sb = getClient()
     try {
-      let currentPlanId = planId
+      // Always look up plan by week — never trust planId state which may be stale
+      const { data: existingPlan } = await sb
+        .from('weekly_plans')
+        .select('id')
+        .eq('profile_id', userId)
+        .eq('week_start_date', weekStartStr)
+        .maybeSingle()
+
+      let currentPlanId = existingPlan?.id
       if (!currentPlanId) {
         const { data: np, error: pe } = await sb.from('weekly_plans').insert({
           profile_id: userId,
@@ -455,10 +467,10 @@ export default function PlanPage() {
         }).select('id').single()
         if (pe) throw pe
         currentPlanId = np.id
-        setPlanId(currentPlanId)
       } else {
         await sb.from('weekly_plans').update({ status: 'confirmed' }).eq('id', currentPlanId)
       }
+      setPlanId(currentPlanId)
 
       await sb.from('planned_meals').delete().eq('weekly_plan_id', currentPlanId)
 
@@ -473,15 +485,32 @@ export default function PlanPage() {
           const sm = startM % 60
           startCooking = `${String(sh).padStart(2,'0')}:${String(sm).padStart(2,'0')}:00`
         }
+        const sysId = slot.recipe_id && String(slot.recipe_id).startsWith('sys-')
+          ? String(slot.recipe_id).replace('sys-', '') : null
         return {
           weekly_plan_id: currentPlanId,
           profile_id: userId,
-          recipe_id: slot.recipe_id?.startsWith('sys-') ? null : (slot.recipe_id || null),
+          recipe_id: (!slot.recipe_id || String(slot.recipe_id).startsWith('sys-') || String(slot.recipe_id).startsWith('emg-')) ? null : slot.recipe_id,
           meal_date: slot.date,
           servings: slot.recipe?.base_servings || 4,
           is_skipped: slot.is_skipped || false,
           skip_reason: slot.skip_reason || null,
           start_cooking_at: startCooking,
+          notes: slot.recipe?.title || null,
+          recipe_snapshot: slot.recipe ? {
+            id: slot.recipe.id || null,
+            system_recipe_id: sysId || slot.recipe.system_recipe_id || null,
+            title: slot.recipe.title,
+            description: slot.recipe.description || null,
+            cuisine: slot.recipe.cuisine || null,
+            total_time_mins: slot.recipe.total_time_mins || null,
+            tags: slot.recipe.tags || [],
+            dietary_flags: slot.recipe.dietary_flags || [],
+            is_favorite: slot.recipe.is_favorite || false,
+            base_servings: slot.recipe.base_servings || 4,
+            ingredients: slot.recipe.ingredients || [],
+            instructions: slot.recipe.instructions || [],
+          } : null,
         }
       })
 
