@@ -161,12 +161,59 @@ export default function GroceryPage() {
       }
     })
 
-    setWeeks(weekData)
+    // For any system recipes missing ingredients, fetch from system_recipes table
+    const allMeals = plans.flatMap(p => p.planned_meals || [])
+    const missingIngSysIds = allMeals
+      .filter(m => {
+        const snap = m.recipe_snapshot
+        return snap && snap.system_recipe_id &&
+          (!snap.ingredients || snap.ingredients.length === 0)
+      })
+      .map(m => m.recipe_snapshot.system_recipe_id)
+      .filter((id, idx, arr) => arr.indexOf(id) === idx) // unique
+
+    let sysRecipeMap = {}
+    if (missingIngSysIds.length > 0) {
+      const { data: sysRecipes } = await sb
+        .from('system_recipes')
+        .select('id, title, ingredients')
+        .in('id', missingIngSysIds)
+      if (sysRecipes) {
+        sysRecipes.forEach(r => { sysRecipeMap[r.id] = r })
+      }
+    }
+
+    // Rebuild weekData with enriched ingredients
+    const enrichedWeekData = plans.map(plan => {
+      const meals = (plan.planned_meals || []).filter(m => !m.is_skipped).map(m => {
+        // If snapshot has system_recipe_id but no ingredients, inject from sysRecipeMap
+        if (m.recipe_snapshot && m.recipe_snapshot.system_recipe_id && sysRecipeMap[m.recipe_snapshot.system_recipe_id]) {
+          const full = sysRecipeMap[m.recipe_snapshot.system_recipe_id]
+          return {
+            ...m,
+            recipe_snapshot: { ...m.recipe_snapshot, ingredients: full.ingredients || [] }
+          }
+        }
+        return m
+      })
+      const { toBuy, youHave } = buildGroceryList(meals, allStaples)
+      const isCurrent = plan.week_start_date === currentWeekStart
+      return {
+        planId: plan.id,
+        weekStart: plan.week_start_date,
+        isCurrent,
+        mealCount: meals.length,
+        toBuy,
+        youHave,
+      }
+    })
+
+    setWeeks(enrichedWeekData)
 
     const defaultExpand = {}
-    const currentIdx = weekData.findIndex(w => w.isCurrent)
-    if (currentIdx >= 0) defaultExpand[weekData[currentIdx].weekStart] = true
-    else if (weekData.length > 0) defaultExpand[weekData[weekData.length-1].weekStart] = true
+    const currentIdx = enrichedWeekData.findIndex(w => w.isCurrent)
+    if (currentIdx >= 0) defaultExpand[enrichedWeekData[currentIdx].weekStart] = true
+    else if (enrichedWeekData.length > 0) defaultExpand[enrichedWeekData[enrichedWeekData.length-1].weekStart] = true
     setExpandedWeeks(defaultExpand)
     setLoading(false)
   }
