@@ -440,6 +440,21 @@ export default function PlanPage() {
 
       {error && <div className="plan-err">{error}</div>}
 
+      {/* TEMP DEBUG — remove after fixing */}
+      {process.env.NODE_ENV !== 'production' && userId && (
+        <div style={{margin:'0 2rem .5rem',padding:'.75rem 1rem',background:'rgba(107,126,103,.1)',
+          border:'1px solid rgba(107,126,103,.2)',borderRadius:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.6)'}}>
+          🔧 Debug: userId = {userId} | 
+          <button onClick={async () => {
+            const r = await fetch('/api/debug', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId})})
+            const d = await r.json()
+            alert(JSON.stringify(d, null, 2))
+          }} style={{background:'none',border:'none',color:'#B8874A',cursor:'pointer',marginLeft:'.5rem',fontFamily:"'Outfit',sans-serif"}}>
+            Test DB connection
+          </button>
+        </div>
+      )}
+
       {/* Variety prompt */}
       {showVarietyPrompt && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',zIndex:200,
