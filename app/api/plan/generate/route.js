@@ -87,8 +87,8 @@ export async function POST(request) {
         var daysSince = (today - new Date(lastPlanned)) / 86400000
         console.log('[plan/generate] rotation check: "' + r.title + '" freq=' + freq + ' daysSince=' + Math.round(daysSince))
         if (freq === 'weekly') eligible = daysSince >= 6
-        else if (freq === 'biweekly') eligible = daysSince >= 12
-        else if (freq === 'monthly') eligible = daysSince >= 26
+        else if (freq === 'biweekly') eligible = daysSince >= 7   // don't repeat within same week, ok next week
+        else if (freq === 'monthly') eligible = daysSince >= 21   // ok after 3 weeks
       } else if (inRotation && !lastPlanned) {
         // Never planned — eligible
         eligible = true
