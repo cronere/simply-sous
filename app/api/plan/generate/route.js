@@ -412,18 +412,41 @@ CRITICAL: Your response must be ONLY a valid JSON array. No explanation. No prea
       }, { status: 500 })
     }
 
+    // Deduplicate — if Claude assigned the same recipe twice, replace the duplicate
+    // with a different recipe from the pool
+    const usedRecipeIds = new Set()
+    const deduped = planSlots.map(slot => {
+      if (slot.is_skipped || !slot.recipe_id) return slot
+      if (usedRecipeIds.has(slot.recipe_id)) {
+        // Find an unused recipe from the pool
+        const unused = allRecipes.find(r =>
+          !usedRecipeIds.has(r.id) &&
+          r.id !== slot.recipe_id
+        )
+        if (unused) {
+          usedRecipeIds.add(unused.id)
+          return { ...slot, recipe_id: unused.id }
+        }
+        // If truly no alternatives, leave it (better than empty)
+        return slot
+      }
+      usedRecipeIds.add(slot.recipe_id)
+      return slot
+    })
+    const finalSlots = deduped
+
     // Enrich with full recipe data
     const recipeMap = {}
     allRecipes.forEach(r => { recipeMap[r.id] = r })
 
-    const enriched = planSlots.map(slot => ({
+    const enriched = finalSlots.map(slot => ({
       ...slot,
       recipe: slot.recipe_id ? (recipeMap[slot.recipe_id] || null) : null,
       dayName: weekDates.find(d => d.date === slot.date)?.dayName || '',
     }))
 
     // Increment served count for system recipes that were used
-    const usedSystemIds = planSlots
+    const usedSystemIds = finalSlots
       .filter(s => s.recipe_id?.startsWith('sys-') && !s.recipe_id?.startsWith('sys-gen-'))
       .map(s => {
         const match = allRecipes.find(r => r.id === s.recipe_id)
@@ -436,7 +459,7 @@ CRITICAL: Your response must be ONLY a valid JSON array. No explanation. No prea
     }
 
     // Update last_planned_date for rotation recipes that were used
-    const usedRotationIds = planSlots
+    const usedRotationIds = finalSlots
       .filter(s => s.recipe_id && !String(s.recipe_id).startsWith('sys-'))
       .map(s => s.recipe_id)
       .filter(id => rotationRecipes.some(r => r.id === id))
