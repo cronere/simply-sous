@@ -187,12 +187,14 @@ export async function POST(request) {
       prompt.push('')
     }
 
+    var allCodes = Object.keys(recipeIndex).join(', ')
     prompt = prompt.concat([
-      'CRITICAL: Return a JSON array with EXACTLY ' + mealsNeeded + ' items — one for every day listed above.',
-      'Do NOT skip any days. Do NOT return fewer than ' + mealsNeeded + ' items.',
-      'Each item: {"date":"YYYY-MM-DD","recipe_code":"V1","is_skipped":false}',
-      'Use each recipe code only once. Vary cuisines day to day.',
-      'ONLY the JSON array. No explanation. No markdown.',
+      'YOU MUST return exactly ' + mealsNeeded + ' objects in the array.',
+      'One object per date. Dates to fill: ' + cookingDays.map(function(d){return d.date}).join(', '),
+      'Available recipe codes: ' + allCodes,
+      'Each item format: {"date":"YYYY-MM-DD","recipe_code":"V1","is_skipped":false}',
+      'Rules: use each code once, vary cuisines, NO missing dates.',
+      'ONLY the JSON array. No text before or after.',
     ])
 
     var promptStr = prompt.join('\n')
@@ -243,11 +245,25 @@ export async function POST(request) {
     var claudeMap = {}
     planSlots.forEach(function(s) { if (s.date) claudeMap[s.date] = s })
 
+    // Server-side gap filling — assign unused recipes to any cooking days Claude missed
+    var usedCodes = new Set(planSlots.map(function(s) { return s.recipe_code }))
+    var unusedRecipes = allRecipes.filter(function(r) { return !usedCodes.has(r.id) })
+    var unusedIdx = 0
+
     var merged = weekDates.map(function(d) {
       if (blackoutDays.indexOf(d.dayOfWeek) >= 0) {
         return { date: d.date, recipe_id: null, is_skipped: true, skip_reason: 'blackout day' }
       }
-      return claudeMap[d.date] || { date: d.date, recipe_id: null, is_skipped: false, skip_reason: null }
+      if (claudeMap[d.date]) return claudeMap[d.date]
+      // Gap — fill with next unused recipe
+      var assignedIds = planSlots.map(function(s) { return s.recipe_id }).filter(Boolean)
+      var fill = allRecipes.find(function(r) { return assignedIds.indexOf(r.id) < 0 })
+      if (fill) {
+        assignedIds.push(fill.id)
+        console.log('[plan/generate] gap-filled ' + d.date + ' with ' + fill.title)
+        return { date: d.date, recipe_id: fill.id, is_skipped: false, skip_reason: null }
+      }
+      return { date: d.date, recipe_id: null, is_skipped: false, skip_reason: null }
     })
 
     // Deduplicate
@@ -275,18 +291,8 @@ export async function POST(request) {
     var missing = enriched.filter(function(s) { return !s.is_skipped && !s.recipe }).length
     console.log('[plan/generate] matched=' + matched + ' missing=' + missing)
 
-    // Update last_planned_date for vault recipes used in this plan
-    var todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0')
-    var usedVaultIds = deduped
-      .filter(function(s) { return s.recipe_id && !String(s.recipe_id).startsWith('sys-') && !String(s.recipe_id).startsWith('emg-') })
-      .map(function(s) { return s.recipe_id })
-
-    for (var j = 0; j < usedVaultIds.length; j++) {
-      try {
-        await sb.from('recipes').update({ last_planned_date: todayStr }).eq('id', usedVaultIds[j])
-      } catch(e) {}
-    }
-    console.log('[plan/generate] updated last_planned_date for ' + usedVaultIds.length + ' vault recipes')
+    // NOTE: last_planned_date is updated when the plan is CONFIRMED, not on generation
+    // This allows regenerating without marking recipes as used
 
     return Response.json({
       plan: enriched,
