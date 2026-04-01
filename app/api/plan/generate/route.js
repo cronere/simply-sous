@@ -106,7 +106,104 @@ async function getSystemRecipes(sb, prefs, count, excludeIds = []) {
   }))
 }
 
-// Generate a new recipe with Claude and save it to system_recipes
+// Generate multiple recipes in one Claude call — much more efficient
+async function generateAndSaveRecipes(sb, prefs, existingTitles, count) {
+  const restrictions = [
+    ...(prefs?.dietary_flags || []),
+    ...(prefs?.allergens || []),
+  ]
+  const cuisines = prefs?.cuisine_loves || ['American', 'Italian', 'Mexican', 'Asian', 'Mediterranean']
+  const maxTime = prefs?.max_weeknight_mins || 45
+  const disliked = prefs?.disliked_ingredients || []
+
+  const prompt = 'Generate ' + count + ' different dinner recipes for a family with these requirements:
+' +
+    '- Max total time: ' + maxTime + ' minutes each
+' +
+    '- Dietary restrictions (MUST follow): ' + (restrictions.length ? restrictions.join(', ') : 'none') + '
+' +
+    '- Avoid these ingredients: ' + (disliked.length ? disliked.join(', ') : 'none') + '
+' +
+    '- Preferred cuisines: ' + cuisines.join(', ') + '
+' +
+    '- Different from these existing recipes: ' + existingTitles.slice(0, 15).join(', ') + '
+' +
+    '- Family-friendly, serves 4, variety of proteins and cuisines
+
+' +
+    'Return ONLY a valid JSON array of ' + count + ' recipes. Each recipe must have:
+' +
+    '{"title":"","description":"","cuisine":"","meal_type":"dinner","difficulty":2,' +
+    '"prep_time_mins":10,"cook_time_mins":25,"total_time_mins":35,"base_servings":4,' +
+    '"ingredients":[{"name":"","amount":1,"unit":"","notes":""}],' +
+    '"instructions":[{"step":1,"text":"","timer_minutes":null}],' +
+    '"tags":[],"dietary_flags":[]}
+
+' +
+    'Start with [ and end with ]. Nothing else.'
+
+  const response = await callWithRetry(function() {
+    return anthropic.messages.create({
+      model: 'claude-opus-4-6',
+      max_tokens: 4000,
+      system: 'You are a recipe generation API. Return ONLY valid JSON arrays of recipe objects. No explanation, no markdown.',
+      messages: [{ role: 'user', content: prompt }],
+    })
+  })
+
+  const raw = response.content[0] && response.content[0].text ? response.content[0].text.trim() : '[]'
+  const cleaned = raw.replace(/^```json
+?/, '').replace(/
+?```$/, '').trim()
+  const recipes = JSON.parse(cleaned)
+
+  if (!Array.isArray(recipes)) throw new Error('Invalid recipe batch response')
+
+  // Save all to system_recipes
+  const saved = []
+  for (const recipe of recipes) {
+    try {
+      const { data, error } = await sb.from('system_recipes').insert({
+        title: recipe.title,
+        description: recipe.description || null,
+        cuisine: recipe.cuisine,
+        meal_type: recipe.meal_type || 'dinner',
+        difficulty: recipe.difficulty || 2,
+        prep_time_mins: recipe.prep_time_mins,
+        cook_time_mins: recipe.cook_time_mins,
+        total_time_mins: recipe.total_time_mins,
+        base_servings: recipe.base_servings || 4,
+        ingredients: recipe.ingredients || [],
+        instructions: recipe.instructions || [],
+        tags: recipe.tags || [],
+        dietary_flags: recipe.dietary_flags || [],
+        source: 'ai_generated',
+        times_served: 1,
+      }).select('id').single()
+
+      if (!error && data) {
+        console.log('Saved new system recipe: "' + recipe.title + '" (' + data.id + ')')
+        saved.push({
+          id: 'sys-' + data.id,
+          system_recipe_id: data.id,
+          title: recipe.title,
+          cuisine: recipe.cuisine,
+          total_time_mins: recipe.total_time_mins,
+          tags: recipe.tags || [],
+          dietary_flags: recipe.dietary_flags || [],
+          base_servings: recipe.base_servings || 4,
+          from_generated: true,
+        })
+      }
+    } catch (saveErr) {
+      console.error('Failed to save recipe "' + recipe.title + '":', saveErr)
+    }
+  }
+
+  return saved
+}
+
+// Keep single recipe generator for backwards compatibility
 async function generateAndSaveRecipe(sb, prefs, existingTitles) {
   const restrictions = [
     ...(prefs?.dietary_flags || []),
@@ -316,19 +413,24 @@ export async function POST(request) {
     const generatedRecipes = []
 
     if (stillNeeded > 0) {
-      console.log(`Generating ${stillNeeded} new recipes with Claude...`)
+      console.log('Generating ' + stillNeeded + ' new recipes with Claude...')
       const existingTitles = [...vaultRecipes, ...systemRecipes].map(r => r.title)
-
-      for (let i = 0; i < stillNeeded; i++) {
-        try {
-          const generated = await generateAndSaveRecipe(sb, prefs, existingTitles)
-          generatedRecipes.push(generated)
-          existingTitles.push(generated.title)
-        } catch (genErr) {
-          console.error('Recipe generation failed:', genErr)
-        }
+      try {
+        const batchGenerated = await generateAndSaveRecipes(sb, prefs, existingTitles, stillNeeded)
+        batchGenerated.forEach(r => generatedRecipes.push(r))
+        console.log('Generated ' + generatedRecipes.length + ' new recipes, saved to system database')
+      } catch (genErr) {
+        console.error('Batch recipe generation failed:', genErr)
+        // Emergency fallback — static recipes so plan always has something
+        const emergency = [
+          { id: 'emg-1', title: 'Garlic Butter Chicken', cuisine: 'American', total_time_mins: 30, tags: ['chicken','weeknight'], dietary_flags: [], base_servings: 4 },
+          { id: 'emg-2', title: 'Simple Beef Tacos', cuisine: 'Mexican', total_time_mins: 25, tags: ['beef','weeknight'], dietary_flags: [], base_servings: 4 },
+          { id: 'emg-3', title: 'Lemon Pasta', cuisine: 'Italian', total_time_mins: 20, tags: ['vegetarian','pasta'], dietary_flags: ['vegetarian'], base_servings: 4 },
+          { id: 'emg-4', title: 'Honey Soy Salmon', cuisine: 'Asian', total_time_mins: 25, tags: ['seafood','healthy'], dietary_flags: [], base_servings: 4 },
+          { id: 'emg-5', title: 'Black Bean Bowls', cuisine: 'Mexican', total_time_mins: 20, tags: ['vegetarian','healthy'], dietary_flags: ['vegetarian'], base_servings: 4 },
+        ]
+        emergency.slice(0, stillNeeded).forEach(r => generatedRecipes.push(r))
       }
-      console.log(`Generated ${generatedRecipes.length} new recipes, saved to system database`)
     }
 
     const allRecipes = [...dueRotation, ...otherVault, ...systemRecipes, ...generatedRecipes]
