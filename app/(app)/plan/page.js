@@ -877,23 +877,9 @@ export default function PlanPage() {
             {planStatus !== 'confirmed' ? (
               <>
                 <button className="regen-btn" onClick={() => generatePlan(null)} disabled={generating}>↺ Regenerate</button>
-                <div style={{display:'flex',gap:'.75rem',flex:1}}>
-                  <button
-                    onClick={confirmPlan}
-                    disabled={confirming}
-                    style={{flex:1,background:'rgba(184,135,74,.15)',color:'#D4A46A',
-                      border:'1px solid rgba(184,135,74,.3)',borderRadius:'2rem',
-                      padding:'.9rem',fontFamily:"'Outfit',sans-serif",fontSize:'1rem',
-                      fontWeight:600,cursor:'pointer',transition:'all .2s'}}>
-                    {confirming ? <><span className="sp"/>Saving...</> : '✓ Confirm plan'}
-                  </button>
-                  <button
-                    onClick={async () => { await confirmPlan(true); }}
-                    disabled={confirming}
-                    className="confirm-btn">
-                    {confirming ? <><span className="sp"/>Saving...</> : '🛒 Confirm & shop →'}
-                  </button>
-                </div>
+                <button className="confirm-btn" onClick={() => confirmPlan()} disabled={confirming}>
+                  {confirming ? <><span className="sp"/>Saving...</> : '✓ Confirm this week →'}
+                </button>
               </>
             ) : (
               <div style={{display:'flex',gap:'.75rem',flex:1}}>
@@ -903,7 +889,7 @@ export default function PlanPage() {
                     border:'1px solid rgba(184,135,74,.3)',borderRadius:'2rem',
                     padding:'.9rem',fontFamily:"'Outfit',sans-serif",fontSize:'1rem',
                     fontWeight:600,cursor:'pointer',transition:'all .2s'}}>
-                  🛒 View grocery list
+                  🛒 See grocery list
                 </button>
                 <button
                   onClick={() => setWeekOffset(o => o + 1)}
