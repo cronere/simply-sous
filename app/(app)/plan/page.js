@@ -272,7 +272,8 @@ export default function PlanPage() {
         .select('id', { count: 'exact', head: true })
         .eq('profile_id', userId)
 
-      const cookingDaysCount = 7 - 2 // rough estimate
+      // Use actual blackout days if available, otherwise assume 2
+      const cookingDaysCount = 7 - (plan ? plan.filter(s => s.is_skipped).length : 2)
       if ((count || 0) >= cookingDaysCount) {
         setShowVarietyPrompt(true)
         setPendingGenerate(true)
