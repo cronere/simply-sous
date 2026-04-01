@@ -201,12 +201,10 @@ export default function PlanPage() {
         .sort((a,b) => a.meal_date.localeCompare(b.meal_date))
         .map(m => ({
           date: m.meal_date,
-          recipe_id: m.recipes?.id || null,
           // Use vault recipe if available, fall back to snapshot (system recipes), then title-only
           recipe: m.recipes || m.recipe_snapshot || (m.notes ? { title: m.notes, cuisine: null, total_time_mins: null } : null),
           recipe_id: m.recipes?.id
             || (m.recipe_snapshot?.system_recipe_id ? 'sys-' + m.recipe_snapshot.system_recipe_id : null)
-            || m.recipe_id
             || null,
           is_skipped: m.is_skipped,
           skip_reason: m.skip_reason,
@@ -305,11 +303,6 @@ export default function PlanPage() {
   // Locked only if: we're ahead of current week AND current week has a draft (not confirmed)
   // If current week has no plan at all, future weeks are also locked (need to plan in order)
   const currentWeekHasDraft = weekOffset === 0 && plan && planStatus !== 'confirmed'
-  const isFutureLocked = weekOffset > 0 && (() => {
-    // Future weeks are locked until user explicitly navigates here via "Plan next week"
-    // This is handled by the Next button — if they got here, they confirmed first
-    return false // Navigation is the lock, not the render
-  })()
 
   const generatePlan = async (useVariety = null) => {
     // If useVariety hasn't been decided and vault is large enough, ask first
@@ -492,7 +485,13 @@ export default function PlanPage() {
           {weekOffset === 0 ? 'This week' : weekOffset === 1 ? 'Next week' : weekOffset === -1 ? 'Last week' : `${weekOffset > 0 ? '+':''}${weekOffset} weeks`}
         </span>
         <button className="wn-btn"
-          onClick={() => setWeekOffset(o => Math.min(o+1, 4))}
+          onClick={() => {
+            if (weekOffset >= 0 && planStatus !== 'confirmed') {
+              setError('Please confirm this week before moving ahead.')
+              return
+            }
+            setWeekOffset(o => Math.min(o+1, 4))
+          }}
           disabled={weekOffset >= 4}
           style={{opacity: weekOffset >= 4 ? .3 : 1}}>
           Next →
@@ -892,7 +891,10 @@ export default function PlanPage() {
                   🛒 See grocery list
                 </button>
                 <button
-                  onClick={() => setWeekOffset(o => o + 1)}
+                  onClick={() => {
+                    setWeekOffset(o => o + 1)
+                    setError('')
+                  }}
                   className="confirm-btn">
                   Plan next week →
                 </button>
