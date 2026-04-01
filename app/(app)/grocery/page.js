@@ -172,16 +172,34 @@ export default function GroceryPage() {
         String(d.getDate()).padStart(2, '0')
     })()
 
-    const { data: plan } = await sb
+    // Try current week first, then most recent confirmed plan
+    let { data: plan } = await sb
       .from('weekly_plans')
       .select(`id, week_start_date, status,
         planned_meals (
-          meal_date, is_skipped,
+          meal_date, is_skipped, notes,
           recipes ( id, title, ingredients )
         )`)
       .eq('profile_id', userId)
       .eq('week_start_date', weekStart)
       .maybeSingle()
+
+    // Fall back to most recent confirmed plan if no plan this week
+    if (!plan) {
+      const { data: recent } = await sb
+        .from('weekly_plans')
+        .select(`id, week_start_date, status,
+          planned_meals (
+            meal_date, is_skipped, notes,
+            recipes ( id, title, ingredients )
+          )`)
+        .eq('profile_id', userId)
+        .eq('status', 'confirmed')
+        .order('week_start_date', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      plan = recent
+    }
 
     if (!plan) {
       setHasPlan(false)
