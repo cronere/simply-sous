@@ -327,7 +327,6 @@ export default function PlanPage() {
       .from('recipes')
       .select('id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite')
       .eq('profile_id', userId)
-      .eq('is_published', true)
 
     if (!vaultRecipes?.length) {
       setError('Add more recipes to your vault to enable swapping.')
