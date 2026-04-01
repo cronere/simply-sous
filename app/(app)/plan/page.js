@@ -545,18 +545,19 @@ export default function PlanPage() {
                       <div className={`recipe-slot${tod ? ' tonight' : ''}`}>
                         <div style={{display:'flex',alignItems:'flex-start',gap:'.5rem'}}>
                           <div style={{flex:1,minWidth:0}}
-                            onClick={() => {
+                            onClick={async () => {
                               if (!slot.recipe_id) {
                                 if (slot.recipe) setSysModal(slot.recipe)
                                 return
                               }
-                              if (String(slot.recipe_id || '').startsWith('sys-') || String(slot.recipe_id || '').startsWith('emg-') || !slot.recipe_id) {
-                                // Fetch full system recipe data then show modal
-                                const sysId = slot.recipe_id ? String(slot.recipe_id).replace('sys-', '') : null
-                                if (sysId && !sysId.startsWith('emg')) {
-                                  const sb = getClient()
-                                  const { data: fullRecipe } = await sb.from('system_recipes').select('*').eq('id', sysId).single()
-                                  if (fullRecipe) { setSysModal(fullRecipe); return }
+                              if (String(slot.recipe_id || '').startsWith('sys-') || String(slot.recipe_id || '').startsWith('emg-')) {
+                                const sysId = String(slot.recipe_id).replace('sys-', '')
+                                if (!sysId.startsWith('emg')) {
+                                  try {
+                                    const sb = getClient()
+                                    const { data: fullRecipe } = await sb.from('system_recipes').select('*').eq('id', sysId).single()
+                                    if (fullRecipe) { setSysModal(fullRecipe); return }
+                                  } catch(e) {}
                                 }
                                 if (slot.recipe) setSysModal(slot.recipe)
                                 return
