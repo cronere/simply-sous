@@ -58,7 +58,6 @@ export async function POST(request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     )
 
-    // Fetch everything in parallel
     var results = await Promise.all([
       sb.from('profiles').select('family_size, dinner_hour').eq('id', userId).single(),
       sb.from('user_preferences').select('*').eq('profile_id', userId).maybeSingle(),
@@ -73,14 +72,16 @@ export async function POST(request) {
 
     console.log('[plan/generate] userId=' + userId + ' vault=' + vaultRecipes.length + ' useVariety=' + useVariety)
 
-    var today = new Date()
-    // Use week start date as reference for rotation eligibility
-    // This handles planning ahead — week 3 (Apr 13) should see recipes as eligible
-    // even if last_planned was Apr 6 (only 7 days ago from today Apr 1)
+    // Parse weekStartDate as a date number for comparison
+    // weekStartDate is like "2026-04-06" — convert to day number
     var planningDate = new Date(weekStartDate + 'T12:00:00')
 
-    // Mark recipes as eligible based on rotation frequency
-    // Rotation data is included in main query above
+    // Eligibility rules:
+    // - weekly: not in the same week (>= 7 days)
+    // - biweekly: not in the last 2 weeks (>= 14 days)  
+    // - monthly: not in the last 4 weeks (>= 28 days)
+    // We use planningDate (the week being generated) as reference
+    // so planning ahead works correctly
     vaultRecipes = vaultRecipes.map(function(r) {
       var inRotation = r.in_rotation || false
       var freq = r.rotation_frequency || null
@@ -88,35 +89,19 @@ export async function POST(request) {
       var eligible = true
 
       if (inRotation && lastPlanned && freq) {
-        var daysSince = (planningDate - new Date(lastPlanned)) / 86400000
-        console.log('[plan/generate] rotation check: "' + r.title + '" freq=' + freq + ' daysSince=' + Math.round(daysSince))
-        if (freq === 'weekly') eligible = daysSince >= 6
-        else if (freq === 'biweekly') eligible = daysSince >= 7   // don't repeat within same week, ok next week
-        else if (freq === 'monthly') eligible = daysSince >= 21   // ok after 3 weeks
-      } else if (inRotation && !lastPlanned) {
-        // Never planned — eligible
-        eligible = true
+        var daysSince = (planningDate - new Date(lastPlanned + 'T12:00:00')) / 86400000
+        console.log('[plan/generate] check "' + r.title + '" freq=' + freq + ' lastPlanned=' + lastPlanned + ' planningDate=' + weekStartDate + ' daysSince=' + Math.round(daysSince))
+        if (freq === 'weekly') eligible = daysSince >= 7
+        else if (freq === 'biweekly') eligible = daysSince >= 14
+        else if (freq === 'monthly') eligible = daysSince >= 28
       }
-
-      return Object.assign({}, r, {
-        in_rotation: inRotation,
-        rotation_frequency: freq,
-        last_planned_date: lastPlanned,
-        eligible: eligible
-      })
+      // If not in rotation, or never planned, always eligible
+      return Object.assign({}, r, { eligible: eligible })
     })
 
-    // Split into eligible and not-yet-due
     var eligibleVault = vaultRecipes.filter(function(r) { return r.eligible })
     var notDueVault = vaultRecipes.filter(function(r) { return !r.eligible })
-
     console.log('[plan/generate] eligible=' + eligibleVault.length + ' not-due=' + notDueVault.length)
-    if (notDueVault.length > 0) {
-      notDueVault.forEach(function(r) {
-        var daysSince = r.last_planned_date ? Math.round((today - new Date(r.last_planned_date)) / 86400000) : 'never'
-        console.log('[plan/generate] not-due: "' + r.title + '" freq=' + (r.rotation_frequency||'none') + ' last=' + (r.last_planned_date||'never') + ' daysSince=' + daysSince)
-      })
-    }
 
     // Build week dates
     var weekDates = []
@@ -132,31 +117,23 @@ export async function POST(request) {
     }
 
     var cookingDays = weekDates.filter(function(d) { return blackoutDays.indexOf(d.dayOfWeek) < 0 })
-    var skippedDays = weekDates.filter(function(d) { return blackoutDays.indexOf(d.dayOfWeek) >= 0 })
     var mealsNeeded = cookingDays.length
 
-    // Get system recipes if needed
+    // Fetch system recipes only when needed
     var systemRecipes = []
-    // Always fetch some system recipes as fallback in case Claude doesn't fill all days
     if (useVariety || eligibleVault.length < mealsNeeded) {
-      // Always fetch enough system recipes to cover the full week if vault is exhausted
-      var needed = useVariety 
+      var needed = useVariety
         ? Math.max(mealsNeeded, 8)
-        : Math.max(mealsNeeded - eligibleVault.length, 4)
+        : Math.max(mealsNeeded - eligibleVault.length, 2)
       systemRecipes = await getSystemRecipes(sb, prefs, needed)
-      console.log('[plan/generate] system recipes fetched=' + systemRecipes.length)
+      console.log('[plan/generate] system=' + systemRecipes.length)
     }
 
-    // Build index map — simple codes instead of UUIDs
+    // Build index — V codes for vault, S codes for system
     var recipeIndex = {}
     var allRecipes = []
 
-    // Use eligible vault recipes first, then not-due as fallback if needed
-    // Only use eligible recipes as V codes — never give Claude not-due recipes
-    // If vault has nothing eligible, system recipes will fill the whole week
-    var recipesToUse = eligibleVault
-
-    recipesToUse.forEach(function(r, i) {
+    eligibleVault.forEach(function(r, i) {
       var code = 'V' + (i + 1)
       recipeIndex[code] = r.id
       allRecipes.push(r)
@@ -170,13 +147,12 @@ export async function POST(request) {
 
     console.log('[plan/generate] index=' + JSON.stringify(recipeIndex))
 
-    // Build recipe map for enrichment
     var recipeMap = {}
     allRecipes.forEach(function(r) { recipeMap[r.id] = r })
 
     // Build prompt
-    var vaultLines = recipesToUse.map(function(r, i) {
-      return 'V' + (i+1) + ': "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min' + (r.is_favorite ? ' ❤️' : '')
+    var vaultLines = eligibleVault.map(function(r, i) {
+      return 'V' + (i+1) + ': "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min'
     }).join('\n')
 
     var sysLines = systemRecipes.map(function(r, i) {
@@ -184,50 +160,47 @@ export async function POST(request) {
     }).join('\n')
 
     var dayLines = cookingDays.map(function(d) { return d.dayName + ' ' + d.date }).join('\n')
+    var allCodes = Object.keys(recipeIndex).join(', ')
 
-    var vaultAvailable = recipesToUse.length
-    var modeNote = vaultAvailable === 0
-      ? 'No personal recipes are due this week. Use ONLY general recipes (S codes) to fill all ' + mealsNeeded + ' days.'
+    var modeNote = eligibleVault.length === 0
+      ? 'No personal recipes are due. Use S codes only.'
       : useVariety
-        ? 'Mix personal (V codes) and general (S codes). Fill ALL ' + mealsNeeded + ' days. Include at least 1 S code for variety.'
-        : 'Use personal recipes (V codes) first. Use S codes only if you run out of V codes. Fill ALL ' + mealsNeeded + ' days.'
+        ? 'Mix V and S codes. Use at least 1 S code.'
+        : 'Use V codes. Use S codes only if you run out of V codes.'
 
-    var prompt = [
-      'Plan dinners for a family of ' + ((profile && profile.family_size) || 4) + '.',
+    var promptLines = [
+      'Assign dinner recipes to days for a family of ' + ((profile && profile.family_size) || 4) + '.',
       'Mode: ' + modeNote,
       '',
-      'DAYS TO PLAN (' + mealsNeeded + ' days):',
+      'DAYS (' + mealsNeeded + '):',
       dayLines,
       '',
-      'PERSONAL RECIPES (prefer these):',
-      vaultLines || 'None',
+      'PERSONAL RECIPES:',
+      vaultLines || 'None available',
       '',
     ]
 
     if (sysLines) {
-      prompt.push('GENERAL RECIPES (use for variety or if personal runs out):')
-      prompt.push(sysLines)
-      prompt.push('')
+      promptLines.push('GENERAL RECIPES:')
+      promptLines.push(sysLines)
+      promptLines.push('')
     }
 
-    var allCodes = Object.keys(recipeIndex).join(', ')
-    prompt = prompt.concat([
-      'YOU MUST return exactly ' + mealsNeeded + ' objects in the array.',
-      'One object per date. Dates to fill: ' + cookingDays.map(function(d){return d.date}).join(', '),
-      'Available recipe codes: ' + allCodes,
-      'Each item format: {"date":"YYYY-MM-DD","recipe_code":"V1","is_skipped":false}',
-      'Rules: use each code once, vary cuisines, NO missing dates.',
-      'ONLY the JSON array. No text before or after.',
+    promptLines = promptLines.concat([
+      'Return JSON array of exactly ' + mealsNeeded + ' objects.',
+      'Dates: ' + cookingDays.map(function(d) { return d.date }).join(', '),
+      'Codes: ' + allCodes,
+      'Format: [{"date":"YYYY-MM-DD","recipe_code":"V1","is_skipped":false}]',
+      'Use each code once. No repeats. Fill every date. JSON only.',
     ])
 
-    var promptStr = prompt.join('\n')
-    console.log('[plan/generate] prompt length=' + promptStr.length)
+    var promptStr = promptLines.join('\n')
 
     var response = await callWithRetry(function() {
       return anthropic.messages.create({
         model: 'claude-opus-4-6',
         max_tokens: 800,
-        system: 'You are a meal planning API. Output ONLY a valid JSON array. No markdown, no explanation.',
+        system: 'Meal planning API. Output ONLY valid JSON array.',
         messages: [{ role: 'user', content: promptStr }]
       })
     })
@@ -235,11 +208,10 @@ export async function POST(request) {
     var raw = (response.content[0] && response.content[0].text) ? response.content[0].text.trim() : ''
     console.log('[plan/generate] raw=' + raw.substring(0, 200))
 
-    // Extract JSON
     var fi = raw.indexOf('[')
     var li = raw.lastIndexOf(']')
     if (fi < 0 || li <= fi) {
-      console.error('[plan/generate] no array found in: ' + raw)
+      console.error('[plan/generate] no array in: ' + raw)
       return Response.json({ error: 'Plan generation failed — please try again.' }, { status: 500 })
     }
 
@@ -264,45 +236,43 @@ export async function POST(request) {
       return Object.assign({}, slot, { recipe_id: realId || null })
     })
 
-    // Inject blackout days
+    // Map Claude slots by date
     var claudeMap = {}
     planSlots.forEach(function(s) { if (s.date) claudeMap[s.date] = s })
 
-    // Server-side gap filling — assign unused recipes to any cooking days Claude missed
-    var usedCodes = new Set(planSlots.map(function(s) { return s.recipe_code }))
-    var unusedRecipes = allRecipes.filter(function(r) { return !usedCodes.has(r.id) })
-    var unusedIdx = 0
+    // Build final 7-day plan — inject blackout days and gap-fill missing cooking days
+    var usedIds = new Set()
+    planSlots.forEach(function(s) { if (s.recipe_id) usedIds.add(s.recipe_id) })
 
     var merged = weekDates.map(function(d) {
       if (blackoutDays.indexOf(d.dayOfWeek) >= 0) {
         return { date: d.date, recipe_id: null, is_skipped: true, skip_reason: 'blackout day' }
       }
-      if (claudeMap[d.date]) return claudeMap[d.date]
-      // Gap — fill with next unused recipe
-      var assignedIds = planSlots.map(function(s) { return s.recipe_id }).filter(Boolean)
-      var fill = allRecipes.find(function(r) { return assignedIds.indexOf(r.id) < 0 })
+      if (claudeMap[d.date] && claudeMap[d.date].recipe_id) return claudeMap[d.date]
+      // Gap fill with unused recipe
+      var fill = allRecipes.find(function(r) { return !usedIds.has(r.id) })
       if (fill) {
-        assignedIds.push(fill.id)
+        usedIds.add(fill.id)
         console.log('[plan/generate] gap-filled ' + d.date + ' with ' + fill.title)
         return { date: d.date, recipe_id: fill.id, is_skipped: false, skip_reason: null }
       }
       return { date: d.date, recipe_id: null, is_skipped: false, skip_reason: null }
     })
 
-    // Deduplicate
-    var usedIds = new Set()
+    // Deduplicate within this week
+    var finalUsed = new Set()
     var deduped = merged.map(function(slot) {
       if (slot.is_skipped || !slot.recipe_id) return slot
-      if (usedIds.has(slot.recipe_id)) {
-        var unused = allRecipes.find(function(r) { return !usedIds.has(r.id) })
-        if (unused) { usedIds.add(unused.id); return Object.assign({}, slot, { recipe_id: unused.id }) }
+      if (finalUsed.has(slot.recipe_id)) {
+        var unused = allRecipes.find(function(r) { return !finalUsed.has(r.id) })
+        if (unused) { finalUsed.add(unused.id); return Object.assign({}, slot, { recipe_id: unused.id }) }
         return slot
       }
-      usedIds.add(slot.recipe_id)
+      finalUsed.add(slot.recipe_id)
       return slot
     })
 
-    // Enrich with recipe data
+    // Enrich
     var enriched = deduped.map(function(slot) {
       return Object.assign({}, slot, {
         recipe: slot.recipe_id ? (recipeMap[slot.recipe_id] || null) : null,
@@ -317,7 +287,7 @@ export async function POST(request) {
     return Response.json({
       plan: enriched,
       weekStartDate: weekStartDate,
-      stats: { vault: vaultRecipes.length, system: systemRecipes.length }
+      stats: { vault: vaultRecipes.length, eligible: eligibleVault.length, system: systemRecipes.length }
     })
 
   } catch(err) {
