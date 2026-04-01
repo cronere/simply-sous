@@ -22,22 +22,22 @@ const css = `
   .gr-hd{padding:1.75rem 2rem 1.25rem;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem}
   .gr-hd h1{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:300;color:#F8F3EC}
   .gr-hd h1 em{font-style:italic;color:#B8874A}
-  .gr-hd-sub{font-size:.85rem;color:rgba(248,243,236,.45);margin-top:.25rem}
+  .gr-hd-sub{font-size:.97rem;color:rgba(248,243,236,.78);margin-top:.25rem}
   .gr-week-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:2rem;
-    padding:.45rem 1rem;font-size:.8rem;color:rgba(248,243,236,.45);cursor:pointer;
+    padding:.45rem 1rem;font-size:.92rem;color:rgba(248,243,236,.78);cursor:pointer;
     font-family:'Outfit',sans-serif;transition:all .2s;white-space:nowrap}
   .gr-week-btn:hover{border-color:rgba(184,135,74,.3);color:#B8874A}
   .gr-progress{padding:0 2rem 1.25rem}
   .gr-progress-bar{height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden}
   .gr-progress-fill{height:100%;background:linear-gradient(to right,#B8874A,#D4A46A);transition:width .4s ease;border-radius:2px}
-  .gr-progress-label{font-size:.75rem;color:rgba(248,243,236,.3);margin-top:.5rem}
+  .gr-progress-label{font-size:.87rem;color:rgba(248,243,236,.60);margin-top:.5rem}
   .gr-content{padding:0 2rem}
   .gr-section{margin-bottom:2rem}
   .gr-section-hd{display:flex;align-items:center;gap:.75rem;margin-bottom:.85rem;padding-bottom:.6rem;
     border-bottom:1px solid rgba(255,255,255,.06)}
-  .gr-section-title{font-size:.7rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;
-    color:rgba(248,243,236,.35);flex:1}
-  .gr-section-count{font-size:.72rem;color:rgba(248,243,236,.25)}
+  .gr-section-title{font-size:.94rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;
+    color:rgba(248,243,236,.65);flex:1}
+  .gr-section-count{font-size:.84rem;color:rgba(248,243,236,.85)}
   .gr-items{display:flex;flex-direction:column;gap:.35rem}
   .gr-item{display:flex;align-items:center;gap:.875rem;padding:.7rem .85rem;
     border-radius:.75rem;transition:all .2s;cursor:pointer;border:1px solid transparent}
@@ -46,17 +46,17 @@ const css = `
   .gr-check{width:1.25rem;height:1.25rem;border-radius:.35rem;border:1.5px solid rgba(255,255,255,.2);
     flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s;background:none}
   .gr-item.checked .gr-check{background:#B8874A;border-color:#B8874A}
-  .gr-check-mark{color:#1A1612;font-size:.75rem;font-weight:700}
-  .gr-item-name{flex:1;font-size:.9rem;color:rgba(248,243,236,.8);transition:all .2s}
-  .gr-item.checked .gr-item-name{text-decoration:line-through;color:rgba(248,243,236,.3)}
-  .gr-item-amt{font-size:.78rem;color:rgba(248,243,236,.35);text-align:right;white-space:nowrap}
-  .gr-item-recipe{font-size:.7rem;color:rgba(248,243,236,.2);margin-top:.1rem}
+  .gr-check-mark{color:#1A1612;font-size:.87rem;font-weight:700}
+  .gr-item-name{flex:1;font-size:1.02rem;color:rgba(248,243,236,.8);transition:all .2s}
+  .gr-item.checked .gr-item-name{text-decoration:line-through;color:rgba(248,243,236,.60)}
+  .gr-item-amt{font-size:1.02rem;color:rgba(248,243,236,.65);text-align:right;white-space:nowrap}
+  .gr-item-recipe{font-size:.94rem;color:rgba(248,243,236,.50);margin-top:.1rem}
   .staples-section{background:rgba(107,126,103,.06);border:1px solid rgba(107,126,103,.15);
     border-radius:1.25rem;padding:1.25rem 1.5rem;margin-bottom:2rem}
   .staples-hd{display:flex;align-items:center;gap:.75rem;margin-bottom:.85rem}
-  .staples-title{font-size:.7rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;
+  .staples-title{font-size:.94rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;
     color:rgba(143,168,137,.7);flex:1}
-  .staples-sub{font-size:.78rem;color:rgba(143,168,137,.5);margin-bottom:.85rem;line-height:1.6}
+  .staples-sub{font-size:1.02rem;color:rgba(143,168,137,.5);margin-bottom:.85rem;line-height:1.6}
   .staples-items{display:flex;flex-direction:column;gap:.3rem}
   .staple-item{display:flex;align-items:center;gap:.75rem;padding:.5rem .6rem;
     border-radius:.6rem;cursor:pointer;transition:all .2s}
@@ -65,19 +65,19 @@ const css = `
   .staple-check{width:1.1rem;height:1.1rem;border-radius:.3rem;border:1.5px solid rgba(143,168,137,.3);
     flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s}
   .staple-item.checked .staple-check{background:rgba(107,126,103,.4);border-color:rgba(107,126,103,.4)}
-  .staple-name{font-size:.85rem;color:rgba(248,243,236,.55)}
-  .staple-item.checked .staple-name{text-decoration:line-through;color:rgba(248,243,236,.25)}
+  .staple-name{font-size:.97rem;color:rgba(248,243,236,.85)}
+  .staple-item.checked .staple-name{text-decoration:line-through;color:rgba(248,243,236,.85)}
   .empty-state{text-align:center;padding:4rem 2rem}
   .empty-ico{font-size:3rem;display:block;margin-bottom:1rem;opacity:.5}
   .empty-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:#F8F3EC;margin-bottom:.6rem}
-  .empty-sub{font-size:.88rem;color:rgba(248,243,236,.35);line-height:1.8;max-width:340px;margin:0 auto 1.5rem}
+  .empty-sub{font-size:1rem;color:rgba(248,243,236,.65);line-height:1.8;max-width:340px;margin:0 auto 1.5rem}
   .empty-btn{background:#B8874A;color:#1A1612;border:none;padding:.75rem 1.75rem;border-radius:2rem;
-    font-family:'Outfit',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s}
+    font-family:'Outfit',sans-serif;font-size:1.02rem;font-weight:600;cursor:pointer;transition:all .2s}
   .empty-btn:hover{background:#D4A46A}
-  .clear-btn{background:none;border:1px solid rgba(255,255,255,.1);color:rgba(248,243,236,.35);
-    padding:.4rem .9rem;border-radius:2rem;font-family:'Outfit',sans-serif;font-size:.75rem;
+  .clear-btn{background:none;border:1px solid rgba(255,255,255,.1);color:rgba(248,243,236,.65);
+    padding:.4rem .9rem;border-radius:2rem;font-family:'Outfit',sans-serif;font-size:.87rem;
     cursor:pointer;transition:all .2s}
-  .clear-btn:hover{border-color:rgba(248,243,236,.25);color:rgba(248,243,236,.6)}
+  .clear-btn:hover{border-color:rgba(248,243,236,.85);color:rgba(248,243,236,.88)}
   @media(max-width:600px){
     .gr-hd,.gr-progress,.gr-content{padding-left:1.25rem;padding-right:1.25rem}
   }
