@@ -184,7 +184,9 @@ export default function PlanPage() {
 
   const loadPlan = async () => {
     const sb = getClient()
-    const { data } = await sb
+    // Get the most recently updated plan for this week
+    // order by updated_at desc handles edge case of duplicate plans
+    const { data: plans } = await sb
       .from('weekly_plans')
       .select(`id, status, planned_meals (
         id, meal_date, is_skipped, skip_reason, start_cooking_at, notes, recipe_snapshot,
@@ -192,7 +194,10 @@ export default function PlanPage() {
       )`)
       .eq('profile_id', userId)
       .eq('week_start_date', weekStartStr)
-      .maybeSingle()
+      .order('updated_at', { ascending: false })
+      .limit(1)
+    
+    const data = plans && plans.length > 0 ? plans[0] : null
 
     if (data) {
       setPlanId(data.id)
@@ -255,9 +260,25 @@ export default function PlanPage() {
     if (!planData || !userId || !weekStartStr) return
     const sb = getClient()
     try {
-      // Upsert the weekly_plan record
+      // Always check DB for existing plan first — never rely on planId state
+      // This prevents duplicate plans when saveDraft is called multiple times
       let currentPlanId = planId
-      if (!currentPlanId) {
+      
+      const { data: existingPlan } = await sb
+        .from('weekly_plans')
+        .select('id, status')
+        .eq('profile_id', userId)
+        .eq('week_start_date', weekStartStr)
+        .maybeSingle()
+
+      if (existingPlan) {
+        currentPlanId = existingPlan.id
+        // Only update status if not already confirmed
+        if (existingPlan.status !== 'confirmed') {
+          await sb.from('weekly_plans').update({ status: 'draft' }).eq('id', currentPlanId)
+        }
+        setPlanId(currentPlanId)
+      } else if (!currentPlanId) {
         const { data: np, error: pe } = await sb
           .from('weekly_plans')
           .insert({
@@ -271,10 +292,6 @@ export default function PlanPage() {
         if (pe) throw pe
         currentPlanId = np.id
         setPlanId(currentPlanId)
-      } else {
-        await sb.from('weekly_plans')
-          .update({ status: 'draft' })
-          .eq('id', currentPlanId)
       }
 
       // Save planned meals
