@@ -228,7 +228,7 @@ function Step1({ data, onChange }) {
         <label className="ob-label">How many people are you cooking for? *</label>
         <select className="ob-select" value={data.familySize}
           onChange={e => onChange('familySize', parseInt(e.target.value))}>
-          {[1,2,3,4,5,6,7,8].map(n => (
+          {[1,2,3,4,5,6,7,8,9,10,11,12,13,14].map(n => (
             <option key={n} value={n}>{n} {n === 1 ? 'person' : 'people'}</option>
           ))}
         </select>
@@ -414,7 +414,16 @@ function Step4({ data, onChange }) {
       <p className="ob-sub">Tell us what you keep stocked. AI uses this to prioritize meals that use what you already have — shrinking your shopping list automatically.</p>
 
       <div className="ob-field">
-        <label className="ob-label">🧊 Fridge — what do you usually have?</label>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'.5rem'}}>
+          <label className="ob-label" style={{margin:0}}>🧊 Fridge — what do you usually have?</label>
+          <button
+            onClick={() => onChange('fridgeStaples', (data.fridgeStaples||[]).length === FRIDGE.length ? [] : [...FRIDGE])}
+            style={{background:'none',border:'1px solid rgba(255,255,255,.18)',borderRadius:'1.5rem',
+              padding:'.3rem .9rem',fontSize:'.85rem',color:'rgba(248,243,236,.70)',
+              cursor:'pointer',fontFamily:"'Outfit',sans-serif",flexShrink:0}}>
+            {(data.fridgeStaples||[]).length === FRIDGE.length ? 'Clear all' : 'Select all'}
+          </button>
+        </div>
         <div style={{fontSize:'1rem',color:'rgba(248,243,236,.62)',marginBottom:'.75rem',lineHeight:1.6}}>
           These are common fridge items. Tap everything that&apos;s typically in yours.
         </div>
@@ -428,7 +437,16 @@ function Step4({ data, onChange }) {
       </div>
 
       <div className="ob-field" style={{marginTop:'2rem'}}>
-        <label className="ob-label">🫙 Pantry — what do you always keep stocked?</label>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'.5rem'}}>
+          <label className="ob-label" style={{margin:0}}>🫙 Pantry — what do you always keep stocked?</label>
+          <button
+            onClick={() => onChange('pantryStaples', (data.pantryStaples||[]).length === PANTRY.length ? [] : [...PANTRY])}
+            style={{background:'none',border:'1px solid rgba(255,255,255,.18)',borderRadius:'1.5rem',
+              padding:'.3rem .9rem',fontSize:'.85rem',color:'rgba(248,243,236,.70)',
+              cursor:'pointer',fontFamily:"'Outfit',sans-serif",flexShrink:0}}>
+            {(data.pantryStaples||[]).length === PANTRY.length ? 'Clear all' : 'Select all'}
+          </button>
+        </div>
         <div style={{fontSize:'1rem',color:'rgba(248,243,236,.62)',marginBottom:'.75rem',lineHeight:1.6}}>
           Oils, spices, grains, canned goods — the things you never run out of.
         </div>
@@ -807,6 +825,14 @@ export default function OnboardingPage() {
           onboarding_complete: true,
           onboarding_step: 5,
         }).eq('id', userId)
+
+        // Trigger background processing of all onboarding uploads into vault
+        // Fire and forget — don't block navigation
+        fetch('/api/onboarding/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        }).catch(e => console.error('Onboarding process error:', e))
 
         // Queue uploaded files for AI processing
         if (form.uploadedFiles.length > 0) {
