@@ -214,6 +214,7 @@ export async function POST(request) {
     var body = await request.json()
     var userId = body.userId
     var weekStartDate = body.weekStartDate
+    var useVariety = body.useVariety === true // explicitly opt-in to mixing system recipes
 
     if (!userId || !weekStartDate) {
       return Response.json({ error: 'Missing userId or weekStartDate' }, { status: 400 })
@@ -290,7 +291,11 @@ export async function POST(request) {
     var dueRotation = rotationRecipes.filter(function(r) { return r.isDue })
     var otherVault = vaultRecipes.filter(function(r) { return !r.in_rotation })
     var vaultCount = vaultRecipes.length
-    var fallbacksNeeded = Math.max(0, mealsNeeded - vaultCount + 2)
+    // If user asked to mix in new recipes, always fetch some system recipes
+    // Otherwise only fetch if vault doesn't cover the week
+    var fallbacksNeeded = useVariety
+      ? Math.max(2, mealsNeeded - vaultCount + 2)  // always add at least 2 system recipes
+      : Math.max(0, mealsNeeded - vaultCount + 2)
 
     // Get system recipes first
     var systemRecipes = []
@@ -348,6 +353,8 @@ export async function POST(request) {
     var promptLines2 = [
       'You are the meal planning AI for Simply Sous.',
       '',
+      'USER PREFERENCE: ' + (useVariety ? 'Mix in new recipes from the system database alongside vault recipes for variety.' : 'Prioritize the user vault recipes first.'),
+      '',
       'FAMILY: ' + (profile && profile.family_size ? profile.family_size : 4) + ' people',
       'DIETARY RESTRICTIONS (never violate): ' + (restrictions2.length ? restrictions2.join(', ') : 'none'),
       'CUISINE PREFERENCES: ' + (prefs && prefs.cuisine_loves ? prefs.cuisine_loves.join(', ') : 'varied'),
@@ -376,8 +383,11 @@ export async function POST(request) {
       '5. Balance proteins across the week',
       '6. Never repeat same recipe in same week',
       '',
-      'CRITICAL: Return ONLY a valid JSON array covering ALL ' + cookingDays.length + ' cooking days.',
-      'Start with [ and end with ]. Nothing else.',
+      'CRITICAL REQUIREMENTS:',
+      '- You MUST return exactly ' + cookingDays.length + ' entries in the array - one for EACH cooking day listed above',
+      '- Every cooking day must have a recipe_id assigned - never leave a cooking day without a recipe',
+      '- If you run out of preferred recipes, use any recipe from the system database list',
+      '- Return ONLY the JSON array. Start with [ and end with ]. Nothing else.',
       '',
       'Format: [{"date":"YYYY-MM-DD","recipe_id":"exact-id","is_skipped":false,"skip_reason":null}]',
     ]
