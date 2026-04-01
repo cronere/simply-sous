@@ -73,33 +73,33 @@ const css = `
   .ob-hd{display:flex;align-items:center;justify-content:space-between;padding:1.5rem 2rem}
   .ob-logo{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:600;color:#F8F3EC}
   .ob-logo span{color:#B8874A;font-style:italic}
-  .ob-steps{font-size:.75rem;color:rgba(248,243,236,.3);letter-spacing:.1em;text-transform:uppercase}
+  .ob-steps{font-size:.75rem;color:rgba(248,243,236,.65);letter-spacing:.1em;text-transform:uppercase}
 
   /* Content */
   .ob-main{max-width:620px;margin:0 auto;padding:2rem 2rem 8rem;animation:obIn .5s cubic-bezier(.16,1,.3,1) both}
   @keyframes obIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 
-  .ob-eyebrow{display:inline-flex;align-items:center;gap:.6rem;font-size:.68rem;
-    font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:#B8874A;margin-bottom:1.25rem}
+  .ob-eyebrow{display:inline-flex;align-items:center;gap:.6rem;font-size:.80rem;
+    font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:#B8874A;margin-bottom:1.25rem}
   .ob-eyebrow::before{content:'';width:1.5rem;height:1px;background:#B8874A;opacity:.6}
 
-  .ob-title{font-family:'Cormorant Garamond',serif;font-size:clamp(2rem,5vw,3rem);
+  .ob-title{font-family:'Cormorant Garamond',serif;font-size:clamp(2.2rem,5vw,3.2rem);
     font-weight:300;line-height:1.1;color:#F8F3EC;margin-bottom:.75rem}
   .ob-title em{font-style:italic;color:#B8874A}
-  .ob-sub{font-size:.95rem;color:rgba(248,243,236,.45);line-height:1.8;margin-bottom:2.5rem}
+  .ob-sub{font-size:1.05rem;color:rgba(248,243,236,.80);line-height:1.8;margin-bottom:2.5rem}
 
   /* Fields */
-  .ob-label{display:block;font-size:.72rem;font-weight:500;letter-spacing:.08em;
-    text-transform:uppercase;color:rgba(248,243,236,.4);margin-bottom:6px}
+  .ob-label{display:block;font-size:.85rem;font-weight:500;letter-spacing:.08em;
+    text-transform:uppercase;color:rgba(248,243,236,.72);margin-bottom:6px}
   .ob-field{margin-bottom:1.25rem}
   .ob-input{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
     border-radius:10px;padding:13px 16px;color:#F8F3EC;font-family:'Outfit',sans-serif;
-    font-size:.95rem;font-weight:300;outline:none;transition:border-color .2s,background .2s}
+    font-size:1.05rem;font-weight:300;outline:none;transition:border-color .2s,background .2s}
   .ob-input:focus{border-color:#B8874A;background:rgba(184,135,74,.05)}
-  .ob-input::placeholder{color:rgba(248,243,236,.15)}
+  .ob-input::placeholder{color:rgba(248,243,236,.28)}
   .ob-select{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
     border-radius:10px;padding:13px 16px;color:#F8F3EC;font-family:'Outfit',sans-serif;
-    font-size:.95rem;outline:none;transition:border-color .2s;cursor:pointer;
+    font-size:1.05rem;outline:none;transition:border-color .2s;cursor:pointer;
     appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23B8874A' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
     background-repeat:no-repeat;background-position:right 16px center}
   .ob-select:focus{border-color:#B8874A}
@@ -124,13 +124,13 @@ const css = `
     border-radius:50%;background:#B8874A;cursor:pointer;border:2px solid #1A1612;
     box-shadow:0 0 0 3px rgba(184,135,74,.2)}
   .ob-slider-labels{display:flex;justify-content:space-between;
-    font-size:.72rem;color:rgba(248,243,236,.3);margin-top:.4rem}
+    font-size:.85rem;color:rgba(248,243,236,.60);margin-top:.4rem}
 
   /* Day grid */
   .ob-days{display:grid;grid-template-columns:repeat(7,1fr);gap:.4rem;margin-top:.5rem}
   .ob-day{aspect-ratio:1;border-radius:.5rem;border:1px solid rgba(255,255,255,.1);
     display:flex;align-items:center;justify-content:center;
-    font-size:.72rem;cursor:pointer;transition:all .2s;color:rgba(248,243,236,.4);
+    font-size:.88rem;cursor:pointer;transition:all .2s;color:rgba(248,243,236,.72);
     background:none;font-family:'Outfit',sans-serif}
   .ob-day:hover{border-color:rgba(192,92,48,.4);color:#C05C30}
   .ob-day.off{background:rgba(192,92,48,.12);border-color:rgba(192,92,48,.4);color:#C05C30}
@@ -144,11 +144,11 @@ const css = `
   .ob-upload-ico{font-size:2.5rem;margin-bottom:1rem}
   .ob-upload-title{font-family:'Cormorant Garamond',serif;font-size:1.2rem;
     color:#F8F3EC;margin-bottom:.4rem}
-  .ob-upload-sub{font-size:.82rem;color:rgba(248,243,236,.35)}
+  .ob-upload-sub{font-size:.95rem;color:rgba(248,243,236,.68)}
   .ob-files{display:flex;flex-direction:column;gap:.5rem;margin-top:1rem}
   .ob-file{display:flex;align-items:center;gap:.75rem;background:rgba(255,255,255,.05);
     border:1px solid rgba(255,255,255,.08);border-radius:.6rem;padding:.6rem 1rem}
-  .ob-file-name{flex:1;font-size:.82rem;color:rgba(248,243,236,.6);
+  .ob-file-name{flex:1;font-size:.95rem;color:rgba(248,243,236,.85);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ob-file-remove{background:none;border:none;color:rgba(248,243,236,.3);
     cursor:pointer;font-size:1rem;padding:0;line-height:1;transition:color .2s}
@@ -160,7 +160,7 @@ const css = `
     padding:2rem;display:flex;align-items:center;justify-content:space-between;z-index:50}
   .ob-back{background:none;border:1px solid rgba(255,255,255,.12);color:rgba(248,243,236,.5);
     padding:.75rem 1.75rem;border-radius:2rem;font-family:'Outfit',sans-serif;
-    font-size:.9rem;cursor:pointer;transition:all .2s}
+    font-size:1.02rem;cursor:pointer;transition:all .2s}
   .ob-back:hover{border-color:rgba(248,243,236,.3);color:#F8F3EC}
   .ob-next{background:#B8874A;color:#1A1612;border:none;padding:.85rem 2.25rem;
     border-radius:2rem;font-family:'Outfit',sans-serif;font-size:.95rem;
@@ -172,7 +172,7 @@ const css = `
   .ob-skip{background:none;border:none;color:rgba(248,243,236,.3);
     font-family:'Outfit',sans-serif;font-size:.85rem;cursor:pointer;
     transition:color .2s;padding:.5rem}
-  .ob-skip:hover{color:rgba(248,243,236,.6)}
+  .ob-skip:hover{color:rgba(248,243,236,.80)}
 
   /* Error */
   .ob-err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);
@@ -189,14 +189,14 @@ const css = `
   /* Step 5 hint */
   .ob-hint{background:rgba(107,126,103,.1);border:1px solid rgba(107,126,103,.2);
     border-radius:10px;padding:1rem 1.25rem;font-size:.85rem;
-    color:rgba(248,243,236,.5);line-height:1.7;margin-bottom:1.5rem}
+    color:rgba(248,243,236,.80);line-height:1.7;margin-bottom:1.5rem}
   .ob-hint strong{color:#8FA889}
 
   @media(max-width:520px){
     .ob-main{padding:1.5rem 1.25rem 8rem}
     .ob-row{grid-template-columns:1fr}
     .ob-days{grid-template-columns:repeat(7,1fr)}
-    .ob-day{font-size:.6rem}
+    .ob-day{font-size:.74rem}
     .ob-nav{padding:1.5rem 1.25rem}
   }
 `
@@ -303,7 +303,7 @@ function Step2({ data, onChange }) {
         <input className="ob-input" type="text" placeholder="e.g. cilantro, mushrooms, olives"
           value={data.dislikedIngredients}
           onChange={e => onChange('dislikedIngredients', e.target.value)} />
-        <div style={{fontSize:'.75rem',color:'rgba(248,243,236,.25)',marginTop:'.4rem'}}>
+        <div style={{fontSize:'1rem',color:'rgba(248,243,236,.60)',marginTop:'.4rem'}}>
           Separate with commas. AI will avoid these when possible.
         </div>
       </div>
@@ -349,7 +349,7 @@ function Step3({ data, onChange }) {
 
       <div className="ob-field">
         <label className="ob-label">Nights you don&apos;t cook — tap to toggle off</label>
-        <div style={{fontSize:'.78rem',color:'rgba(248,243,236,.3)',marginBottom:'.6rem'}}>
+        <div style={{fontSize:'1rem',color:'rgba(248,243,236,.62)',marginBottom:'.6rem'}}>
           AI skips these nights when building your plan.
         </div>
         <div className="ob-days">
@@ -415,7 +415,7 @@ function Step4({ data, onChange }) {
 
       <div className="ob-field">
         <label className="ob-label">🧊 Fridge — what do you usually have?</label>
-        <div style={{fontSize:'.78rem',color:'rgba(248,243,236,.3)',marginBottom:'.75rem',lineHeight:1.6}}>
+        <div style={{fontSize:'1rem',color:'rgba(248,243,236,.62)',marginBottom:'.75rem',lineHeight:1.6}}>
           These are common fridge items. Tap everything that&apos;s typically in yours.
         </div>
         <div className="ob-pills">
@@ -429,7 +429,7 @@ function Step4({ data, onChange }) {
 
       <div className="ob-field" style={{marginTop:'2rem'}}>
         <label className="ob-label">🫙 Pantry — what do you always keep stocked?</label>
-        <div style={{fontSize:'.78rem',color:'rgba(248,243,236,.3)',marginBottom:'.75rem',lineHeight:1.6}}>
+        <div style={{fontSize:'1rem',color:'rgba(248,243,236,.62)',marginBottom:'.75rem',lineHeight:1.6}}>
           Oils, spices, grains, canned goods — the things you never run out of.
         </div>
         <div className="ob-pills">
@@ -447,7 +447,7 @@ function Step4({ data, onChange }) {
           placeholder="e.g. tahini, miso paste, truffle oil"
           value={data.customPantry || ''}
           onChange={e => onChange('customPantry', e.target.value)} />
-        <div style={{fontSize:'.75rem',color:'rgba(248,243,236,.25)',marginTop:'.4rem'}}>
+        <div style={{fontSize:'1rem',color:'rgba(248,243,236,.60)',marginTop:'.4rem'}}>
           Separate with commas. Fridge or pantry — add anything here.
         </div>
       </div>
@@ -515,7 +515,7 @@ function Step5({ data, onChange }) {
         {data.urlError && (
           <div style={{fontSize:'.75rem',color:'#EF4444',marginTop:'.4rem'}}>{data.urlError}</div>
         )}
-        <div style={{fontSize:'.75rem',color:'rgba(248,243,236,.25)',marginTop:'.4rem'}}>
+        <div style={{fontSize:'1rem',color:'rgba(248,243,236,.60)',marginTop:'.4rem'}}>
           Works with AllRecipes, NYT Cooking, Half Baked Harvest, Food Network, and most recipe blogs.
         </div>
       </div>
@@ -557,8 +557,8 @@ function Step5({ data, onChange }) {
       )}
 
       <div style={{marginTop:'1.5rem',padding:'1.25rem',background:'rgba(255,255,255,.03)',borderRadius:'10px',border:'1px solid rgba(255,255,255,.06)'}}>
-        <p style={{fontSize:'.85rem',color:'rgba(248,243,236,.35)',lineHeight:1.7}}>
-          💡 <strong style={{color:'rgba(248,243,236,.5)'}}>Tip:</strong> Even 3–5 recipes is enough for your first week&apos;s plan. Add more anytime from the vault. Prefer to browse our built-in recipe database first? Just skip this step.
+        <p style={{fontSize:'1rem',color:'rgba(248,243,236,.72)',lineHeight:1.7}}>
+          💡 <strong style={{color:'rgba(248,243,236,.85)'}}>Tip:</strong> Even 3–5 recipes is enough for your first week&apos;s plan. Add more anytime from the vault. Prefer to browse our built-in recipe database first? Just skip this step.
         </p>
       </div>
     </div>
@@ -889,7 +889,7 @@ export default function OnboardingPage() {
         <div className="ob-logo">Simply <span>Sous</span></div>
         <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'.2rem'}}>
           <div className="ob-steps">Step {step} of 5</div>
-          <div style={{fontSize:'.65rem',color:'rgba(248,243,236,.2)',letterSpacing:'.06em'}}>
+          <div style={{fontSize:'.80rem',color:'rgba(248,243,236,.50)',letterSpacing:'.06em'}}>
             Auto-saves as you go
           </div>
         </div>
