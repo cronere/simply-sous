@@ -298,6 +298,12 @@ export default function RecipePage() {
           </button>
           <div className="rp-hd-actions">
             <button
+              className="rp-fav-btn"
+              onClick={() => router.push('/vault/' + recipe.id + '/edit')}
+              style={{color:'rgba(248,243,236,.75)'}}>
+              ✏️ Edit
+            </button>
+            <button
               className={`rp-fav-btn${recipe.is_favorite ? ' loved' : ''}`}
               onClick={toggleFavorite}
               disabled={toggling}>
