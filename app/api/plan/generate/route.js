@@ -303,9 +303,11 @@ Return ONLY the JSON, no markdown, no explanation.`
 async function incrementServed(sb, systemRecipeIds) {
   if (!systemRecipeIds.length) return
   for (const id of systemRecipeIds) {
-    await sb.rpc('increment_recipe_served', { recipe_id: id }).catch(() => {
+    try {
+      await sb.rpc('increment_recipe_served', { recipe_id: id })
+    } catch {
       // Non-critical — ignore errors
-    })
+    }
   }
 }
 
@@ -593,10 +595,13 @@ CRITICAL: Your response must be ONLY a valid JSON array. No explanation. No prea
     if (usedRotationIds.length > 0) {
       const today = new Date().toISOString().split('T')[0]
       for (const id of usedRotationIds) {
-        await sb.from('recipes')
-          .update({ last_planned_date: today })
-          .eq('id', id)
-          .catch(err => console.error('Failed to update last_planned_date:', err))
+        try {
+          await sb.from('recipes')
+            .update({ last_planned_date: today })
+            .eq('id', id)
+        } catch (err) {
+          console.error('Failed to update last_planned_date:', err)
+        }
       }
     }
 
