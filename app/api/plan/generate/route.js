@@ -411,14 +411,20 @@ export async function POST(request) {
     // Parse robustly
     var planSlots
     try {
+      // Strip markdown, then extract just the array by finding first [ and last ]
       var cleaned2 = raw2.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+      var fi = cleaned2.indexOf('[')
+      var li = cleaned2.lastIndexOf(']')
+      if (fi >= 0 && li > fi) cleaned2 = cleaned2.substring(fi, li + 1)
       planSlots = JSON.parse(cleaned2)
     } catch (e) {
-      var match2 = raw2.match(/\[\s*\{[\s\S]*\}\s*\]/)
+      console.error('Plan JSON parse error:', e.message, '| Raw:', raw2.substring(0, 300))
+      var match2 = raw2.match(/\[\s*\{[\s\S]*?\}[\s\S]*?\]/)
       if (!match2) {
         return Response.json({ error: 'Plan generation failed — unexpected format. Please try again.' }, { status: 500 })
       }
-      planSlots = JSON.parse(match2[0])
+      try { planSlots = JSON.parse(match2[0]) }
+      catch (e2) { return Response.json({ error: 'Plan generation failed — could not parse response. Please try again.' }, { status: 500 }) }
     }
 
     if (!Array.isArray(planSlots)) {
@@ -456,12 +462,30 @@ export async function POST(request) {
     var recipeMap = {}
     allRecipes.forEach(function(r) { recipeMap[r.id] = r })
 
+    // Debug: log first few recipe IDs to check format
+    console.log('Recipe map keys (first 3):', Object.keys(recipeMap).slice(0, 3))
+    console.log('Plan slot IDs (first 3):', deduped.slice(0, 3).map(function(s) { return s.recipe_id }))
+
     var enriched = deduped.map(function(slot) {
+      var recipe = null
+      if (slot.recipe_id) {
+        recipe = recipeMap[slot.recipe_id] || null
+        if (!recipe) {
+          // Try matching without sys- prefix for edge cases
+          var bareId = String(slot.recipe_id).replace(/^sys-/, '')
+          recipe = recipeMap['sys-' + bareId] || recipeMap[bareId] || null
+        }
+      }
       return Object.assign({}, slot, {
-        recipe: slot.recipe_id ? (recipeMap[slot.recipe_id] || null) : null,
+        recipe: recipe,
         dayName: (weekDates.find(function(d) { return d.date === slot.date }) || {}).dayName || '',
       })
     })
+    
+    // Log how many recipes were matched
+    var matched = enriched.filter(function(s) { return !s.is_skipped && s.recipe }).length
+    var unmatched = enriched.filter(function(s) { return !s.is_skipped && !s.recipe && s.recipe_id }).length
+    console.log('Enrichment: ' + matched + ' matched, ' + unmatched + ' unmatched')
 
     // Increment served for used system recipes
     var usedSystemIds = deduped
