@@ -625,7 +625,7 @@ export default function PlanPage() {
                   <div>
                     <div style={{fontSize:'.72rem',fontWeight:500,letterSpacing:'.12em',
                       textTransform:'uppercase',color:'#B8874A',marginBottom:'.4rem'}}>
-                      {sysModal.isVaultRecipe ? '📖 Your Recipe' : '✨ Dot's Recipe'}
+                      {sysModal.isVaultRecipe ? '📖 Your Recipe' : '✨ Dot\'s Recipe'}
                     </div>
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.6rem',
                       color:'#F8F3EC',lineHeight:1.2}}>{sysModal.title}</div>
