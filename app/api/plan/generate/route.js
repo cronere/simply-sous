@@ -412,6 +412,30 @@ CRITICAL: Your response must be ONLY a valid JSON array. No explanation. No prea
       }, { status: 500 })
     }
 
+    // Inject blackout days server-side — Claude only plans cooking days
+    // Merge Claude's response with skipped days to always get all 7 days
+    const skippedSlots = skippedDays.map(d => ({
+      date: d.date,
+      recipe_id: null,
+      is_skipped: true,
+      skip_reason: 'blackout day',
+    }))
+
+    // Merge: start with all 7 dates, fill from Claude + skipped
+    const claudeSlotMap = {}
+    planSlots.forEach(s => { claudeSlotMap[s.date] = s })
+
+    const mergedSlots = weekDates.map(d => {
+      if (blackoutDays.includes(d.dayOfWeek)) {
+        return { date: d.date, recipe_id: null, is_skipped: true, skip_reason: 'blackout day' }
+      }
+      return claudeSlotMap[d.date] || { date: d.date, recipe_id: null, is_skipped: false, skip_reason: null }
+    })
+
+    // Replace planSlots with merged version
+    planSlots.length = 0
+    mergedSlots.forEach(s => planSlots.push(s))
+
     // Deduplicate — if Claude assigned the same recipe twice, replace the duplicate
     // with a different recipe from the pool
     const usedRecipeIds = new Set()
