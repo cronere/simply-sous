@@ -54,7 +54,7 @@ async function getSystemRecipes(sb, prefs, count, excludeIds) {
     .order('times_served', { ascending: true })
 
   if (excluded.length > 0) {
-    query = query.not('id', 'in', '(' + excluded.join(',') + ')')
+    query = query.not('id', 'in', '("' + excluded.join('","') + '")')
   }
 
   if (restrictions.indexOf('vegan') >= 0) {
@@ -63,26 +63,23 @@ async function getSystemRecipes(sb, prefs, count, excludeIds) {
     query = query.or('dietary_flags.cs.{"vegetarian"},dietary_flags.cs.{"vegan"}')
   }
 
-  var results = []
+  // Fetch a large diverse pool and let Claude choose — don't pre-filter by cuisine
+  // This prevents empty results when cuisine labels don't match exactly
+  var fetchCount = Math.max(count * 4, 20) // always fetch plenty for variety
+  var poolRes = await query.limit(fetchCount)
+  var results = poolRes.data || []
 
-  if (cuisines.length > 0) {
-    var cuisineQuery = query.in('cuisine', cuisines).limit(count * 2)
-    var cuisineRes = await cuisineQuery
-    results = cuisineRes.data || []
-  }
-
+  // If not enough, fetch more without dietary restriction
   if (results.length < count) {
-    var needed = count - results.length
     var existingIds = excluded.concat(results.map(function(r) { return r.id }))
     var fillQuery = sb
       .from('system_recipes')
       .select('id, title, cuisine, meal_type, total_time_mins, tags, dietary_flags, base_servings')
-      .lte('total_time_mins', maxTime + 15)
       .order('times_served', { ascending: true })
-      .limit(needed * 2)
+      .limit(fetchCount)
 
     if (existingIds.length > 0) {
-      fillQuery = fillQuery.not('id', 'in', '(' + existingIds.join(',') + ')')
+      fillQuery = fillQuery.not('id', 'in', '("' + existingIds.join('","') + '")')
     }
 
     var fillRes = await fillQuery
@@ -291,11 +288,14 @@ export async function POST(request) {
     var dueRotation = rotationRecipes.filter(function(r) { return r.isDue })
     var otherVault = vaultRecipes.filter(function(r) { return !r.in_rotation })
     var vaultCount = vaultRecipes.length
-    // If user asked to mix in new recipes, always fetch some system recipes
-    // Otherwise only fetch if vault doesn't cover the week
-    var fallbacksNeeded = useVariety
-      ? Math.max(2, mealsNeeded - vaultCount + 2)  // always add at least 2 system recipes
-      : Math.max(0, mealsNeeded - vaultCount + 2)
+    console.log('Vault has ' + vaultCount + ' recipes for ' + mealsNeeded + ' cooking days. useVariety=' + useVariety)
+
+    // Always fetch system recipes for variety pool
+    // Even if vault covers the week, get some system recipes so Claude has variety
+    var systemPoolSize = useVariety
+      ? Math.max(mealsNeeded, 10)  // big pool when user wants variety
+      : Math.max(mealsNeeded - vaultCount, 4)  // smaller pool otherwise, min 4 for dedup safety
+    var fallbacksNeeded = systemPoolSize
 
     // Get system recipes first
     var systemRecipes = []
@@ -343,8 +343,8 @@ export async function POST(request) {
       : 'None due this week'
 
     var vaultSection = otherVault.length > 0
-      ? otherVault.map(function(r) { return '- ID: "' + r.id + '" | "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min | Favorite: ' + (r.is_favorite ? 'YES' : 'no') }).join('\n')
-      : 'None'
+      ? otherVault.map(function(r) { return '- ID: "' + r.id + '" | "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min | Favorite: ' + (r.is_favorite ? 'YES' : 'no') + ' | PERSONAL RECIPE'}).join('\n')
+      : 'None — use system database recipes'
 
     var systemSection = systemRecipes.concat(generatedRecipes).length > 0
       ? systemRecipes.concat(generatedRecipes).map(function(r) { return '- ID: "' + r.id + '" | "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min' }).join('\n')
@@ -377,11 +377,13 @@ export async function POST(request) {
       '',
       'RULES:',
       '1. Assign exactly one recipe per cooking day',
-      '2. ALWAYS schedule due rotation recipes first',
-      '3. Fill remaining days from vault then system database',
-      '4. No same cuisine two days in a row',
-      '5. Balance proteins across the week',
-      '6. Never repeat same recipe in same week',
+      '2. ALWAYS schedule due rotation recipes first — these are marked ROTATION in the list',
+      '3. STRONGLY PREFER personal vault recipes (marked PERSONAL RECIPE) over system database recipes',
+      '4. Only use system database recipes when vault recipes are exhausted or when user requested variety',
+      '5. No same cuisine two days in a row',
+      '6. Balance proteins across the week',
+      '7. NEVER repeat the same recipe_id twice in the same week — every day must have a unique recipe',
+      '8. If vault has enough recipes to fill the week, prefer vault over system database',
       '',
       'CRITICAL REQUIREMENTS:',
       '- You MUST return exactly ' + cookingDays.length + ' entries in the array - one for EACH cooking day listed above',
