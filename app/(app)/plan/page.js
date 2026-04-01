@@ -302,7 +302,14 @@ export default function PlanPage() {
   }
 
   // Is this a future week that shouldn't be accessible yet?
-  const isFutureLocked = weekOffset > 0 && planStatus !== 'confirmed' && !plan
+  // Locked only if: we're ahead of current week AND current week has a draft (not confirmed)
+  // If current week has no plan at all, future weeks are also locked (need to plan in order)
+  const currentWeekHasDraft = weekOffset === 0 && plan && planStatus !== 'confirmed'
+  const isFutureLocked = weekOffset > 0 && (() => {
+    // Future weeks are locked until user explicitly navigates here via "Plan next week"
+    // This is handled by the Next button — if they got here, they confirmed first
+    return false // Navigation is the lock, not the render
+  })()
 
   const generatePlan = async (useVariety = null) => {
     // If useVariety hasn't been decided and vault is large enough, ask first
@@ -378,7 +385,10 @@ export default function PlanPage() {
     ))
   }
 
-  const confirmPlan = async () => {
+  const [confirmAndShop, setConfirmAndShop] = useState(false)
+
+  const confirmPlan = async (andShop = false) => {
+    setConfirmAndShop(andShop)
     if (!plan) return
     setConfirming(true); setError('')
     const sb = getClient()
@@ -428,6 +438,12 @@ export default function PlanPage() {
 
       setPlanStatus('confirmed')
 
+      // Redirect to grocery if user clicked "Confirm & shop"
+      if (andShop) {
+        router.push('/grocery')
+        return
+      }
+
       // Update last_planned_date for vault recipes used — marks them as recently planned
       const usedVaultIds = plan
         .filter(s => !s.is_skipped && s.recipe_id && !String(s.recipe_id).startsWith('sys-') && !String(s.recipe_id).startsWith('emg-'))
@@ -440,7 +456,8 @@ export default function PlanPage() {
         }
       }
 
-      router.push('/grocery')
+      // Don't auto-redirect — let user choose grocery or next week
+      setConfirmAndShop(false)
     } catch (e) {
       console.error(e)
       setError(`Could not confirm plan: ${e.message}`)
@@ -475,13 +492,7 @@ export default function PlanPage() {
           {weekOffset === 0 ? 'This week' : weekOffset === 1 ? 'Next week' : weekOffset === -1 ? 'Last week' : `${weekOffset > 0 ? '+':''}${weekOffset} weeks`}
         </span>
         <button className="wn-btn"
-          onClick={() => {
-            if (weekOffset >= 0 && planStatus !== 'confirmed') {
-              setError('Confirm this week before planning ahead.')
-              return
-            }
-            setWeekOffset(o => Math.min(o+1, 4))
-          }}
+          onClick={() => setWeekOffset(o => Math.min(o+1, 4))}
           disabled={weekOffset >= 4}
           style={{opacity: weekOffset >= 4 ? .3 : 1}}>
           Next →
@@ -517,27 +528,6 @@ export default function PlanPage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {isFutureLocked && (
-        <div style={{textAlign:'center',padding:'4rem 2rem'}}>
-          <div style={{fontSize:'2.5rem',marginBottom:'1.25rem'}}>🔒</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.6rem',
-            color:'#F8F3EC',marginBottom:'.75rem'}}>
-            Finish this week first
-          </div>
-          <div style={{fontSize:'1rem',color:'rgba(248,243,236,.65)',marginBottom:'2rem',
-            maxWidth:'320px',margin:'0 auto 2rem',lineHeight:1.7}}>
-            Confirm your current week's plan before planning ahead. This keeps your recipe rotation on track.
-          </div>
-          <button onClick={() => setWeekOffset(0)}
-            style={{background:'#B8874A',color:'#1A1612',border:'none',
-              padding:'.75rem 2rem',borderRadius:'2rem',
-              fontFamily:"'Outfit',sans-serif",fontSize:'1rem',
-              fontWeight:600,cursor:'pointer'}}>
-            ← Back to this week
-          </button>
         </div>
       )}
 
@@ -887,12 +877,40 @@ export default function PlanPage() {
             {planStatus !== 'confirmed' ? (
               <>
                 <button className="regen-btn" onClick={() => generatePlan(null)} disabled={generating}>↺ Regenerate</button>
-                <button className="confirm-btn" onClick={confirmPlan} disabled={confirming}>
-                  {confirming ? <><span className="sp"/>Saving...</> : '✓ Confirm & build grocery list →'}
-                </button>
+                <div style={{display:'flex',gap:'.75rem',flex:1}}>
+                  <button
+                    onClick={confirmPlan}
+                    disabled={confirming}
+                    style={{flex:1,background:'rgba(184,135,74,.15)',color:'#D4A46A',
+                      border:'1px solid rgba(184,135,74,.3)',borderRadius:'2rem',
+                      padding:'.9rem',fontFamily:"'Outfit',sans-serif",fontSize:'1rem',
+                      fontWeight:600,cursor:'pointer',transition:'all .2s'}}>
+                    {confirming ? <><span className="sp"/>Saving...</> : '✓ Confirm plan'}
+                  </button>
+                  <button
+                    onClick={async () => { await confirmPlan(true); }}
+                    disabled={confirming}
+                    className="confirm-btn">
+                    {confirming ? <><span className="sp"/>Saving...</> : '🛒 Confirm & shop →'}
+                  </button>
+                </div>
               </>
             ) : (
-              <button className="confirm-btn" onClick={() => router.push('/grocery')}>View grocery list →</button>
+              <div style={{display:'flex',gap:'.75rem',flex:1}}>
+                <button
+                  onClick={() => router.push('/grocery')}
+                  style={{flex:1,background:'rgba(184,135,74,.15)',color:'#D4A46A',
+                    border:'1px solid rgba(184,135,74,.3)',borderRadius:'2rem',
+                    padding:'.9rem',fontFamily:"'Outfit',sans-serif",fontSize:'1rem',
+                    fontWeight:600,cursor:'pointer',transition:'all .2s'}}>
+                  🛒 View grocery list
+                </button>
+                <button
+                  onClick={() => setWeekOffset(o => o + 1)}
+                  className="confirm-btn">
+                  Plan next week →
+                </button>
+              </div>
             )}
           </div>
         </>
