@@ -166,8 +166,8 @@ export async function POST(request) {
 
     var sysCount = systemRecipes.length
     var modeNote = useVariety
-      ? 'Mix personal and general recipes. Aim for roughly half personal (V codes) and half general (S codes) — use about ' + Math.ceil(mealsNeeded/2) + ' V codes and ' + Math.floor(mealsNeeded/2) + ' S codes.'
-      : 'Use ONLY personal recipes (V codes). Only fall back to S codes if absolutely no V codes remain.'
+      ? 'Use a MIX of personal (V codes) and general (S codes) recipes. You MUST fill ALL ' + mealsNeeded + ' days — use V codes for most days but include at least 1-2 S codes for variety.'
+      : 'Use personal recipes (V codes) first. Only use S codes if you run out of V codes. You MUST fill ALL ' + mealsNeeded + ' days.'
 
     var prompt = [
       'Plan dinners for a family of ' + ((profile && profile.family_size) || 4) + '.',
@@ -188,10 +188,11 @@ export async function POST(request) {
     }
 
     prompt = prompt.concat([
-      'Return a JSON array with exactly ' + mealsNeeded + ' items.',
+      'CRITICAL: Return a JSON array with EXACTLY ' + mealsNeeded + ' items — one for every day listed above.',
+      'Do NOT skip any days. Do NOT return fewer than ' + mealsNeeded + ' items.',
       'Each item: {"date":"YYYY-MM-DD","recipe_code":"V1","is_skipped":false}',
-      'Rules: use each code only once, vary cuisines, fill every day.',
-      'ONLY the JSON array. Nothing else.',
+      'Use each recipe code only once. Vary cuisines day to day.',
+      'ONLY the JSON array. No explanation. No markdown.',
     ])
 
     var promptStr = prompt.join('\n')
