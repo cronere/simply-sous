@@ -97,9 +97,8 @@ export async function POST(request) {
     console.log('[plan/generate] eligible=' + eligibleVault.length + ' not-due=' + notDueVault.length)
     if (notDueVault.length > 0) {
       notDueVault.forEach(function(r) {
-        var rot = rotationData[r.id] || {}
-        var daysSince = rot.last_planned_date ? Math.round((today - new Date(rot.last_planned_date)) / 86400000) : 'never'
-        console.log('[plan/generate] not-due: "' + r.title + '" freq=' + (rot.rotation_frequency||'none') + ' last=' + (rot.last_planned_date||'never') + ' daysSince=' + daysSince)
+        var daysSince = r.last_planned_date ? Math.round((today - new Date(r.last_planned_date)) / 86400000) : 'never'
+        console.log('[plan/generate] not-due: "' + r.title + '" freq=' + (r.rotation_frequency||'none') + ' last=' + (r.last_planned_date||'never') + ' daysSince=' + daysSince)
       })
     }
 
