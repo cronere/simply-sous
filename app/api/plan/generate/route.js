@@ -51,7 +51,7 @@ export async function POST(request) {
       sb.from('profiles').select('family_size, dinner_hour').eq('id', userId).single(),
       sb.from('user_preferences').select('*').eq('profile_id', userId).maybeSingle(),
       sb.from('blackout_days').select('day_of_week').eq('profile_id', userId),
-      sb.from('recipes').select('id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite').eq('profile_id', userId).order('is_favorite', { ascending: false }),
+      sb.from('recipes').select('id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite, in_rotation, rotation_frequency, last_planned_date').eq('profile_id', userId).order('is_favorite', { ascending: false }),
     ])
 
     var profile = results[0].data
@@ -61,30 +61,25 @@ export async function POST(request) {
 
     console.log('[plan/generate] userId=' + userId + ' vault=' + vaultRecipes.length + ' useVariety=' + useVariety)
 
-    // Fetch rotation fields
-    var rotationData = {}
-    try {
-      var rotRes = await sb.from('recipes')
-        .select('id, in_rotation, rotation_frequency, last_planned_date')
-        .eq('profile_id', userId)
-      if (rotRes.data) rotRes.data.forEach(function(r) { rotationData[r.id] = r })
-    } catch(e) {}
-
     var today = new Date()
 
     // Mark recipes as eligible based on rotation frequency
+    // Rotation data is included in main query above
     vaultRecipes = vaultRecipes.map(function(r) {
-      var rot = rotationData[r.id] || {}
-      var inRotation = rot.in_rotation || false
-      var freq = rot.rotation_frequency || null
-      var lastPlanned = rot.last_planned_date || null
+      var inRotation = r.in_rotation || false
+      var freq = r.rotation_frequency || null
+      var lastPlanned = r.last_planned_date || null
       var eligible = true
 
       if (inRotation && lastPlanned && freq) {
         var daysSince = (today - new Date(lastPlanned)) / 86400000
+        console.log('[plan/generate] rotation check: "' + r.title + '" freq=' + freq + ' daysSince=' + Math.round(daysSince))
         if (freq === 'weekly') eligible = daysSince >= 6
         else if (freq === 'biweekly') eligible = daysSince >= 12
         else if (freq === 'monthly') eligible = daysSince >= 26
+      } else if (inRotation && !lastPlanned) {
+        // Never planned — eligible
+        eligible = true
       }
 
       return Object.assign({}, r, {
