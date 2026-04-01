@@ -203,7 +203,9 @@ export default function PlanPage() {
           date: m.meal_date,
           recipe_id: m.recipes?.id || null,
           // Use vault recipe if available, fall back to snapshot (system recipes), then title-only
-          recipe: m.recipes || m.recipe_snapshot || (m.notes ? { title: m.notes, cuisine: null, total_time_mins: null, is_favorite: false } : null),
+          recipe: m.recipes || m.recipe_snapshot || (m.notes ? { title: m.notes, cuisine: null, total_time_mins: null } : null),
+          // Preserve recipe_id for sys recipes so modal can re-fetch if needed
+          recipe_id: m.recipes?.id || (m.recipe_snapshot?.system_recipe_id ? 'sys-' + m.recipe_snapshot.system_recipe_id : null),
           is_skipped: m.is_skipped,
           skip_reason: m.skip_reason,
           start_cooking_at: m.start_cooking_at,
@@ -257,18 +259,35 @@ export default function PlanPage() {
         // Always store recipe title in notes as fallback for display
         notes: slot.recipe?.title || null,
         recipe_snapshot: slot.recipe ? {
+          id: slot.recipe.id || null,
+          system_recipe_id: slot.recipe_id && String(slot.recipe_id).startsWith('sys-')
+            ? String(slot.recipe_id).replace('sys-', '') : null,
           title: slot.recipe.title,
+          description: slot.recipe.description || null,
           cuisine: slot.recipe.cuisine || null,
           total_time_mins: slot.recipe.total_time_mins || null,
           tags: slot.recipe.tags || [],
           dietary_flags: slot.recipe.dietary_flags || [],
           is_favorite: slot.recipe.is_favorite || false,
           base_servings: slot.recipe.base_servings || 4,
+          ingredients: slot.recipe.ingredients || [],
+          instructions: slot.recipe.instructions || [],
         } : null,
       }))
 
-      await sb.from('planned_meals').insert(meals)
-      console.log('Draft auto-saved')
+      const { error: insertErr } = await sb.from('planned_meals').insert(meals)
+      if (insertErr) {
+        console.error('Draft save error:', insertErr.message)
+        // If recipe_snapshot column doesn't exist, try without it
+        if (insertErr.message && insertErr.message.includes('recipe_snapshot')) {
+          const mealsWithoutSnapshot = meals.map(function(m) {
+            const { recipe_snapshot, ...rest } = m
+            return rest
+          })
+          await sb.from('planned_meals').insert(mealsWithoutSnapshot)
+        }
+      }
+      console.log('Draft auto-saved, meals=' + meals.length)
     } catch (e) {
       console.error('Auto-save failed:', e)
       // Non-critical — don't show error to user
@@ -551,8 +570,10 @@ export default function PlanPage() {
                                 return
                               }
                               if (String(slot.recipe_id || '').startsWith('sys-') || String(slot.recipe_id || '').startsWith('emg-')) {
-                                const sysId = String(slot.recipe_id).replace('sys-', '')
-                                if (!sysId.startsWith('emg')) {
+                                // Try to get system_recipe_id from snapshot or recipe_id
+                                const sysId = (slot.recipe?.system_recipe_id) ||
+                                  String(slot.recipe_id).replace('sys-', '')
+                                if (sysId && !sysId.startsWith('emg')) {
                                   try {
                                     const sb = getClient()
                                     const { data: fullRecipe } = await sb.from('system_recipes').select('*').eq('id', sysId).single()
