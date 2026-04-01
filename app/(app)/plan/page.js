@@ -104,10 +104,11 @@ const css = `
 
 function getWeekStart(date) {
   const d = new Date(date)
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+  // Use local date components to avoid UTC timezone shift
+  const localDay = d.getDay()
+  const diff = d.getDate() - localDay + (localDay === 0 ? -6 : 1)
   d.setDate(diff)
-  d.setHours(0,0,0,0)
+  d.setHours(0, 0, 0, 0)
   return d
 }
 
@@ -119,7 +120,11 @@ function formatWeekLabel(ws) {
 }
 
 function isToday(dateStr) {
-  return dateStr === new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const localDate = now.getFullYear() + '-' +
+    String(now.getMonth() + 1).padStart(2, '0') + '-' +
+    String(now.getDate()).padStart(2, '0')
+  return dateStr === localDate
 }
 
 export default function PlanPage() {
@@ -152,7 +157,11 @@ export default function PlanPage() {
     setWeekStart(new Date(base))
   }, [mounted, weekOffset])
 
-  const weekStartStr = weekStart?.toISOString().split('T')[0]
+  const weekStartStr = weekStart ? (
+    weekStart.getFullYear() + '-' +
+    String(weekStart.getMonth() + 1).padStart(2, '0') + '-' +
+    String(weekStart.getDate()).padStart(2, '0')
+  ) : null
 
   useEffect(() => {
     if (!userId || !weekStartStr) return
@@ -223,14 +232,14 @@ export default function PlanPage() {
       const meals = planData.map(slot => ({
         weekly_plan_id: currentPlanId,
         profile_id: userId,
-        recipe_id: slot.recipe_id && !String(slot.recipe_id).startsWith('sys-') ? slot.recipe_id : null,
+        recipe_id: slot.recipe_id && !String(slot.recipe_id || '').startsWith('sys-') ? slot.recipe_id : null,
         meal_date: slot.date,
         servings: slot.recipe?.base_servings || 4,
         is_skipped: slot.is_skipped || false,
         skip_reason: slot.skip_reason || null,
         start_cooking_at: null,
-        // Store system recipe title for display even without a real recipe_id
-        notes: slot.recipe?.title && String(slot.recipe_id).startsWith('sys-') ? slot.recipe.title : null,
+        // Always store recipe title in notes as fallback for display
+        notes: slot.recipe?.title || null,
       }))
 
       await sb.from('planned_meals').insert(meals)
