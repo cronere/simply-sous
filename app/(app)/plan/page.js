@@ -303,6 +303,14 @@ export default function PlanPage() {
         })() : null,
       }))
 
+      // Debug: log first system recipe slot to verify snapshot
+      const firstSys = meals.find(m => m.recipe_snapshot && m.recipe_snapshot.system_recipe_id)
+      if (firstSys) {
+        console.log('Snapshot check - sys_id:', firstSys.recipe_snapshot.system_recipe_id, 
+          '| title:', firstSys.recipe_snapshot.title,
+          '| ing count:', (firstSys.recipe_snapshot.ingredients || []).length)
+      }
+
       const { error: insertErr } = await sb.from('planned_meals').insert(meals)
       if (insertErr) {
         console.error('Draft save error:', insertErr.message)
