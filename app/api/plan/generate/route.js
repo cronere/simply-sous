@@ -352,17 +352,40 @@ export async function POST(request) {
       prefs && prefs.allergens ? prefs.allergens : []
     )
 
-    var rotationSection = dueRotation.length > 0
-      ? dueRotation.map(function(r) { return '- ID: "' + r.id + '" | "' + r.title + '" | ' + (r.rotation_frequency || '') + ' | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min' }).join('\n')
-      : 'None due this week'
+    // Use simple numeric indices instead of UUIDs to prevent Claude from mangling them
+    var indexedRecipes = []
+    var recipeIndex = {}
 
-    var vaultSection = otherVault.length > 0
-      ? otherVault.map(function(r) { return '- ID: "' + r.id + '" | "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min | Favorite: ' + (r.is_favorite ? 'YES' : 'no') + ' | PERSONAL RECIPE'}).join('\n')
-      : 'None — use system database recipes'
+    dueRotation.forEach(function(r, i) {
+      var idx = 'R' + (indexedRecipes.length + 1)
+      indexedRecipes.push(r)
+      recipeIndex[idx] = r.id
+    })
+    var rotationIndexed = dueRotation.map(function(r, i) {
+      return '- IDX: R' + (i + 1) + ' | "' + r.title + '" | ' + (r.rotation_frequency || '') + ' | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min | ROTATION'
+    })
 
-    var systemSection = systemRecipes.concat(generatedRecipes).length > 0
-      ? systemRecipes.concat(generatedRecipes).map(function(r) { return '- ID: "' + r.id + '" | "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min' }).join('\n')
-      : 'None'
+    var vaultStart = indexedRecipes.length
+    otherVault.forEach(function(r) { indexedRecipes.push(r) })
+    var vaultIndexed = otherVault.map(function(r, i) {
+      var idx = 'V' + (i + 1)
+      recipeIndex[idx] = r.id
+      return '- IDX: ' + idx + ' | "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min | Favorite: ' + (r.is_favorite ? 'YES' : 'no') + ' | PERSONAL VAULT RECIPE'
+    })
+
+    var sysAll = systemRecipes.concat(generatedRecipes)
+    var sysIndexed = sysAll.map(function(r, i) {
+      var idx = 'S' + (i + 1)
+      recipeIndex[idx] = r.id
+      indexedRecipes.push(r)
+      return '- IDX: ' + idx + ' | "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min | DATABASE RECIPE'
+    })
+
+    var rotationSection = rotationIndexed.length > 0 ? rotationIndexed.join('\n') : 'None due this week'
+    var vaultSection = vaultIndexed.length > 0 ? vaultIndexed.join('\n') : 'None — use database recipes'
+    var systemSection = sysIndexed.length > 0 ? sysIndexed.join('\n') : 'None'
+
+    console.log('Recipe index built:', JSON.stringify(recipeIndex))
 
     var promptLines2 = [
       'You are the meal planning AI for Simply Sous.',
@@ -401,11 +424,13 @@ export async function POST(request) {
       '',
       'CRITICAL REQUIREMENTS:',
       '- You MUST return exactly ' + cookingDays.length + ' entries in the array - one for EACH cooking day listed above',
-      '- Every cooking day must have a recipe_id assigned - never leave a cooking day without a recipe',
-      '- If you run out of preferred recipes, use any recipe from the system database list',
+      '- Every cooking day must have a recipe_idx assigned using the IDX codes (V1, V2, S1, R1 etc)',
+      '- STRONGLY prefer PERSONAL VAULT RECIPE entries (V codes) over DATABASE RECIPE entries (S codes)',
+      '- NEVER repeat the same recipe_idx twice in the same week',
       '- Return ONLY the JSON array. Start with [ and end with ]. Nothing else.',
       '',
-      'Format: [{"date":"YYYY-MM-DD","recipe_id":"exact-id","is_skipped":false,"skip_reason":null}]',
+      'Format: [{"date":"YYYY-MM-DD","recipe_idx":"V1","is_skipped":false,"skip_reason":null}]',
+      'Use the IDX value (like V1, S3, R2) NOT the full recipe title as the recipe_idx.',
     ]
 
     var prompt2 = promptLines2.join('\n')
@@ -444,6 +469,18 @@ export async function POST(request) {
 
     // Inject blackout days server-side
     var claudeSlotMap = {}
+    // Convert recipe_idx back to real recipe IDs using our index map
+    planSlots = planSlots.map(function(slot) {
+      if (slot.is_skipped) return slot
+      var idx = slot.recipe_idx || slot.recipe_id
+      if (!idx) return slot
+      var realId = recipeIndex[idx]
+      if (!realId) {
+        // Claude may have returned the title or a slightly different format — try to match
+        console.log('No match for idx:', idx, '| Available:', Object.keys(recipeIndex).join(','))
+      }
+      return Object.assign({}, slot, { recipe_id: realId || null, recipe_idx: idx })
+    })
     planSlots.forEach(function(s) { claudeSlotMap[s.date] = s })
 
     var mergedSlots = weekDates.map(function(d) {
@@ -473,9 +510,10 @@ export async function POST(request) {
     var recipeMap = {}
     allRecipes.forEach(function(r) { recipeMap[r.id] = r })
 
-    // Debug: log first few recipe IDs to check format
-    console.log('Recipe map keys (first 3):', Object.keys(recipeMap).slice(0, 3))
-    console.log('Plan slot IDs (first 3):', deduped.slice(0, 3).map(function(s) { return s.recipe_id }))
+    // Debug: log ID matching
+    console.log('Recipe map keys sample:', Object.keys(recipeMap).slice(0, 5))
+    console.log('Claude returned IDs:', deduped.filter(function(s){return !s.is_skipped}).map(function(s){return s.recipe_id}))
+    console.log('Vault IDs in map:', Object.keys(recipeMap).filter(function(k){return !k.startsWith('sys-')}).slice(0, 5))
 
     var enriched = deduped.map(function(slot) {
       var recipe = null
