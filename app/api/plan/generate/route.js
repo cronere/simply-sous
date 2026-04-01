@@ -298,9 +298,6 @@ export async function POST(request) {
     var missing = enriched.filter(function(s) { return !s.is_skipped && !s.recipe }).length
     console.log('[plan/generate] matched=' + matched + ' missing=' + missing)
 
-    // NOTE: last_planned_date is updated when the plan is CONFIRMED, not on generation
-    // This allows regenerating without marking recipes as used
-
     return Response.json({
       plan: enriched,
       weekStartDate: weekStartDate,
