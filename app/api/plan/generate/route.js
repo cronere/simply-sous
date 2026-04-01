@@ -26,7 +26,19 @@ async function getSystemRecipes(sb, prefs, count) {
     .order('times_served', { ascending: true })
     .limit(count * 3)
   return (res.data || []).slice(0, count).map(function(r) {
-    return { id: 'sys-' + r.id, system_recipe_id: r.id, title: r.title, cuisine: r.cuisine, total_time_mins: r.total_time_mins, tags: r.tags || [], dietary_flags: r.dietary_flags || [], base_servings: r.base_servings || 4 }
+    return {
+      id: 'sys-' + r.id,
+      system_recipe_id: r.id,
+      title: r.title,
+      description: r.description || null,
+      cuisine: r.cuisine,
+      total_time_mins: r.total_time_mins,
+      tags: r.tags || [],
+      dietary_flags: r.dietary_flags || [],
+      base_servings: r.base_servings || 4,
+      ingredients: r.ingredients || [],
+      instructions: r.instructions || [],
+    }
   })
 }
 
