@@ -22,14 +22,14 @@ const css = `
   .plan-hd{padding:1.75rem 2rem 1rem;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem}
   .plan-hd h1{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:300;color:#F8F3EC}
   .plan-hd h1 em{font-style:italic;color:#B8874A}
-  .plan-hd-sub{font-size:.85rem;color:rgba(248,243,236,.5);margin-top:.25rem}
+  .plan-hd-sub{font-size:.97rem;color:rgba(248,243,236,.82);margin-top:.25rem}
   .week-nav{display:flex;align-items:center;gap:.75rem;padding:0 2rem 1.25rem}
   .wn-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:2rem;
-    padding:.45rem 1rem;font-size:.82rem;color:rgba(248,243,236,.5);cursor:pointer;
+    padding:.45rem 1rem;font-size:.94rem;color:rgba(248,243,236,.82);cursor:pointer;
     transition:all .2s;font-family:'Outfit',sans-serif}
   .wn-btn:hover{border-color:rgba(184,135,74,.3);color:#B8874A}
-  .week-label{font-size:.88rem;color:rgba(248,243,236,.4);flex:1;text-align:center}
-  .plan-status{display:inline-flex;align-items:center;gap:.4rem;font-size:.7rem;font-weight:500;
+  .week-label{font-size:1rem;color:rgba(248,243,236,.72);flex:1;text-align:center}
+  .plan-status{display:inline-flex;align-items:center;gap:.4rem;font-size:.94rem;font-weight:500;
     letter-spacing:.08em;text-transform:uppercase;padding:.28rem .7rem;border-radius:2rem;margin-left:.5rem}
   .plan-status.draft{background:rgba(184,135,74,.1);color:#B8874A;border:1px solid rgba(184,135,74,.2)}
   .plan-status.confirmed{background:rgba(107,126,103,.1);color:#8FA889;border:1px solid rgba(107,126,103,.2)}
@@ -39,7 +39,7 @@ const css = `
   .generate-ico{font-size:3.5rem;margin-bottom:1.25rem;display:block}
   .generate-title{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:300;
     color:#F8F3EC;margin-bottom:.6rem}
-  .generate-sub{font-size:.92rem;color:rgba(248,243,236,.5);line-height:1.8;
+  .generate-sub{font-size:1.04rem;color:rgba(248,243,236,.82);line-height:1.8;
     max-width:420px;margin:0 auto 2rem}
   .generate-btn{background:#B8874A;color:#1A1612;border:none;padding:1rem 2.75rem;
     border-radius:3rem;font-family:'Outfit',sans-serif;font-size:1rem;font-weight:600;
@@ -52,15 +52,15 @@ const css = `
   .gen-ico{font-size:3rem;display:block;margin-bottom:1rem;animation:pulse 1.5s ease infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
   .gen-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:#F8F3EC;margin-bottom:.5rem}
-  .gen-sub{font-size:.88rem;color:rgba(248,243,236,.4);line-height:1.7}
+  .gen-sub{font-size:1rem;color:rgba(248,243,236,.72);line-height:1.7}
   .plan-grid{padding:0 2rem}
   .plan-day{display:flex;gap:1rem;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.05)}
   .plan-day:last-child{border:none}
   .day-label{width:3.5rem;flex-shrink:0;display:flex;flex-direction:column;
     align-items:center;justify-content:flex-start;padding-top:.3rem;gap:.15rem}
-  .day-name{font-size:.68rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;
-    color:rgba(248,243,236,.3)}
-  .day-date{font-size:.8rem;color:rgba(248,243,236,.2)}
+  .day-name{font-size:.80rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;
+    color:rgba(248,243,236,.60)}
+  .day-date{font-size:1.04rem;color:rgba(248,243,236,.2)}
   .day-name.tod{color:#B8874A}
   .day-date.tod{color:rgba(184,135,74,.7);font-weight:500}
   .day-content{flex:1;min-width:0}
@@ -72,28 +72,28 @@ const css = `
     font-weight:500;margin-bottom:.35rem}
   .slot-title{font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:#F8F3EC;
     line-height:1.3;margin-bottom:.35rem}
-  .slot-meta{display:flex;gap:.75rem;font-size:.75rem;color:rgba(248,243,236,.35);flex-wrap:wrap}
-  .slot-cook-time{font-size:.7rem;color:rgba(184,135,74,.7);margin-top:.4rem;display:block}
+  .slot-meta{display:flex;gap:.75rem;font-size:.87rem;color:rgba(248,243,236,.65);flex-wrap:wrap}
+  .slot-cook-time{font-size:.94rem;color:rgba(184,135,74,.7);margin-top:.4rem;display:block}
   .skip-slot{background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.06);
     border-radius:.875rem;padding:.85rem 1.25rem}
-  .skip-label{font-size:.82rem;color:rgba(248,243,236,.22);font-style:italic}
+  .skip-label{font-size:.94rem;color:rgba(248,243,236,.48);font-style:italic}
   .empty-slot{background:rgba(255,255,255,.02);border:1.5px dashed rgba(255,255,255,.07);
     border-radius:.875rem;padding:.85rem 1.25rem;cursor:pointer;transition:all .2s}
   .empty-slot:hover{border-color:rgba(184,135,74,.25);background:rgba(184,135,74,.03)}
-  .empty-label{font-size:.82rem;color:rgba(248,243,236,.22)}
+  .empty-label{font-size:.94rem;color:rgba(248,243,236,.48)}
   .plan-actions{position:sticky;bottom:0;background:linear-gradient(to top,#1A1612 65%,transparent);
     padding:2rem 2rem 1rem;display:flex;gap:.75rem;margin-top:1rem}
   .confirm-btn{flex:1;background:#B8874A;color:#1A1612;border:none;padding:.9rem;
-    border-radius:2rem;font-family:'Outfit',sans-serif;font-size:.92rem;font-weight:600;
+    border-radius:2rem;font-family:'Outfit',sans-serif;font-size:1.04rem;font-weight:600;
     cursor:pointer;transition:all .2s}
   .confirm-btn:hover:not(:disabled){background:#D4A46A;transform:translateY(-1px)}
   .confirm-btn:disabled{opacity:.5;cursor:not-allowed}
   .regen-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
-    color:rgba(248,243,236,.55);padding:.9rem 1.5rem;border-radius:2rem;
-    font-family:'Outfit',sans-serif;font-size:.88rem;cursor:pointer;transition:all .2s;white-space:nowrap}
+    color:rgba(248,243,236,.85);padding:.9rem 1.5rem;border-radius:2rem;
+    font-family:'Outfit',sans-serif;font-size:1rem;cursor:pointer;transition:all .2s;white-space:nowrap}
   .regen-btn:hover{background:rgba(255,255,255,.09);color:#F8F3EC}
   .plan-err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;
-    color:#EF4444;font-size:.85rem;padding:12px 16px;margin:0 2rem 1rem;line-height:1.6}
+    color:#EF4444;font-size:.97rem;padding:12px 16px;margin:0 2rem 1rem;line-height:1.6}
   .sp{width:16px;height:16px;border:2px solid rgba(26,22,18,.2);border-top-color:#1A1612;
     border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:5px}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -481,7 +481,28 @@ export default function PlanPage() {
                   </div>
                   <div className="day-content">
                     {slot.is_skipped ? (
-                      <div className="skip-slot"><div className="skip-label">{slot.skip_reason || 'Eating out / skipped'}</div></div>
+                      <div className="skip-slot">
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem'}}>
+                          <div className="skip-label">{slot.skip_reason || '🍕 Eating out / night off'}</div>
+                          {planStatus !== 'confirmed' && (
+                            <button
+                              onClick={() => {
+                                setPlan(prev => prev.map(s =>
+                                  s.date === slot.date
+                                    ? { ...s, is_skipped: false, skip_reason: null }
+                                    : s
+                                ))
+                              }}
+                              style={{background:'none',border:'1px solid rgba(255,255,255,.15)',
+                                borderRadius:'1rem',padding:'.3rem .75rem',fontSize:'.78rem',
+                                color:'rgba(248,243,236,.55)',cursor:'pointer',
+                                fontFamily:"'Outfit',sans-serif",whiteSpace:'nowrap',
+                                transition:'all .2s',flexShrink:0}}>
+                              + Cook instead
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     ) : slot.recipe ? (
                       <div className={`recipe-slot${tod ? ' tonight' : ''}`}>
                         <div style={{display:'flex',alignItems:'flex-start',gap:'.5rem'}}>
