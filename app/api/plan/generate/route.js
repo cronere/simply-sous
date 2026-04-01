@@ -151,12 +151,12 @@ async function generateAndSaveRecipes(sb, prefs, existingTitles, count) {
   // Extract JSON array robustly
   var parsed
   try {
-    var directCleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-    parsed = JSON.parse(directCleaned)
+    var bfi = raw.indexOf('[')
+    var bli = raw.lastIndexOf(']')
+    if (bfi < 0 || bli <= bfi) throw new Error('No JSON array in batch response')
+    parsed = JSON.parse(raw.substring(bfi, bli + 1))
   } catch (e) {
-    var match = raw.match(/\[\s*\{[\s\S]*\}\s*\]/)
-    if (!match) throw new Error('Could not parse recipe batch response')
-    parsed = JSON.parse(match[0])
+    throw new Error('Could not parse recipe batch response: ' + e.message)
   }
 
   if (!Array.isArray(parsed)) throw new Error('Invalid recipe batch response')
@@ -425,20 +425,17 @@ export async function POST(request) {
     // Parse robustly
     var planSlots
     try {
-      // Strip markdown, then extract just the array by finding first [ and last ]
-      var cleaned2 = raw2.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-      var fi = cleaned2.indexOf('[')
-      var li = cleaned2.lastIndexOf(']')
-      if (fi >= 0 && li > fi) cleaned2 = cleaned2.substring(fi, li + 1)
-      planSlots = JSON.parse(cleaned2)
+      // Always extract by finding first [ and last ] — handles any surrounding text or markdown
+      var fi = raw2.indexOf('[')
+      var li = raw2.lastIndexOf(']')
+      if (fi < 0 || li <= fi) {
+        throw new Error('No JSON array found in response')
+      }
+      var extracted = raw2.substring(fi, li + 1)
+      planSlots = JSON.parse(extracted)
     } catch (e) {
       console.error('Plan JSON parse error:', e.message, '| Raw:', raw2.substring(0, 300))
-      var match2 = raw2.match(/\[\s*\{[\s\S]*?\}[\s\S]*?\]/)
-      if (!match2) {
-        return Response.json({ error: 'Plan generation failed — unexpected format. Please try again.' }, { status: 500 })
-      }
-      try { planSlots = JSON.parse(match2[0]) }
-      catch (e2) { return Response.json({ error: 'Plan generation failed — could not parse response. Please try again.' }, { status: 500 }) }
+      return Response.json({ error: 'Plan generation failed — unexpected format. Please try again.' }, { status: 500 })
     }
 
     if (!Array.isArray(planSlots)) {
