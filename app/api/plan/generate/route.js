@@ -223,12 +223,19 @@ export async function POST(request) {
     )
 
     // Fetch all data in parallel
+    console.log('Fetching data for userId:', userId)
     var results = await Promise.all([
       sb.from('profiles').select('family_size, dinner_hour, family_name').eq('id', userId).single(),
       sb.from('user_preferences').select('*').eq('profile_id', userId).maybeSingle(),
       sb.from('blackout_days').select('day_of_week').eq('profile_id', userId),
-      sb.from('recipes').select('id, title, cuisine, meal_type, total_time_mins, tags, dietary_flags, base_servings, is_favorite, times_made, average_rating').eq('profile_id', userId),
+      sb.from('recipes')
+        .select('id, title, cuisine, meal_type, total_time_mins, tags, dietary_flags, base_servings, is_favorite, times_made, average_rating')
+        .eq('profile_id', userId)
+        .order('is_favorite', { ascending: false }),
     ])
+    console.log('Profile found:', results[0].data ? 'yes' : 'no', '| Prefs found:', results[1].data ? 'yes' : 'no')
+    console.log('Recipes query error:', results[3].error ? results[3].error.message : 'none')
+    console.log('Raw recipe count from DB:', results[3].data ? results[3].data.length : 0)
 
     var profile = results[0].data
     var prefs = results[1].data
@@ -288,7 +295,14 @@ export async function POST(request) {
     var dueRotation = rotationRecipes.filter(function(r) { return r.isDue })
     var otherVault = vaultRecipes.filter(function(r) { return !r.in_rotation })
     var vaultCount = vaultRecipes.length
-    console.log('Vault has ' + vaultCount + ' recipes for ' + mealsNeeded + ' cooking days. useVariety=' + useVariety)
+    console.log('=== PLAN GENERATION DEBUG ===')
+    console.log('userId:', userId)
+    console.log('Vault recipes found:', vaultCount)
+    console.log('Vault recipe titles:', vaultRecipes.map(function(r) { return r.title }).join(', '))
+    console.log('Meals needed:', mealsNeeded, '| Cooking days:', cookingDays.map(function(d) { return d.dayName }).join(', '))
+    console.log('useVariety:', useVariety)
+    console.log('Rotation due:', dueRotation.length)
+    console.log('Other vault:', otherVault.length)
 
     // Always fetch system recipes for variety pool
     // Even if vault covers the week, get some system recipes so Claude has variety
