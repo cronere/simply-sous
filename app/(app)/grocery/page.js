@@ -1,415 +1,301 @@
 'use client'
-
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
 let _client = null
 const getClient = () => {
   if (_client) return _client
-  _client = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  _client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
   return _client
+}
+
+function getLocalDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+}
+
+function getWeekStart(date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1))
+  d.setHours(0,0,0,0)
+  return d
+}
+
+function formatWeekRange(weekStartStr) {
+  const start = new Date(weekStartStr + 'T12:00:00')
+  const end = new Date(start)
+  end.setDate(start.getDate() + 6)
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return months[start.getMonth()] + ' ' + start.getDate() + ' - ' + months[end.getMonth()] + ' ' + end.getDate()
+}
+
+function buildGroceryList(meals, staples) {
+  const allStaples = (staples || []).map(s => s.toLowerCase().trim())
+  const ingredientMap = {}
+
+  meals.forEach(meal => {
+    const ingredients = (meal.recipes && meal.recipes.ingredients) || (meal.recipe_snapshot && meal.recipe_snapshot.ingredients) || []
+    ingredients.forEach(ing => {
+      if (!ing.name) return
+      const key = ing.name.toLowerCase().trim()
+      if (ingredientMap[key]) {
+        if (ingredientMap[key].unit === ing.unit && typeof ingredientMap[key].amount === 'number' && typeof ing.amount === 'number') {
+          ingredientMap[key].amount += ing.amount
+        }
+      } else {
+        ingredientMap[key] = Object.assign({}, ing)
+      }
+    })
+  })
+
+  const toBuy = []
+  const youHave = []
+
+  Object.values(ingredientMap).forEach(ing => {
+    const key = ing.name.toLowerCase().trim()
+    const isStaple = allStaples.some(s => key.includes(s) || s.includes(key))
+    const item = { name: ing.name, amount: ing.amount, unit: ing.unit, notes: ing.notes }
+    if (isStaple) youHave.push(item)
+    else toBuy.push(item)
+  })
+
+  toBuy.sort((a,b) => a.name.localeCompare(b.name))
+  youHave.sort((a,b) => a.name.localeCompare(b.name))
+  return { toBuy, youHave }
 }
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  body{background:#1A1612;color:#F8F3EC;font-family:'Outfit',sans-serif;font-weight:300}
-  .gr-root{min-height:100vh;background:#1A1612;padding:0 0 6rem}
-  .gr-hd{padding:1.75rem 2rem 1.25rem;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem}
-  .gr-hd h1{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:300;color:#F8F3EC}
-  .gr-hd h1 em{font-style:italic;color:#B8874A}
-  .gr-hd-sub{font-size:.97rem;color:rgba(248,243,236,.78);margin-top:.25rem}
-  .gr-week-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:2rem;
-    padding:.45rem 1rem;font-size:.92rem;color:rgba(248,243,236,.78);cursor:pointer;
-    font-family:'Outfit',sans-serif;transition:all .2s;white-space:nowrap}
-  .gr-week-btn:hover{border-color:rgba(184,135,74,.3);color:#B8874A}
-  .gr-progress{padding:0 2rem 1.25rem}
-  .gr-progress-bar{height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden}
-  .gr-progress-fill{height:100%;background:linear-gradient(to right,#B8874A,#D4A46A);transition:width .4s ease;border-radius:2px}
-  .gr-progress-label{font-size:.87rem;color:rgba(248,243,236,.60);margin-top:.5rem}
-  .gr-content{padding:0 2rem}
-  .gr-section{margin-bottom:2rem}
-  .gr-section-hd{display:flex;align-items:center;gap:.75rem;margin-bottom:.85rem;padding-bottom:.6rem;
-    border-bottom:1px solid rgba(255,255,255,.06)}
-  .gr-section-title{font-size:.94rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;
-    color:rgba(248,243,236,.65);flex:1}
-  .gr-section-count{font-size:.84rem;color:rgba(248,243,236,.85)}
-  .gr-items{display:flex;flex-direction:column;gap:.35rem}
-  .gr-item{display:flex;align-items:center;gap:.875rem;padding:.7rem .85rem;
-    border-radius:.75rem;transition:all .2s;cursor:pointer;border:1px solid transparent}
-  .gr-item:hover{background:rgba(255,255,255,.04)}
-  .gr-item.checked{opacity:.45}
-  .gr-check{width:1.25rem;height:1.25rem;border-radius:.35rem;border:1.5px solid rgba(255,255,255,.2);
-    flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s;background:none}
-  .gr-item.checked .gr-check{background:#B8874A;border-color:#B8874A}
-  .gr-check-mark{color:#1A1612;font-size:.87rem;font-weight:700}
-  .gr-item-name{flex:1;font-size:1.02rem;color:rgba(248,243,236,.8);transition:all .2s}
-  .gr-item.checked .gr-item-name{text-decoration:line-through;color:rgba(248,243,236,.60)}
-  .gr-item-amt{font-size:1.02rem;color:rgba(248,243,236,.65);text-align:right;white-space:nowrap}
-  .gr-item-recipe{font-size:.94rem;color:rgba(248,243,236,.50);margin-top:.1rem}
-  .staples-section{background:rgba(107,126,103,.06);border:1px solid rgba(107,126,103,.15);
-    border-radius:1.25rem;padding:1.25rem 1.5rem;margin-bottom:2rem}
-  .staples-hd{display:flex;align-items:center;gap:.75rem;margin-bottom:.85rem}
-  .staples-title{font-size:.94rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;
-    color:rgba(143,168,137,.7);flex:1}
-  .staples-sub{font-size:1.02rem;color:rgba(143,168,137,.5);margin-bottom:.85rem;line-height:1.6}
-  .staples-items{display:flex;flex-direction:column;gap:.3rem}
-  .staple-item{display:flex;align-items:center;gap:.75rem;padding:.5rem .6rem;
-    border-radius:.6rem;cursor:pointer;transition:all .2s}
-  .staple-item:hover{background:rgba(107,126,103,.1)}
-  .staple-item.checked{opacity:.4}
-  .staple-check{width:1.1rem;height:1.1rem;border-radius:.3rem;border:1.5px solid rgba(143,168,137,.3);
-    flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s}
-  .staple-item.checked .staple-check{background:rgba(107,126,103,.4);border-color:rgba(107,126,103,.4)}
-  .staple-name{font-size:.97rem;color:rgba(248,243,236,.85)}
-  .staple-item.checked .staple-name{text-decoration:line-through;color:rgba(248,243,236,.85)}
-  .empty-state{text-align:center;padding:4rem 2rem}
-  .empty-ico{font-size:3rem;display:block;margin-bottom:1rem;opacity:.5}
-  .empty-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:#F8F3EC;margin-bottom:.6rem}
-  .empty-sub{font-size:1rem;color:rgba(248,243,236,.65);line-height:1.8;max-width:340px;margin:0 auto 1.5rem}
-  .empty-btn{background:#B8874A;color:#1A1612;border:none;padding:.75rem 1.75rem;border-radius:2rem;
-    font-family:'Outfit',sans-serif;font-size:1.02rem;font-weight:600;cursor:pointer;transition:all .2s}
-  .empty-btn:hover{background:#D4A46A}
-  .clear-btn{background:none;border:1px solid rgba(255,255,255,.1);color:rgba(248,243,236,.65);
-    padding:.4rem .9rem;border-radius:2rem;font-family:'Outfit',sans-serif;font-size:.87rem;
-    cursor:pointer;transition:all .2s}
-  .clear-btn:hover{border-color:rgba(248,243,236,.85);color:rgba(248,243,236,.88)}
-  @media(max-width:600px){
-    .gr-hd,.gr-progress,.gr-content{padding-left:1.25rem;padding-right:1.25rem}
-  }
+  body{font-family:'Outfit',sans-serif;font-weight:300;background:#1A1612;color:#F8F3EC}
+  .gr-wrap{max-width:680px;margin:0 auto;padding:0 1.5rem 6rem}
+  .gr-hd{padding:2rem 0 1.5rem}
+  .gr-title{font-family:'Cormorant Garamond',serif;font-size:2.2rem;font-weight:300;color:#F8F3EC}
+  .gr-title span{color:#B8874A;font-style:italic}
+  .gr-sub{font-size:.97rem;color:rgba(248,243,236,.6);margin-top:.35rem}
+  .week-block{margin-bottom:1.25rem;border:1px solid rgba(255,255,255,.08);border-radius:1.25rem;overflow:hidden}
+  .week-hd{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;cursor:pointer;gap:1rem}
+  .week-hd:hover{background:rgba(255,255,255,.03)}
+  .week-badge{font-size:.7rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;padding:.25rem .7rem;border-radius:2rem;background:rgba(184,135,74,.15);color:#B8874A;white-space:nowrap}
+  .week-badge.current{background:rgba(143,168,137,.15);color:#8FA889}
+  .week-title{font-family:'Cormorant Garamond',serif;font-size:1.15rem;color:#F8F3EC}
+  .week-count{font-size:.88rem;color:rgba(248,243,236,.45);margin-top:.1rem}
+  .week-body{padding:1rem 1.25rem 1.25rem;border-top:1px solid rgba(255,255,255,.06)}
+  .progress-bar{height:4px;background:rgba(255,255,255,.08);border-radius:2px;margin:.75rem 0 .5rem;overflow:hidden}
+  .progress-fill{height:100%;background:linear-gradient(90deg,#8FA889,#B8874A);border-radius:2px;transition:width .3s}
+  .section-label{font-size:.72rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:rgba(248,243,236,.45);margin:1rem 0 .6rem}
+  .ing-item{display:flex;align-items:center;gap:.85rem;padding:.6rem 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer}
+  .ing-check{width:1.2rem;height:1.2rem;border-radius:50%;border:1.5px solid rgba(184,135,74,.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
+  .ing-name{flex:1;font-size:.97rem;color:rgba(248,243,236,.9)}
+  .ing-amount{font-size:.88rem;color:#B8874A;text-align:right;flex-shrink:0}
+  .staple-item{display:flex;align-items:center;gap:.85rem;padding:.45rem 0}
+  .no-plans{text-align:center;padding:4rem 1rem}
+  .cta-btn{background:#B8874A;color:#1A1612;border:none;padding:.8rem 2rem;border-radius:2rem;font-family:'Outfit',sans-serif;font-size:1rem;font-weight:600;cursor:pointer}
+  @keyframes spin{to{transform:rotate(360deg)}}
 `
-
-// Merge ingredients from multiple recipes, combining duplicate items
-function buildGroceryList(meals, staples) {
-  const itemMap = {}
-  const staplesSet = new Set(staples.map(s => s.toLowerCase().trim()))
-
-  meals.forEach(meal => {
-    if (!meal.recipe?.ingredients) return
-    meal.recipe.ingredients.forEach(ing => {
-      if (!ing.name) return
-      const key = ing.name.toLowerCase().trim()
-      const isStaple = staplesSet.has(key) ||
-        [...staplesSet].some(s => key.includes(s) || s.includes(key))
-
-      if (itemMap[key]) {
-        // Combine amounts if same unit
-        if (ing.unit && itemMap[key].unit === ing.unit && ing.amount) {
-          itemMap[key].amount = (itemMap[key].amount || 0) + ing.amount
-        }
-        itemMap[key].recipes.push(meal.recipe.title)
-      } else {
-        itemMap[key] = {
-          name: ing.name,
-          amount: ing.amount || null,
-          unit: ing.unit || null,
-          notes: ing.notes || null,
-          recipes: [meal.recipe.title],
-          isStaple,
-          checked: false,
-        }
-      }
-    })
-  })
-
-  const items = Object.values(itemMap)
-  const toBuy = items.filter(i => !i.isStaple).sort((a,b) => a.name.localeCompare(b.name))
-  const youHave = items.filter(i => i.isStaple).sort((a,b) => a.name.localeCompare(b.name))
-
-  return { toBuy, youHave }
-}
-
-function formatAmt(item) {
-  if (!item.amount && !item.unit) return ''
-  const amt = item.amount ? (Number.isInteger(item.amount) ? item.amount : item.amount.toFixed(1)) : ''
-  return [amt, item.unit].filter(Boolean).join(' ')
-}
 
 export default function GroceryPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [userId, setUserId] = useState(null)
-  const [groceryItems, setGroceryItems] = useState([])
-  const [stapleItems, setStapleItems] = useState([])
-  const [checked, setChecked] = useState({})
-  const [checkedStaples, setCheckedStaples] = useState({})
-  const [weekLabel, setWeekLabel] = useState('')
-  const [mealCount, setMealCount] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [hasPlan, setHasPlan] = useState(false)
-  const [noIngredients, setNoIngredients] = useState(false)
+  const [weeks, setWeeks] = useState([])
+  const [checkedItems, setCheckedItems] = useState({})
+  const [expandedWeeks, setExpandedWeeks] = useState({})
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
-    setMounted(true)
-    getClient().auth.getSession().then(({ data: { session } }) => {
+    if (!mounted) return
+    const sb = getClient()
+    sb.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
       setUserId(session.user.id)
     })
-  }, [router])
+  }, [mounted, router])
 
   useEffect(() => {
     if (!userId) return
-    loadGroceries()
+    loadAllWeeks()
   }, [userId])
 
-  const loadGroceries = useCallback(async () => {
+  const loadAllWeeks = async () => {
     setLoading(true)
     const sb = getClient()
 
-    // Get this week's confirmed plan
-    const weekStart = (() => {
-      const d = new Date()
-      const day = d.getDay()
-      d.setDate(d.getDate() - day + (day === 0 ? -6 : 1))
-      d.setHours(0,0,0,0)
-      // Use local date to avoid UTC timezone shift
-      return d.getFullYear() + '-' +
-        String(d.getMonth() + 1).padStart(2, '0') + '-' +
-        String(d.getDate()).padStart(2, '0')
-    })()
-
-    // Try current week first, then most recent confirmed plan
-    let { data: plan } = await sb
-      .from('weekly_plans')
-      .select(`id, week_start_date, status,
-        planned_meals (
-          meal_date, is_skipped, notes,
-          recipes ( id, title, ingredients )
-        )`)
-      .eq('profile_id', userId)
-      .eq('week_start_date', weekStart)
-      .maybeSingle()
-
-    // Fall back to most recent confirmed plan if no plan this week
-    if (!plan) {
-      const { data: recent } = await sb
-        .from('weekly_plans')
-        .select(`id, week_start_date, status,
-          planned_meals (
-            meal_date, is_skipped, notes,
-            recipes ( id, title, ingredients )
-          )`)
-        .eq('profile_id', userId)
-        .eq('status', 'confirmed')
-        .order('week_start_date', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      plan = recent
-    }
-
-    if (!plan) {
-      setHasPlan(false)
-      setLoading(false)
-      return
-    }
-
-    setHasPlan(true)
-
-    // Week label
-    const ws = new Date(weekStart + 'T12:00:00')
-    const we = new Date(ws)
-    we.setDate(we.getDate() + 6)
-    const o = { month:'short', day:'numeric' }
-    setWeekLabel(`${ws.toLocaleDateString('en-US',o)} – ${we.toLocaleDateString('en-US',o)}`)
-
-    // Get user staples
     const { data: prefs } = await sb
       .from('user_preferences')
       .select('pantry_staples, fridge_staples')
       .eq('profile_id', userId)
       .maybeSingle()
 
-    const allStaples = [
-      ...(prefs?.pantry_staples || []),
-      ...(prefs?.fridge_staples || []),
-    ]
+    const allStaples = [...(prefs && prefs.pantry_staples ? prefs.pantry_staples : []), ...(prefs && prefs.fridge_staples ? prefs.fridge_staples : [])]
 
-    // Build grocery list from meals
-    const allMeals = (plan.planned_meals || []).filter(m => !m.is_skipped)
-    setMealCount(allMeals.length)
+    const { data: plans } = await sb
+      .from('weekly_plans')
+      .select('id, week_start_date, status, planned_meals ( meal_date, is_skipped, notes, recipe_snapshot, recipes ( id, title, ingredients ) )')
+      .eq('profile_id', userId)
+      .eq('status', 'confirmed')
+      .order('week_start_date', { ascending: true })
+      .limit(4)
 
-    // Meals with real vault recipes have ingredients
-    const mealsWithRecipes = allMeals.filter(m => m.recipes?.ingredients?.length > 0)
+    if (!plans || plans.length === 0) {
+      setLoading(false)
+      return
+    }
 
-    // Try to fetch ingredients for system recipes from system_recipes table
-    const systemMealTitles = allMeals
-      .filter(m => !m.recipes && m.notes)
-      .map(m => m.notes)
+    const now = new Date()
+    const currentWeekStart = getLocalDateStr(getWeekStart(now))
 
-    let systemIngredients = []
-    if (systemMealTitles.length > 0) {
-      const { data: sysRecipes } = await sb
-        .from('system_recipes')
-        .select('title, ingredients')
-        .in('title', systemMealTitles)
-      if (sysRecipes) {
-        systemIngredients = sysRecipes.map(r => ({
-          recipe: { title: r.title, ingredients: r.ingredients }
-        }))
+    const weekData = plans.map(plan => {
+      const meals = (plan.planned_meals || []).filter(m => !m.is_skipped)
+      const { toBuy, youHave } = buildGroceryList(meals, allStaples)
+      return {
+        planId: plan.id,
+        weekStart: plan.week_start_date,
+        isCurrent: plan.week_start_date === currentWeekStart,
+        mealCount: meals.length,
+        toBuy,
+        youHave,
       }
-    }
+    })
 
-    const { toBuy, youHave } = buildGroceryList([...mealsWithRecipes, ...systemIngredients], allStaples)
-    setGroceryItems(toBuy)
-    setStapleItems(youHave)
+    setWeeks(weekData)
 
-    if (toBuy.length === 0 && youHave.length === 0 && allMeals.length > 0) {
-      setNoIngredients(true)
-    }
+    const defaultExpand = {}
+    const currentIdx = weekData.findIndex(w => w.isCurrent)
+    if (currentIdx >= 0) defaultExpand[weekData[currentIdx].weekStart] = true
+    else if (weekData.length > 0) defaultExpand[weekData[weekData.length-1].weekStart] = true
+    setExpandedWeeks(defaultExpand)
     setLoading(false)
-  }, [userId])
-
-  const toggleItem = (name) => {
-    setChecked(prev => ({ ...prev, [name]: !prev[name] }))
   }
 
-  const toggleStaple = (name) => {
-    setCheckedStaples(prev => ({ ...prev, [name]: !prev[name] }))
+  const toggleCheck = (weekStart, itemName) => {
+    const key = weekStart + '-' + itemName
+    setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  const clearChecked = () => setChecked({})
+  const getProgress = (week) => {
+    const total = week.toBuy.length
+    if (!total) return 100
+    const checked = week.toBuy.filter(i => checkedItems[week.weekStart + '-' + i.name]).length
+    return Math.round((checked / total) * 100)
+  }
 
-  const checkedCount = Object.values(checked).filter(Boolean).length
-  const totalCount = groceryItems.length
-  const pct = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0
+  const formatAmt = (item) => {
+    if (!item.amount && !item.unit) return ''
+    const amt = typeof item.amount === 'number' ? (Number.isInteger(item.amount) ? item.amount : +item.amount.toFixed(2)) : item.amount
+    return [amt, item.unit].filter(Boolean).join(' ')
+  }
 
-  if (!mounted) return null
-
-  if (loading) return (
+  if (!mounted || loading) return (
     <div style={{minHeight:'100vh',background:'#1A1612',display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <div style={{width:24,height:24,border:'2px solid rgba(184,135,74,0.2)',borderTopColor:'#B8874A',borderRadius:'50%',animation:'spin .7s linear infinite'}}/>
+      <div style={{width:24,height:24,border:'2px solid rgba(184,135,74,.2)',borderTopColor:'#B8874A',borderRadius:'50%',animation:'spin .7s linear infinite'}}/>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 
   return (
-    <div className="gr-root">
+    <div style={{minHeight:'100vh',background:'#1A1612'}}>
       <style>{css}</style>
-
-      <div className="gr-hd">
-        <div>
-          <h1>Grocery <em>List</em></h1>
-          {hasPlan && <div className="gr-hd-sub">{weekLabel} · {mealCount} meals · {totalCount} items to buy</div>}
-        </div>
-        {hasPlan && checkedCount > 0 && (
-          <button className="clear-btn" onClick={clearChecked}>Clear checked</button>
-        )}
-      </div>
-
-      {!hasPlan ? (
-        <div className="empty-state">
-          <span className="empty-ico">🛒</span>
-          <div className="empty-title">No grocery list yet</div>
-          <div className="empty-sub">Confirm your weekly meal plan first and your grocery list will build automatically.</div>
-          <button className="empty-btn" onClick={() => router.push('/plan')}>Go to Weekly Plan →</button>
-        </div>
-      ) : (
-        <>
-          {/* Progress bar */}
-          {totalCount > 0 && (
-            <div className="gr-progress">
-              <div className="gr-progress-bar">
-                <div className="gr-progress-fill" style={{width:`${pct}%`}} />
-              </div>
-              <div className="gr-progress-label">
-                {checkedCount === totalCount && totalCount > 0
-                  ? '✓ All done! Ready to shop.'
-                  : `${checkedCount} of ${totalCount} checked off`}
-              </div>
-            </div>
-          )}
-
-          <div className="gr-content">
-            {/* Items to buy */}
-            {groceryItems.length > 0 && (
-              <div className="gr-section">
-                <div className="gr-section-hd">
-                  <div className="gr-section-title">🛒 Need to buy</div>
-                  <div className="gr-section-count">{groceryItems.filter(i => !checked[i.name]).length} remaining</div>
-                </div>
-                <div className="gr-items">
-                  {groceryItems.map(item => (
-                    <div key={item.name}
-                      className={`gr-item${checked[item.name] ? ' checked' : ''}`}
-                      onClick={() => toggleItem(item.name)}>
-                      <div className="gr-check">
-                        {checked[item.name] && <span className="gr-check-mark">✓</span>}
-                      </div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div className="gr-item-name">{item.name}{item.notes ? `, ${item.notes}` : ''}</div>
-                        <div className="gr-item-recipe">{item.recipes.slice(0,2).join(', ')}{item.recipes.length > 2 ? ` +${item.recipes.length-2}` : ''}</div>
-                      </div>
-                      {formatAmt(item) && (
-                        <div className="gr-item-amt">{formatAmt(item)}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Staples — you probably have this */}
-            {stapleItems.length > 0 && (
-              <div className="staples-section">
-                <div className="staples-hd">
-                  <div className="staples-title">🫙 You probably have this</div>
-                </div>
-                <div className="staples-sub">
-                  Based on your pantry and fridge staples. Tap to uncheck anything you&apos;re running low on.
-                </div>
-                <div className="staples-items">
-                  {stapleItems.map(item => (
-                    <div key={item.name}
-                      className={`staple-item${checkedStaples[item.name] ? ' checked' : ''}`}
-                      onClick={() => toggleStaple(item.name)}>
-                      <div className="staple-check">
-                        {checkedStaples[item.name] && <span style={{color:'rgba(248,243,236,.6)',fontSize:'.7rem',fontWeight:700}}>✓</span>}
-                      </div>
-                      <div className="staple-name">{item.name}{item.notes ? `, ${item.notes}` : ''}</div>
-                      {formatAmt(item) && (
-                        <div style={{fontSize:'.72rem',color:'rgba(143,168,137,.4)'}}>{formatAmt(item)}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Empty — all checked */}
-            {groceryItems.length === 0 && stapleItems.length === 0 && (
-              <div style={{textAlign:'center',padding:'3rem 0'}}>
-                {noIngredients ? (
-                  <>
-                    <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>📋</div>
-                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'#F8F3EC',marginBottom:'.5rem'}}>
-                      No ingredients found
-                    </div>
-                    <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.5)',lineHeight:1.7,maxWidth:'340px',margin:'0 auto .5rem'}}>
-                      This week&apos;s plan uses recipes from our database that don&apos;t have ingredient details yet. Add your own recipes to the vault to get a full grocery list.
-                    </div>
-                    <button onClick={() => router.push('/vault/add')}
-                      style={{marginTop:'1rem',background:'#B8874A',color:'#1A1612',border:'none',
-                        padding:'.75rem 1.75rem',borderRadius:'2rem',fontFamily:"'Outfit',sans-serif",
-                        fontSize:'.9rem',fontWeight:600,cursor:'pointer'}}>
-                      Add recipes to vault →
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>✓</div>
-                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'#F8F3EC',marginBottom:'.5rem'}}>Nothing to buy</div>
-                    <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.35)'}}>Your pantry covers everything this week.</div>
-                  </>
-                )}
-              </div>
-            )}
+      <div className="gr-wrap">
+        <div className="gr-hd">
+          <div className="gr-title">Grocery <span>List</span></div>
+          <div className="gr-sub">
+            {weeks.length > 0
+              ? weeks.length + ' week' + (weeks.length > 1 ? 's' : '') + ' planned'
+              : 'Confirm a weekly plan to see your grocery list'}
           </div>
-        </>
-      )}
+        </div>
+
+        {weeks.length === 0 ? (
+          <div className="no-plans">
+            <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>🛒</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.5rem',color:'#F8F3EC',marginBottom:'.5rem'}}>No grocery lists yet</div>
+            <div style={{fontSize:'.97rem',color:'rgba(248,243,236,.55)',lineHeight:1.7,marginBottom:'2rem',maxWidth:'320px',margin:'0 auto 2rem'}}>
+              Confirm your weekly plan and your grocery list will appear here automatically.
+            </div>
+            <button className="cta-btn" onClick={() => router.push('/plan')}>Go to Plan</button>
+          </div>
+        ) : weeks.map(week => {
+          const isExpanded = expandedWeeks[week.weekStart]
+          const progress = getProgress(week)
+          const checkedCount = week.toBuy.filter(i => checkedItems[week.weekStart + '-' + i.name]).length
+
+          return (
+            <div key={week.weekStart} className="week-block">
+              <div className="week-hd" onClick={() => setExpandedWeeks(prev => ({ ...prev, [week.weekStart]: !prev[week.weekStart] }))}>
+                <div style={{display:'flex',alignItems:'center',gap:'.75rem',flex:1,minWidth:0}}>
+                  <div className={'week-badge' + (week.isCurrent ? ' current' : '')}>{week.isCurrent ? 'This week' : 'Upcoming'}</div>
+                  <div>
+                    <div className="week-title">{formatWeekRange(week.weekStart)}</div>
+                    <div className="week-count">{week.mealCount} meals &middot; {week.toBuy.length} items to buy{checkedCount > 0 ? ' \u00b7 ' + checkedCount + ' checked' : ''}</div>
+                  </div>
+                </div>
+                <div style={{color:'rgba(248,243,236,.4)',fontSize:'.8rem',transition:'transform .2s',transform: isExpanded ? 'rotate(180deg)' : 'none',flexShrink:0}}>▼</div>
+              </div>
+
+              {isExpanded && (
+                <div className="week-body">
+                  {week.toBuy.length === 0 && week.youHave.length === 0 ? (
+                    <div style={{padding:'1.5rem 0',textAlign:'center',color:'rgba(248,243,236,.4)',fontSize:'.95rem'}}>
+                      No ingredients found. Add recipes with full ingredient lists to your vault.
+                    </div>
+                  ) : (
+                    <>
+                      {week.toBuy.length > 0 && (
+                        <>
+                          <div className="progress-bar"><div className="progress-fill" style={{width:progress+'%'}}/></div>
+                          <div style={{fontSize:'.85rem',color:'rgba(248,243,236,.45)',marginBottom:'.25rem'}}>{checkedCount} of {week.toBuy.length} items checked</div>
+                          <div className="section-label">Need to buy</div>
+                          {week.toBuy.map(item => {
+                            const checked = checkedItems[week.weekStart + '-' + item.name] || false
+                            return (
+                              <div key={item.name} className="ing-item" onClick={() => toggleCheck(week.weekStart, item.name)}
+                                style={{opacity: checked ? .45 : 1}}>
+                                <div className="ing-check" style={{background: checked ? '#8FA889' : 'transparent', borderColor: checked ? '#8FA889' : 'rgba(184,135,74,.4)'}}>
+                                  {checked && <span style={{color:'#F8F3EC',fontSize:'.65rem',fontWeight:700}}>✓</span>}
+                                </div>
+                                <div className="ing-name">
+                                  {item.name}
+                                  {item.notes && <span style={{fontSize:'.82rem',color:'rgba(248,243,236,.4)',fontStyle:'italic'}}> — {item.notes}</span>}
+                                </div>
+                                <div className="ing-amount">{formatAmt(item)}</div>
+                              </div>
+                            )
+                          })}
+                          {checkedCount > 0 && (
+                            <button onClick={() => {
+                              const n = { ...checkedItems }
+                              week.toBuy.forEach(i => { delete n[week.weekStart + '-' + i.name] })
+                              setCheckedItems(n)
+                            }} style={{marginTop:'1rem',background:'none',border:'1px solid rgba(255,255,255,.1)',borderRadius:'2rem',padding:'.45rem 1.1rem',color:'rgba(248,243,236,.5)',fontFamily:"'Outfit',sans-serif",fontSize:'.88rem',cursor:'pointer'}}>
+                              Clear checked
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {week.youHave.length > 0 && (
+                        <>
+                          <div className="section-label" style={{marginTop:'1.5rem'}}>You probably have this</div>
+                          {week.youHave.map(item => (
+                            <div key={item.name} className="staple-item">
+                              <span style={{color:'rgba(143,168,137,.6)',fontSize:'.9rem'}}>✓</span>
+                              <span style={{flex:1,fontSize:'.92rem',color:'rgba(248,243,236,.55)'}}>{item.name}</span>
+                              <span style={{fontSize:'.85rem',color:'rgba(248,243,236,.35)'}}>{formatAmt(item)}</span>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
