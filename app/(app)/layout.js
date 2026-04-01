@@ -53,7 +53,7 @@ const css = `
   }
   .sidebar-logo-text span{color:var(--clay);font-style:italic}
   .sidebar-tagline{
-    font-size:.62rem;color:rgba(248,243,236,.25);
+    font-size:.76rem;color:rgba(248,243,236,.50);
     letter-spacing:.1em;text-transform:uppercase;margin-top:.15rem;
   }
 
@@ -62,14 +62,14 @@ const css = `
     flex:1;padding:.75rem 0;overflow-y:auto;
   }
   .nav-section-label{
-    font-size:.58rem;font-weight:500;letter-spacing:.18em;
-    text-transform:uppercase;color:rgba(248,243,236,.2);
+    font-size:.72rem;font-weight:500;letter-spacing:.18em;
+    text-transform:uppercase;color:rgba(248,243,236,.45);
     padding:.75rem 1.25rem .35rem;
   }
   .nav-link{
     display:flex;align-items:center;gap:.75rem;
-    padding:.7rem 1.25rem;font-size:.88rem;
-    color:rgba(248,243,236,.45);text-decoration:none;
+    padding:.7rem 1.25rem;font-size:1rem;
+    color:rgba(248,243,236,.80);text-decoration:none;
     cursor:pointer;transition:all .2s;border:none;
     background:none;width:100%;text-align:left;
     font-family:'Outfit',sans-serif;font-weight:300;
@@ -84,7 +84,7 @@ const css = `
     width:2px;background:var(--clay);border-radius:0 1px 1px 0;
   }
   .nav-ico{font-size:1rem;width:1.25rem;text-align:center;flex-shrink:0}
-  .nav-label{font-size:.88rem}
+  .nav-label{font-size:1rem}
 
   /* User section */
   .sidebar-user{
@@ -96,16 +96,16 @@ const css = `
     width:2rem;height:2rem;border-radius:50%;
     background:linear-gradient(135deg,var(--clay),var(--sage));
     display:flex;align-items:center;justify-content:center;
-    font-size:.8rem;font-weight:500;color:var(--ink);flex-shrink:0;
+    font-size:.92rem;font-weight:500;color:var(--ink);flex-shrink:0;
   }
-  .user-name{font-size:.82rem;color:rgba(248,243,236,.6);
+  .user-name{font-size:.95rem;color:rgba(248,243,236,.88);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
   .signout-btn{
-    background:none;border:none;color:rgba(248,243,236,.25);
-    font-size:.75rem;cursor:pointer;padding:0;
+    background:none;border:none;color:rgba(248,243,236,.50);
+    font-size:.88rem;cursor:pointer;padding:0;
     font-family:'Outfit',sans-serif;transition:color .2s;white-space:nowrap;
   }
-  .signout-btn:hover{color:rgba(248,243,236,.6)}
+  .signout-btn:hover{color:rgba(248,243,236,.88)}
 
   /* ── MAIN CONTENT ── */
   .shell-main{
@@ -142,13 +142,13 @@ const css = `
   .mob-tab{
     display:flex;flex-direction:column;align-items:center;gap:.2rem;
     background:none;border:none;cursor:pointer;padding:.4rem .5rem;
-    color:rgba(248,243,236,.35);font-family:'Outfit',sans-serif;
+    color:rgba(248,243,236,.65);font-family:'Outfit',sans-serif;
     transition:color .2s;flex:1;
   }
   .mob-tab.active{color:var(--clay)}
   .mob-tab:hover{color:rgba(248,243,236,.7)}
   .mob-tab-ico{font-size:1.2rem;line-height:1}
-  .mob-tab-label{font-size:.58rem;font-weight:400;letter-spacing:.04em}
+  .mob-tab-label{font-size:.72rem;font-weight:400;letter-spacing:.04em}
 
   /* ── RESPONSIVE ── */
   @media(max-width:768px){
@@ -158,7 +158,7 @@ const css = `
     .mob-tabs{display:flex}
   }
   @media(max-width:480px){
-    .mob-tab-label{font-size:.52rem}
+    .mob-tab-label{font-size:.68rem}
   }
 `
 
