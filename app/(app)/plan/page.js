@@ -525,15 +525,14 @@ export default function PlanPage() {
         return
       }
 
-      // Update last_planned_date for vault recipes used — marks them as recently planned
+      // Update last_planned_date to the week start date (not today)
+      // This ensures rotation correctly calculates days since last planned
       const usedVaultIds = plan
         .filter(s => !s.is_skipped && s.recipe_id && !String(s.recipe_id).startsWith('sys-') && !String(s.recipe_id).startsWith('emg-'))
         .map(s => s.recipe_id)
       if (usedVaultIds.length > 0) {
-        const tod = new Date()
-        const todStr = tod.getFullYear() + '-' + String(tod.getMonth()+1).padStart(2,'0') + '-' + String(tod.getDate()).padStart(2,'0')
         for (const rid of usedVaultIds) {
-          try { await sb.from('recipes').update({ last_planned_date: todStr }).eq('id', rid) } catch(e) {}
+          try { await sb.from('recipes').update({ last_planned_date: weekStartStr }).eq('id', rid) } catch(e) {}
         }
       }
 
@@ -980,10 +979,15 @@ export default function PlanPage() {
                 </button>
                 <button
                   onClick={() => {
+                    if (weekOffset >= 3) {
+                      setError('You can only plan up to 4 weeks ahead.')
+                      return
+                    }
                     setWeekOffset(o => o + 1)
                     setError('')
                   }}
-                  className="confirm-btn">
+                  className="confirm-btn"
+                  style={{opacity: weekOffset >= 3 ? .5 : 1}}>
                   Plan next week →
                 </button>
               </div>
