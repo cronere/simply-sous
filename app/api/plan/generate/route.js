@@ -121,8 +121,12 @@ export async function POST(request) {
 
     // Get system recipes if needed
     var systemRecipes = []
-    if (useVariety || vaultRecipes.length < mealsNeeded) {
-      var needed = useVariety ? Math.max(Math.ceil(mealsNeeded / 2), 4) : Math.max(mealsNeeded - eligibleVault.length, 2)
+    // Always fetch some system recipes as fallback in case Claude doesn't fill all days
+    if (useVariety || eligibleVault.length < mealsNeeded) {
+      // Always fetch enough system recipes to cover the full week if vault is exhausted
+      var needed = useVariety 
+        ? Math.max(mealsNeeded, 8)
+        : Math.max(mealsNeeded - eligibleVault.length, 4)
       systemRecipes = await getSystemRecipes(sb, prefs, needed)
       console.log('[plan/generate] system recipes fetched=' + systemRecipes.length)
     }
@@ -132,9 +136,9 @@ export async function POST(request) {
     var allRecipes = []
 
     // Use eligible vault recipes first, then not-due as fallback if needed
-    var recipesToUse = eligibleVault.length >= mealsNeeded
-      ? eligibleVault
-      : eligibleVault.concat(notDueVault).slice(0, Math.max(eligibleVault.length, mealsNeeded))
+    // Only use eligible recipes as V codes — never give Claude not-due recipes
+    // If vault has nothing eligible, system recipes will fill the whole week
+    var recipesToUse = eligibleVault
 
     recipesToUse.forEach(function(r, i) {
       var code = 'V' + (i + 1)
@@ -155,7 +159,7 @@ export async function POST(request) {
     allRecipes.forEach(function(r) { recipeMap[r.id] = r })
 
     // Build prompt
-    var vaultLines = vaultRecipes.map(function(r, i) {
+    var vaultLines = recipesToUse.map(function(r, i) {
       return 'V' + (i+1) + ': "' + r.title + '" | ' + (r.cuisine || 'various') + ' | ' + (r.total_time_mins || '?') + ' min' + (r.is_favorite ? ' ❤️' : '')
     }).join('\n')
 
@@ -165,10 +169,12 @@ export async function POST(request) {
 
     var dayLines = cookingDays.map(function(d) { return d.dayName + ' ' + d.date }).join('\n')
 
-    var sysCount = systemRecipes.length
-    var modeNote = useVariety
-      ? 'Use a MIX of personal (V codes) and general (S codes) recipes. You MUST fill ALL ' + mealsNeeded + ' days — use V codes for most days but include at least 1-2 S codes for variety.'
-      : 'Use personal recipes (V codes) first. Only use S codes if you run out of V codes. You MUST fill ALL ' + mealsNeeded + ' days.'
+    var vaultAvailable = recipesToUse.length
+    var modeNote = vaultAvailable === 0
+      ? 'No personal recipes are due this week. Use ONLY general recipes (S codes) to fill all ' + mealsNeeded + ' days.'
+      : useVariety
+        ? 'Mix personal (V codes) and general (S codes). Fill ALL ' + mealsNeeded + ' days. Include at least 1 S code for variety.'
+        : 'Use personal recipes (V codes) first. Use S codes only if you run out of V codes. Fill ALL ' + mealsNeeded + ' days.'
 
     var prompt = [
       'Plan dinners for a family of ' + ((profile && profile.family_size) || 4) + '.',
