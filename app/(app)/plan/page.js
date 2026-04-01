@@ -441,7 +441,7 @@ export default function PlanPage() {
       {error && <div className="plan-err">{error}</div>}
 
       {/* TEMP DEBUG — remove after fixing */}
-      {process.env.NODE_ENV !== 'production' && userId && (
+      {userId && (
         <div style={{margin:'0 2rem .5rem',padding:'.75rem 1rem',background:'rgba(107,126,103,.1)',
           border:'1px solid rgba(107,126,103,.2)',borderRadius:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.6)'}}>
           🔧 Debug: userId = {userId} | 
