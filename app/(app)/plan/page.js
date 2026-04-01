@@ -398,6 +398,19 @@ export default function PlanPage() {
       if (me) throw me
 
       setPlanStatus('confirmed')
+
+      // Update last_planned_date for vault recipes used — marks them as recently planned
+      const usedVaultIds = plan
+        .filter(s => !s.is_skipped && s.recipe_id && !String(s.recipe_id).startsWith('sys-') && !String(s.recipe_id).startsWith('emg-'))
+        .map(s => s.recipe_id)
+      if (usedVaultIds.length > 0) {
+        const tod = new Date()
+        const todStr = tod.getFullYear() + '-' + String(tod.getMonth()+1).padStart(2,'0') + '-' + String(tod.getDate()).padStart(2,'0')
+        for (const rid of usedVaultIds) {
+          try { await sb.from('recipes').update({ last_planned_date: todStr }).eq('id', rid) } catch(e) {}
+        }
+      }
+
       router.push('/grocery')
     } catch (e) {
       console.error(e)
@@ -538,7 +551,13 @@ export default function PlanPage() {
                                 return
                               }
                               if (String(slot.recipe_id || '').startsWith('sys-') || String(slot.recipe_id || '').startsWith('emg-') || !slot.recipe_id) {
-                                // System recipe — show preview modal
+                                // Fetch full system recipe data then show modal
+                                const sysId = slot.recipe_id ? String(slot.recipe_id).replace('sys-', '') : null
+                                if (sysId && !sysId.startsWith('emg')) {
+                                  const sb = getClient()
+                                  const { data: fullRecipe } = await sb.from('system_recipes').select('*').eq('id', sysId).single()
+                                  if (fullRecipe) { setSysModal(fullRecipe); return }
+                                }
                                 if (slot.recipe) setSysModal(slot.recipe)
                                 return
                               }
