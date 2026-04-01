@@ -14,13 +14,20 @@
   --cream: #FBF8F3;
   --mid: #7A6C5E;
   --light: #B5A898;
+
+  /* Text opacity scale — increased throughout */
+  --text-primary: rgba(248,243,236,1);
+  --text-secondary: rgba(248,243,236,0.75);
+  --text-tertiary: rgba(248,243,236,0.55);
+  --text-muted: rgba(248,243,236,0.38);
 }
 
 html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
 
 body {
   font-family: 'Outfit', sans-serif;
-  font-weight: 300;
+  font-weight: 400;
+  font-size: 16px;
   color: var(--ink);
   background: var(--cream);
   line-height: 1.6;
