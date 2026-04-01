@@ -74,6 +74,10 @@ export async function POST(request) {
     console.log('[plan/generate] userId=' + userId + ' vault=' + vaultRecipes.length + ' useVariety=' + useVariety)
 
     var today = new Date()
+    // Use week start date as reference for rotation eligibility
+    // This handles planning ahead — week 3 (Apr 13) should see recipes as eligible
+    // even if last_planned was Apr 6 (only 7 days ago from today Apr 1)
+    var planningDate = new Date(weekStartDate + 'T12:00:00')
 
     // Mark recipes as eligible based on rotation frequency
     // Rotation data is included in main query above
@@ -84,7 +88,7 @@ export async function POST(request) {
       var eligible = true
 
       if (inRotation && lastPlanned && freq) {
-        var daysSince = (today - new Date(lastPlanned)) / 86400000
+        var daysSince = (planningDate - new Date(lastPlanned)) / 86400000
         console.log('[plan/generate] rotation check: "' + r.title + '" freq=' + freq + ' daysSince=' + Math.round(daysSince))
         if (freq === 'weekly') eligible = daysSince >= 6
         else if (freq === 'biweekly') eligible = daysSince >= 7   // don't repeat within same week, ok next week
