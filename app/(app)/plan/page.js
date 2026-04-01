@@ -144,6 +144,7 @@ export default function PlanPage() {
   const [pickerDate, setPickerDate] = useState(null)
   const [pickerSearch, setPickerSearch] = useState('')
   const [vaultRecipes, setVaultRecipes] = useState([])
+  const [sysModal, setSysModal] = useState(null) // system recipe to preview
 
   useEffect(() => {
     setMounted(true)
@@ -246,7 +247,8 @@ export default function PlanPage() {
       const meals = planData.map(slot => ({
         weekly_plan_id: currentPlanId,
         profile_id: userId,
-        recipe_id: slot.recipe_id && !String(slot.recipe_id || '').startsWith('sys-') ? slot.recipe_id : null,
+        // Only save real vault UUIDs as recipe_id — system recipes use snapshot only
+        recipe_id: (slot.recipe_id && !String(slot.recipe_id || '').startsWith('sys-') && !String(slot.recipe_id || '').startsWith('emg-')) ? slot.recipe_id : null,
         meal_date: slot.date,
         servings: slot.recipe?.base_servings || 4,
         is_skipped: slot.is_skipped || false,
@@ -440,22 +442,7 @@ export default function PlanPage() {
 
       {error && <div className="plan-err">{error}</div>}
 
-      {/* TEMP DEBUG — remove after fixing */}
-      {userId && (
-        <div style={{margin:'0 2rem .5rem',padding:'.75rem 1rem',background:'rgba(107,126,103,.1)',
-          border:'1px solid rgba(107,126,103,.2)',borderRadius:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.6)'}}>
-          🔧 Debug: userId = {userId} | 
-          <button onClick={async () => {
-            const r = await fetch('/api/debug', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId})})
-            const d = await r.json()
-            alert(JSON.stringify(d, null, 2))
-          }} style={{background:'none',border:'none',color:'#B8874A',cursor:'pointer',marginLeft:'.5rem',fontFamily:"'Outfit',sans-serif"}}>
-            Test DB connection
-          </button>
-        </div>
-      )}
-
-      {/* Variety prompt */}
+            {/* Variety prompt */}
       {showVarietyPrompt && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',zIndex:200,
           display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
@@ -546,9 +533,13 @@ export default function PlanPage() {
                         <div style={{display:'flex',alignItems:'flex-start',gap:'.5rem'}}>
                           <div style={{flex:1,minWidth:0}}
                             onClick={() => {
-                              if (!slot.recipe_id) return
-                              if (String(slot.recipe_id).startsWith('sys-')) {
-                                // System recipe — show info inline, can't navigate to vault
+                              if (!slot.recipe_id) {
+                                if (slot.recipe) setSysModal(slot.recipe)
+                                return
+                              }
+                              if (String(slot.recipe_id || '').startsWith('sys-') || String(slot.recipe_id || '').startsWith('emg-') || !slot.recipe_id) {
+                                // System recipe — show preview modal
+                                if (slot.recipe) setSysModal(slot.recipe)
                                 return
                               }
                               router.push('/vault/' + slot.recipe_id)
@@ -592,6 +583,112 @@ export default function PlanPage() {
               )
             })}
           </div>
+
+          {/* System recipe preview modal */}
+          {sysModal && (
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',zIndex:300,
+              display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}
+              onClick={() => setSysModal(null)}>
+              <div style={{background:'#2C2420',borderRadius:'1.5rem',width:'100%',
+                maxWidth:'560px',maxHeight:'85vh',overflow:'auto'}}
+                onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div style={{padding:'1.5rem 1.5rem 1rem',borderBottom:'1px solid rgba(255,255,255,.08)',
+                  display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'1rem'}}>
+                  <div>
+                    <div style={{fontSize:'.72rem',fontWeight:500,letterSpacing:'.12em',
+                      textTransform:'uppercase',color:'#B8874A',marginBottom:'.4rem'}}>✨ Dot's Recipe</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.6rem',
+                      color:'#F8F3EC',lineHeight:1.2}}>{sysModal.title}</div>
+                    <div style={{display:'flex',gap:'.75rem',marginTop:'.5rem',flexWrap:'wrap'}}>
+                      {sysModal.cuisine && <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.65)'}}>🌍 {sysModal.cuisine}</span>}
+                      {sysModal.total_time_mins && <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.65)'}}>⏱ {sysModal.total_time_mins} min</span>}
+                      {sysModal.base_servings && <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.65)'}}>👥 Serves {sysModal.base_servings}</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => setSysModal(null)}
+                    style={{background:'none',border:'none',color:'rgba(248,243,236,.5)',
+                      fontSize:'1.4rem',cursor:'pointer',lineHeight:1,flexShrink:0}}>✕</button>
+                </div>
+                {/* Body */}
+                <div style={{padding:'1.25rem 1.5rem'}}>
+                  {sysModal.description && (
+                    <p style={{fontSize:'1rem',color:'rgba(248,243,236,.75)',lineHeight:1.7,marginBottom:'1.25rem'}}>
+                      {sysModal.description}
+                    </p>
+                  )}
+                  {/* Tags */}
+                  {sysModal.tags && sysModal.tags.length > 0 && (
+                    <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem',marginBottom:'1.25rem'}}>
+                      {sysModal.tags.map(function(t) { return (
+                        <span key={t} style={{background:'rgba(255,255,255,.06)',borderRadius:'2rem',
+                          padding:'.25rem .7rem',fontSize:'.82rem',color:'rgba(248,243,236,.65)'}}>
+                          {t}
+                        </span>
+                      )})}
+                    </div>
+                  )}
+                  {/* Ingredients */}
+                  {sysModal.ingredients && sysModal.ingredients.length > 0 && (
+                    <div style={{marginBottom:'1.25rem'}}>
+                      <div style={{fontSize:'.72rem',fontWeight:500,letterSpacing:'.12em',
+                        textTransform:'uppercase',color:'rgba(248,243,236,.45)',marginBottom:'.75rem'}}>
+                        Ingredients
+                      </div>
+                      {sysModal.ingredients.map(function(ing, i) { return (
+                        <div key={i} style={{display:'flex',gap:'.75rem',padding:'.4rem 0',
+                          borderBottom:'1px solid rgba(255,255,255,.05)'}}>
+                          <span style={{fontSize:'.9rem',color:'#B8874A',minWidth:'4rem',flexShrink:0}}>
+                            {ing.amount} {ing.unit}
+                          </span>
+                          <span style={{fontSize:'.95rem',color:'rgba(248,243,236,.88)'}}>
+                            {ing.name}
+                            {ing.notes && <span style={{color:'rgba(248,243,236,.45)',fontStyle:'italic'}}> — {ing.notes}</span>}
+                          </span>
+                        </div>
+                      )})}
+                    </div>
+                  )}
+                  {/* Instructions */}
+                  {sysModal.instructions && sysModal.instructions.length > 0 && (
+                    <div>
+                      <div style={{fontSize:'.72rem',fontWeight:500,letterSpacing:'.12em',
+                        textTransform:'uppercase',color:'rgba(248,243,236,.45)',marginBottom:'.75rem'}}>
+                        Instructions
+                      </div>
+                      {sysModal.instructions.map(function(step, i) { return (
+                        <div key={i} style={{display:'flex',gap:'.85rem',marginBottom:'.85rem'}}>
+                          <div style={{width:'1.75rem',height:'1.75rem',borderRadius:'50%',
+                            background:'rgba(184,135,74,.1)',border:'1px solid rgba(184,135,74,.2)',
+                            display:'flex',alignItems:'center',justifyContent:'center',
+                            fontSize:'.78rem',color:'#B8874A',flexShrink:0,marginTop:'.15rem'}}>
+                            {step.step || i+1}
+                          </div>
+                          <p style={{fontSize:'.97rem',color:'rgba(248,243,236,.85)',lineHeight:1.7,margin:0}}>
+                            {step.text}
+                          </p>
+                        </div>
+                      )})}
+                    </div>
+                  )}
+                  {/* Save to vault CTA */}
+                  <div style={{marginTop:'1.5rem',padding:'1rem',background:'rgba(184,135,74,.06)',
+                    border:'1px solid rgba(184,135,74,.15)',borderRadius:'1rem',textAlign:'center'}}>
+                    <div style={{fontSize:'.9rem',color:'rgba(248,243,236,.65)',marginBottom:'.5rem'}}>
+                      Like this recipe? Save it to your vault.
+                    </div>
+                    <button
+                      onClick={() => { setSysModal(null); router.push('/vault/add') }}
+                      style={{background:'#B8874A',color:'#1A1612',border:'none',
+                        padding:'.6rem 1.5rem',borderRadius:'2rem',fontSize:'.9rem',
+                        fontWeight:600,cursor:'pointer',fontFamily:"'Outfit',sans-serif"}}>
+                      Add to vault →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Recipe picker modal */}
           {pickerDate && (
