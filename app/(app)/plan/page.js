@@ -301,6 +301,9 @@ export default function PlanPage() {
     }
   }
 
+  // Is this a future week that shouldn't be accessible yet?
+  const isFutureLocked = weekOffset > 0 && planStatus !== 'confirmed' && !plan
+
   const generatePlan = async (useVariety = null) => {
     // If useVariety hasn't been decided and vault is large enough, ask first
     if (useVariety === null) {
@@ -472,7 +475,13 @@ export default function PlanPage() {
           {weekOffset === 0 ? 'This week' : weekOffset === 1 ? 'Next week' : weekOffset === -1 ? 'Last week' : `${weekOffset > 0 ? '+':''}${weekOffset} weeks`}
         </span>
         <button className="wn-btn"
-          onClick={() => setWeekOffset(o => Math.min(o+1, 4))}
+          onClick={() => {
+            if (weekOffset >= 0 && planStatus !== 'confirmed') {
+              setError('Confirm this week before planning ahead.')
+              return
+            }
+            setWeekOffset(o => Math.min(o+1, 4))
+          }}
           disabled={weekOffset >= 4}
           style={{opacity: weekOffset >= 4 ? .3 : 1}}>
           Next →
@@ -508,6 +517,27 @@ export default function PlanPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {isFutureLocked && (
+        <div style={{textAlign:'center',padding:'4rem 2rem'}}>
+          <div style={{fontSize:'2.5rem',marginBottom:'1.25rem'}}>🔒</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.6rem',
+            color:'#F8F3EC',marginBottom:'.75rem'}}>
+            Finish this week first
+          </div>
+          <div style={{fontSize:'1rem',color:'rgba(248,243,236,.65)',marginBottom:'2rem',
+            maxWidth:'320px',margin:'0 auto 2rem',lineHeight:1.7}}>
+            Confirm your current week's plan before planning ahead. This keeps your recipe rotation on track.
+          </div>
+          <button onClick={() => setWeekOffset(0)}
+            style={{background:'#B8874A',color:'#1A1612',border:'none',
+              padding:'.75rem 2rem',borderRadius:'2rem',
+              fontFamily:"'Outfit',sans-serif",fontSize:'1rem',
+              fontWeight:600,cursor:'pointer'}}>
+            ← Back to this week
+          </button>
         </div>
       )}
 
