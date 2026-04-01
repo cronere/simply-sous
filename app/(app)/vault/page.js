@@ -25,10 +25,10 @@ const css = `
   .vault-hd{padding:1.75rem 2rem 0;display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap}
   .vault-hd-left h1{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:300;color:#F8F3EC}
   .vault-hd-left h1 em{font-style:italic;color:#B8874A}
-  .vault-hd-sub{font-size:.85rem;color:rgba(248,243,236,.35);margin-top:.25rem}
+  .vault-hd-sub{font-size:.97rem;color:rgba(248,243,236,.65);margin-top:.25rem}
   .add-recipe-btn{display:flex;align-items:center;gap:.5rem;background:#B8874A;color:#1A1612;
     border:none;padding:.75rem 1.5rem;border-radius:2rem;font-family:'Outfit',sans-serif;
-    font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none;
+    font-size:1.02rem;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none;
     white-space:nowrap}
   .add-recipe-btn:hover{background:#D4A46A;transform:translateY(-1px)}
 
@@ -36,14 +36,14 @@ const css = `
   .vault-controls{padding:1.25rem 2rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
   .search-wrap{flex:1;min-width:200px;position:relative}
   .search-ico{position:absolute;left:14px;top:50%;transform:translateY(-50%);
-    font-size:.9rem;pointer-events:none}
+    font-size:1.02rem;pointer-events:none}
   .search-input{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
     border-radius:2rem;padding:10px 16px 10px 38px;color:#F8F3EC;font-family:'Outfit',sans-serif;
-    font-size:.88rem;outline:none;transition:border-color .2s}
+    font-size:1rem;outline:none;transition:border-color .2s}
   .search-input:focus{border-color:#B8874A}
-  .search-input::placeholder{color:rgba(248,243,236,.2)}
+  .search-input::placeholder{color:rgba(248,243,236,.50)}
   .filter-btn{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
-    border-radius:2rem;padding:.5rem 1rem;font-size:.78rem;color:rgba(248,243,236,.5);
+    border-radius:2rem;padding:.5rem 1rem;font-size:1.02rem;color:rgba(248,243,236,.82);
     cursor:pointer;transition:all .2s;font-family:'Outfit',sans-serif;white-space:nowrap}
   .filter-btn:hover{border-color:rgba(184,135,74,.3);color:#B8874A}
   .filter-btn.active{background:rgba(184,135,74,.12);border-color:rgba(184,135,74,.4);color:#D4A46A}
@@ -58,15 +58,15 @@ const css = `
   .recipe-card:hover{background:rgba(255,255,255,.07);border-color:rgba(184,135,74,.2);
     transform:translateY(-3px)}
   .recipe-card-body{padding:1.5rem}
-  .recipe-card-source{font-size:.65rem;color:rgba(248,243,236,.25);
+  .recipe-card-source{font-size:1.02rem;color:rgba(248,243,236,.85);
     letter-spacing:.08em;text-transform:uppercase;margin-bottom:.6rem;
     display:flex;align-items:center;gap:.4rem}
   .recipe-card-title{font-family:'Cormorant Garamond',serif;font-size:1.2rem;
     font-weight:400;color:#F8F3EC;line-height:1.25;margin-bottom:.5rem}
-  .recipe-card-meta{display:flex;gap:.75rem;font-size:.75rem;color:rgba(248,243,236,.3);margin-bottom:.85rem}
+  .recipe-card-meta{display:flex;gap:.75rem;font-size:.87rem;color:rgba(248,243,236,.60);margin-bottom:.85rem}
   .recipe-card-tags{display:flex;flex-wrap:wrap;gap:.3rem}
-  .rc-tag{font-size:.65rem;padding:.2rem .55rem;border-radius:2rem;
-    border:1px solid rgba(255,255,255,.07);color:rgba(248,243,236,.3)}
+  .rc-tag{font-size:1.02rem;padding:.2rem .55rem;border-radius:2rem;
+    border:1px solid rgba(255,255,255,.07);color:rgba(248,243,236,.60)}
   .rc-tag.prim{background:rgba(184,135,74,.1);border-color:rgba(184,135,74,.25);color:#B8874A}
   .recipe-card-footer{padding:.75rem 1.5rem;border-top:1px solid rgba(255,255,255,.05);
     display:flex;align-items:center;justify-content:space-between}
@@ -79,7 +79,7 @@ const css = `
   .empty-ico{font-size:4rem;margin-bottom:1.5rem;display:block;opacity:.5}
   .empty-title{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;
     color:#F8F3EC;margin-bottom:.75rem}
-  .empty-sub{font-size:.92rem;color:rgba(248,243,236,.35);line-height:1.8;
+  .empty-sub{font-size:.92rem;color:rgba(248,243,236,.65);line-height:1.8;
     max-width:380px;margin:0 auto 2rem}
   .empty-btn{display:inline-flex;align-items:center;gap:.5rem;background:#B8874A;
     color:#1A1612;border:none;padding:.85rem 2rem;border-radius:2rem;
