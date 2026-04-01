@@ -562,7 +562,14 @@ export default function PlanPage() {
                                 if (slot.recipe) setSysModal(slot.recipe)
                                 return
                               }
-                              router.push('/vault/' + slot.recipe_id)
+                              // Open vault recipe in modal instead of navigating away
+                              try {
+                                const sb = getClient()
+                                const { data: vr } = await sb.from('recipes').select('*').eq('id', slot.recipe_id).single()
+                                if (vr) setSysModal({ ...vr, isVaultRecipe: true })
+                              } catch(e) {
+                                router.push('/vault/' + slot.recipe_id)
+                              }
                             }}>
                             {tod && <div className="tonight-badge">☀️ Tonight</div>}
                             <div className="slot-title">{slot.recipe.title}</div>
@@ -570,8 +577,8 @@ export default function PlanPage() {
                               {slot.recipe.cuisine && <span>🌍 {slot.recipe.cuisine}</span>}
                               {slot.recipe.total_time_mins && <span>⏱ {slot.recipe.total_time_mins} min</span>}
                               {slot.recipe.is_favorite && <span>❤️ Favorite</span>}
-                              {String(slot.recipe_id || '').startsWith('sys-') && (
-                                <span style={{fontSize:'.72rem',color:'rgba(248,243,236,.35)'}}>· From Dot</span>
+                              {(!slot.recipe_id || String(slot.recipe_id || '').startsWith('sys-') || String(slot.recipe_id || '').startsWith('emg-')) && (
+                                <span style={{fontSize:'.78rem',color:'rgba(184,135,74,.7)',fontStyle:'italic'}}>✨ Dot</span>
                               )}
                             </div>
                             {slot.start_cooking_at && planStatus === 'confirmed' && (
@@ -617,7 +624,9 @@ export default function PlanPage() {
                   display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'1rem'}}>
                   <div>
                     <div style={{fontSize:'.72rem',fontWeight:500,letterSpacing:'.12em',
-                      textTransform:'uppercase',color:'#B8874A',marginBottom:'.4rem'}}>✨ Dot's Recipe</div>
+                      textTransform:'uppercase',color:'#B8874A',marginBottom:'.4rem'}}>
+                      {sysModal.isVaultRecipe ? '📖 Your Recipe' : '✨ Dot's Recipe'}
+                    </div>
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.6rem',
                       color:'#F8F3EC',lineHeight:1.2}}>{sysModal.title}</div>
                     <div style={{display:'flex',gap:'.75rem',marginTop:'.5rem',flexWrap:'wrap'}}>
@@ -691,19 +700,39 @@ export default function PlanPage() {
                       )})}
                     </div>
                   )}
-                  {/* Save to vault CTA */}
+                  {/* CTA */}
                   <div style={{marginTop:'1.5rem',padding:'1rem',background:'rgba(184,135,74,.06)',
-                    border:'1px solid rgba(184,135,74,.15)',borderRadius:'1rem',textAlign:'center'}}>
-                    <div style={{fontSize:'.9rem',color:'rgba(248,243,236,.65)',marginBottom:'.5rem'}}>
-                      Like this recipe? Save it to your vault.
-                    </div>
-                    <button
-                      onClick={() => { setSysModal(null); router.push('/vault/add') }}
-                      style={{background:'#B8874A',color:'#1A1612',border:'none',
-                        padding:'.6rem 1.5rem',borderRadius:'2rem',fontSize:'.9rem',
-                        fontWeight:600,cursor:'pointer',fontFamily:"'Outfit',sans-serif"}}>
-                      Add to vault →
-                    </button>
+                    border:'1px solid rgba(184,135,74,.15)',borderRadius:'1rem',
+                    display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap'}}>
+                    {sysModal.isVaultRecipe ? (
+                      <>
+                        <div style={{fontSize:'.9rem',color:'rgba(248,243,236,.65)'}}>
+                          View the full recipe, edit, or start cooking.
+                        </div>
+                        <div style={{display:'flex',gap:'.75rem',flexWrap:'wrap'}}>
+                          <button
+                            onClick={() => { setSysModal(null); router.push('/vault/' + sysModal.id) }}
+                            style={{background:'#B8874A',color:'#1A1612',border:'none',
+                              padding:'.6rem 1.5rem',borderRadius:'2rem',fontSize:'.9rem',
+                              fontWeight:600,cursor:'pointer',fontFamily:"'Outfit',sans-serif"}}>
+                            View full recipe →
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{fontSize:'.9rem',color:'rgba(248,243,236,.65)'}}>
+                          Like this recipe? Save it to your vault.
+                        </div>
+                        <button
+                          onClick={() => { setSysModal(null); router.push('/vault/add') }}
+                          style={{background:'#B8874A',color:'#1A1612',border:'none',
+                            padding:'.6rem 1.5rem',borderRadius:'2rem',fontSize:'.9rem',
+                            fontWeight:600,cursor:'pointer',fontFamily:"'Outfit',sans-serif"}}>
+                          Add to vault →
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
