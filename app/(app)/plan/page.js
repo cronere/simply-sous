@@ -521,13 +521,23 @@ export default function PlanPage() {
                       <div className={`recipe-slot${tod ? ' tonight' : ''}`}>
                         <div style={{display:'flex',alignItems:'flex-start',gap:'.5rem'}}>
                           <div style={{flex:1,minWidth:0}}
-                            onClick={() => slot.recipe_id && !String(slot.recipe_id).startsWith('sys-') && router.push(`/vault/${slot.recipe_id}`)}>
+                            onClick={() => {
+                              if (!slot.recipe_id) return
+                              if (String(slot.recipe_id).startsWith('sys-')) {
+                                // System recipe — show info inline, can't navigate to vault
+                                return
+                              }
+                              router.push('/vault/' + slot.recipe_id)
+                            }}>
                             {tod && <div className="tonight-badge">☀️ Tonight</div>}
                             <div className="slot-title">{slot.recipe.title}</div>
                             <div className="slot-meta">
                               {slot.recipe.cuisine && <span>🌍 {slot.recipe.cuisine}</span>}
                               {slot.recipe.total_time_mins && <span>⏱ {slot.recipe.total_time_mins} min</span>}
                               {slot.recipe.is_favorite && <span>❤️ Favorite</span>}
+                              {String(slot.recipe_id || '').startsWith('sys-') && (
+                                <span style={{fontSize:'.72rem',color:'rgba(248,243,236,.35)'}}>· From Dot</span>
+                              )}
                             </div>
                             {slot.start_cooking_at && planStatus === 'confirmed' && (
                               <span className="slot-cook-time">
