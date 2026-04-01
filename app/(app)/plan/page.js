@@ -164,7 +164,7 @@ export default function PlanPage() {
     const { data } = await sb
       .from('weekly_plans')
       .select(`id, status, planned_meals (
-        id, meal_date, is_skipped, skip_reason, start_cooking_at,
+        id, meal_date, is_skipped, skip_reason, start_cooking_at, notes,
         recipes ( id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite )
       )`)
       .eq('profile_id', userId)
@@ -179,7 +179,7 @@ export default function PlanPage() {
         .map(m => ({
           date: m.meal_date,
           recipe_id: m.recipes?.id || null,
-          recipe: m.recipes || null,
+          recipe: m.recipes || (m.notes ? { title: m.notes, cuisine: null, total_time_mins: null, is_favorite: false } : null),
           is_skipped: m.is_skipped,
           skip_reason: m.skip_reason,
           start_cooking_at: m.start_cooking_at,
@@ -188,6 +188,56 @@ export default function PlanPage() {
       setPlan(formatted)
     } else {
       setPlan(null); setPlanId(null); setPlanStatus(null)
+    }
+  }
+
+  const saveDraft = async (planData) => {
+    if (!planData || !userId || !weekStartStr) return
+    const sb = getClient()
+    try {
+      // Upsert the weekly_plan record
+      let currentPlanId = planId
+      if (!currentPlanId) {
+        const { data: np, error: pe } = await sb
+          .from('weekly_plans')
+          .insert({
+            profile_id: userId,
+            week_start_date: weekStartStr,
+            status: 'draft',
+            ai_generated: true,
+          })
+          .select('id')
+          .single()
+        if (pe) throw pe
+        currentPlanId = np.id
+        setPlanId(currentPlanId)
+      } else {
+        await sb.from('weekly_plans')
+          .update({ status: 'draft' })
+          .eq('id', currentPlanId)
+      }
+
+      // Save planned meals
+      await sb.from('planned_meals').delete().eq('weekly_plan_id', currentPlanId)
+
+      const meals = planData.map(slot => ({
+        weekly_plan_id: currentPlanId,
+        profile_id: userId,
+        recipe_id: slot.recipe_id && !String(slot.recipe_id).startsWith('sys-') ? slot.recipe_id : null,
+        meal_date: slot.date,
+        servings: slot.recipe?.base_servings || 4,
+        is_skipped: slot.is_skipped || false,
+        skip_reason: slot.skip_reason || null,
+        start_cooking_at: null,
+        // Store system recipe title for display even without a real recipe_id
+        notes: slot.recipe?.title && String(slot.recipe_id).startsWith('sys-') ? slot.recipe.title : null,
+      }))
+
+      await sb.from('planned_meals').insert(meals)
+      console.log('Draft auto-saved')
+    } catch (e) {
+      console.error('Auto-save failed:', e)
+      // Non-critical — don't show error to user
     }
   }
 
@@ -220,6 +270,9 @@ export default function PlanPage() {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Generation failed')
       setPlan(data.plan); setPlanStatus('draft')
+
+      // Auto-save draft immediately so navigating away doesn't lose it
+      await saveDraft(data.plan)
     } catch (e) {
       const msg = e.message || ''
       if (msg.includes('529') || msg.includes('overload') || msg.includes('Overloaded')) {
