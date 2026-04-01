@@ -186,7 +186,7 @@ export default function PlanPage() {
     const { data } = await sb
       .from('weekly_plans')
       .select(`id, status, planned_meals (
-        id, meal_date, is_skipped, skip_reason, start_cooking_at, notes,
+        id, meal_date, is_skipped, skip_reason, start_cooking_at, notes, recipe_snapshot,
         recipes ( id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite )
       )`)
       .eq('profile_id', userId)
@@ -201,7 +201,8 @@ export default function PlanPage() {
         .map(m => ({
           date: m.meal_date,
           recipe_id: m.recipes?.id || null,
-          recipe: m.recipes || (m.notes ? { title: m.notes, cuisine: null, total_time_mins: null, is_favorite: false } : null),
+          // Use vault recipe if available, fall back to snapshot (system recipes), then title-only
+          recipe: m.recipes || m.recipe_snapshot || (m.notes ? { title: m.notes, cuisine: null, total_time_mins: null, is_favorite: false } : null),
           is_skipped: m.is_skipped,
           skip_reason: m.skip_reason,
           start_cooking_at: m.start_cooking_at,
@@ -253,6 +254,15 @@ export default function PlanPage() {
         start_cooking_at: null,
         // Always store recipe title in notes as fallback for display
         notes: slot.recipe?.title || null,
+        recipe_snapshot: slot.recipe ? {
+          title: slot.recipe.title,
+          cuisine: slot.recipe.cuisine || null,
+          total_time_mins: slot.recipe.total_time_mins || null,
+          tags: slot.recipe.tags || [],
+          dietary_flags: slot.recipe.dietary_flags || [],
+          is_favorite: slot.recipe.is_favorite || false,
+          base_servings: slot.recipe.base_servings || 4,
+        } : null,
       }))
 
       await sb.from('planned_meals').insert(meals)
