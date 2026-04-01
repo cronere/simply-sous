@@ -21,7 +21,7 @@ async function callWithRetry(fn, max) {
 async function getSystemRecipes(sb, prefs, count) {
   var maxTime = (prefs && prefs.max_weeknight_mins) ? prefs.max_weeknight_mins + 15 : 75
   var res = await sb.from('system_recipes')
-    .select('id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings')
+    .select('id, title, description, cuisine, total_time_mins, tags, dietary_flags, base_servings, ingredients, instructions')
     .lte('total_time_mins', maxTime)
     .order('times_served', { ascending: true })
     .limit(count * 3)
@@ -51,7 +51,7 @@ export async function POST(request) {
       sb.from('profiles').select('family_size, dinner_hour').eq('id', userId).single(),
       sb.from('user_preferences').select('*').eq('profile_id', userId).maybeSingle(),
       sb.from('blackout_days').select('day_of_week').eq('profile_id', userId),
-      sb.from('recipes').select('id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite, in_rotation, rotation_frequency, last_planned_date').eq('profile_id', userId).order('is_favorite', { ascending: false }),
+      sb.from('recipes').select('id, title, description, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite, in_rotation, rotation_frequency, last_planned_date, ingredients, instructions').eq('profile_id', userId).order('is_favorite', { ascending: false }),
     ])
 
     var profile = results[0].data
