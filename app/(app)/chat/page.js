@@ -73,13 +73,26 @@ export default function DotPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [userId, setUserId] = useState(null)
-  const [messages, setMessages] = useState([
-    {
-      role: 'dot',
-      content: "Hi! I'm Dot — your personal kitchen assistant 👵🏼\n\nI can help you find recipes from your vault, suggest new ideas based on what you have, or answer any cooking questions. What sounds good tonight?",
-      recipes: []
-    }
-  ])
+  const STORAGE_KEY = 'dot-conversation'
+
+  const defaultMessages = [{
+    role: 'dot',
+    content: "Hi! I'm Dot — your personal kitchen assistant 👵🏼\n\nI can help you find recipes from your vault, suggest new ideas based on what you have, or answer any cooking questions. What sounds good tonight?",
+    recipes: []
+  }]
+
+  const loadSavedMessages = () => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch(e) {}
+    return defaultMessages
+  }
+
+  const [messages, setMessages] = useState(loadSavedMessages)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [prefs, setPrefs] = useState(null)
@@ -107,6 +120,10 @@ export default function DotPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Save conversation to sessionStorage so it persists during session
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
+    } catch(e) {}
   }, [messages])
 
   const loadContext = async () => {
@@ -243,30 +260,51 @@ INSTRUCTIONS:
         return
       }
 
-      // Save as new recipe — fetch full recipe from system_recipes if possible
-      // or save with what we have
+      // If recipe is from system_recipes, fetch full data first
+      let ingredients = recipe.ingredients || []
+      let instructions = recipe.instructions || []
+
+      if (recipe.system_recipe_id) {
+        const { data: sysData } = await sb
+          .from('system_recipes')
+          .select('ingredients, instructions')
+          .eq('id', recipe.system_recipe_id)
+          .single()
+        if (sysData) {
+          ingredients = sysData.ingredients || []
+          instructions = sysData.instructions || []
+        }
+      }
+
       const { data, error } = await sb.from('recipes').insert({
         profile_id: userId,
         title: recipe.title,
         description: recipe.description || null,
         cuisine: recipe.cuisine || null,
         meal_type: 'dinner',
-        total_time_mins: recipe.total_time_mins || null,
+        cook_time_mins: recipe.total_time_mins || null,
         tags: recipe.tags || [],
-        dietary_flags: [],
+        dietary_flags: recipe.dietary_flags || [],
         source_type: 'dot',
         ai_processed: true,
         base_servings: 4,
-        ingredients: recipe.ingredients || [],
-        instructions: recipe.instructions || [],
+        ingredients,
+        instructions,
       }).select('id').single()
 
-      if (!error && data) {
-        setSavedRecipes(prev => ({ ...prev, [key]: 'saved' }))
-        showToast('Added to your vault!')
+      if (error) {
+        console.error('Save recipe error:', error.message)
+        setSavedRecipes(prev => ({ ...prev, [key]: null }))
+        showToast('Could not save recipe. Try again.')
+        return
       }
+
+      setSavedRecipes(prev => ({ ...prev, [key]: 'saved' }))
+      showToast('Added to your vault!')
     } catch(e) {
+      console.error('Save recipe exception:', e)
       setSavedRecipes(prev => ({ ...prev, [key]: null }))
+      showToast('Could not save recipe. Try again.')
     }
   }
 
@@ -295,7 +333,24 @@ INSTRUCTIONS:
             <span style={{fontSize:'1.4rem'}}>👵🏼</span>
             <span style={{fontFamily:"'Cormorant Garamond',serif"}}>Dot</span>
           </div>
-          <div className="dot-hd-sub">Your personal kitchen assistant</div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div className="dot-hd-sub">Your personal kitchen assistant</div>
+            {messages.length > 1 && (
+              <button
+                onClick={() => {
+                  sessionStorage.removeItem(STORAGE_KEY)
+                  setMessages(defaultMessages)
+                  setSavedRecipes({})
+                }}
+                style={{background:'none',border:'1px solid rgba(255,255,255,.1)',borderRadius:'2rem',
+                  padding:'.25rem .75rem',fontSize:'.75rem',color:'rgba(248,243,236,.4)',
+                  cursor:'pointer',fontFamily:"'Outfit',sans-serif",transition:'all .2s'}}
+                onMouseOver={e => e.currentTarget.style.color='rgba(248,243,236,.7)'}
+                onMouseOut={e => e.currentTarget.style.color='rgba(248,243,236,.4)'}>
+                New chat
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Messages */}
