@@ -395,6 +395,7 @@ section{padding:8rem 5%;position:relative}
 @media(max-width:768px){
   nav{padding:1.25rem 1.25rem}
   .nav-r .nav-r-links{display:none}
+  .nav-r .nav-btn{display:none}
   .nav-menu{display:flex}
   section{padding:5rem 5%}
   .problem-grid{grid-template-columns:1fr;gap:3.5rem}
@@ -408,6 +409,12 @@ section{padding:8rem 5%;position:relative}
   .footer-bottom{flex-direction:column;align-items:center;text-align:center}
   .f-links{justify-content:center}
   .trust{gap:1.25rem}
+  .ov,.ov-d{justify-content:center}
+  .sh,.sh-d{text-align:center}
+  .sp,.sp-d{text-align:center}
+  section > .section-inner > div > .ov,
+  section > .section-inner > div > .sh,
+  section > .section-inner > div > .sh-d{text-align:center}
 }
 @media(max-width:480px){
   .hero-btns{flex-direction:column;align-items:center}
