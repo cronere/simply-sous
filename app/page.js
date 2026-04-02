@@ -419,10 +419,11 @@ section{padding:8rem 5%;position:relative}
   .nav-r .nav-r-links{display:none}
   .nav-r .nav-btn{display:none}
   .nav-menu{display:flex}
-  .hero-layout{grid-template-columns:1fr;text-align:center;gap:3rem}
+  .hero-layout{grid-template-columns:1fr;text-align:center;gap:2rem}
   .hero-inner{text-align:center}
   .hero-btns{justify-content:center}
   .hero-sub{margin:1.75rem auto 0}
+  .hero-demo{display:flex;flex-direction:column;align-items:center}
   section{padding:5rem 5%}
   .problem-grid{grid-template-columns:1fr;gap:3.5rem}
   .steps{grid-template-columns:1fr}
