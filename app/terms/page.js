@@ -1,133 +1,98 @@
 'use client'
-
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  body{background:#FBF8F3;color:#1A1612;font-family:'Outfit',sans-serif;font-weight:300}
-  .wrap{max-width:740px;margin:0 auto;padding:5rem 2rem 8rem}
-  .back{display:inline-flex;align-items:center;gap:.5rem;font-size:.85rem;color:#B8874A;
-    text-decoration:none;margin-bottom:3rem;transition:opacity .2s}
-  .back:hover{opacity:.7}
-  .logo{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:600;color:#1A1612;margin-bottom:.25rem}
-  .logo span{color:#B8874A;font-style:italic}
-  .updated{font-size:.78rem;color:#B5A898;letter-spacing:.08em;text-transform:uppercase;margin-bottom:3rem}
-  h1{font-family:'Cormorant Garamond',serif;font-size:2.8rem;font-weight:300;color:#1A1612;
-    line-height:1.1;margin-bottom:1rem}
-  h1 em{font-style:italic;color:#C05C30}
-  .intro{font-size:1.05rem;color:#7A6C5E;line-height:1.85;margin-bottom:3rem;
-    padding-bottom:2rem;border-bottom:1px solid #E2D5C3}
-  h2{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:600;
-    color:#1A1612;margin:2.5rem 0 .85rem}
-  p{font-size:.95rem;color:#7A6C5E;line-height:1.85;margin-bottom:1rem}
-  ul{margin:.5rem 0 1rem 1.25rem}
-  ul li{font-size:.95rem;color:#7A6C5E;line-height:1.85;margin-bottom:.4rem}
-  .highlight{background:rgba(184,135,74,.08);border-left:3px solid #B8874A;
-    padding:1rem 1.25rem;border-radius:0 8px 8px 0;margin:1.5rem 0}
-  .highlight p{margin:0;color:#1A1612;font-weight:400}
+  body{background:#1A1612;color:#F8F3EC;font-family:'Outfit',sans-serif;font-weight:300;line-height:1.6}
+  .legal-wrap{max-width:740px;margin:0 auto;padding:6rem 2rem 6rem}
+  .legal-back{display:inline-flex;align-items:center;gap:.5rem;color:rgba(248,243,236,.45);text-decoration:none;font-size:.9rem;margin-bottom:3rem;transition:color .2s}
+  .legal-back:hover{color:#B8874A}
+  .legal-eyebrow{font-size:.72rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#B8874A;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem}
+  .legal-eyebrow::before{content:'';width:1.5rem;height:1px;background:#B8874A;opacity:.6}
+  h1{font-family:'Cormorant Garamond',serif;font-size:2.75rem;font-weight:300;color:#F8F3EC;line-height:1.1;margin-bottom:.75rem}
+  h1 em{font-style:italic;color:#B8874A}
+  .legal-date{font-size:.88rem;color:rgba(248,243,236,.35);margin-bottom:3.5rem;padding-bottom:2rem;border-bottom:1px solid rgba(255,255,255,.07)}
+  h2{font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:400;color:#F8F3EC;margin:2.5rem 0 .85rem;line-height:1.2}
+  p{font-size:1rem;color:rgba(248,243,236,.68);line-height:1.9;margin-bottom:1rem}
+  ul{margin:.5rem 0 1rem 1.25rem;display:flex;flex-direction:column;gap:.4rem}
+  li{font-size:1rem;color:rgba(248,243,236,.68);line-height:1.75}
   a{color:#B8874A;text-decoration:none}
   a:hover{text-decoration:underline}
-  .footer{margin-top:4rem;padding-top:2rem;border-top:1px solid #E2D5C3;
-    font-size:.82rem;color:#B5A898;display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+  .legal-footer{margin-top:3.5rem;padding-top:2rem;border-top:1px solid rgba(255,255,255,.07);font-size:.88rem;color:rgba(248,243,236,.35)}
 `
-
 export default function TermsPage() {
   return (
-    <>
-      <style>{css}</style>
-      <div className="wrap">
-        <a className="back" href="https://app.simplysous.com/login">← Back to Simply Sous</a>
-
-        <div className="logo">Simply <span>Sous</span></div>
-        <div className="updated">Last updated: March 30, 2026</div>
-
+    <div style={{minHeight:'100vh',background:'#1A1612'}}>
+      <style dangerouslySetInnerHTML={{__html: css}}/>
+      <div className="legal-wrap">
+        <a href="/" className="legal-back">← Back to Simply Sous</a>
+        <div className="legal-eyebrow">Legal</div>
         <h1>Terms of <em>Service</em></h1>
-        <p className="intro">
-          Welcome to Simply Sous. By creating an account or using our service, you agree to these terms.
-          We&apos;ve written them in plain language because we believe you deserve to understand what you&apos;re agreeing to.
-        </p>
+        <div className="legal-date">Effective date: April 2, 2026 · Last updated: April 2, 2026</div>
 
-        <h2>1. What Simply Sous is</h2>
-        <p>Simply Sous is a meal planning web application that helps families capture recipes, plan weekly meals, generate grocery lists, and reduce the daily mental load of deciding what to cook for dinner.</p>
-        <p>The service is provided by Simply Sous and is accessible at app.simplysous.com.</p>
+        <p>These Terms of Service ("Terms") govern your use of Simply Sous, a service provided by Inboxx Digital, LLC, doing business as Simply Sous ("Simply Sous," "we," "us," or "our"), a Wyoming limited liability company. By creating an account or using Simply Sous, you agree to these Terms.</p>
 
-        <h2>2. Your account</h2>
-        <p>To use Simply Sous you must create an account with a valid email address and password. You are responsible for:</p>
+        <h2>The Service</h2>
+        <p>Simply Sous is an AI-powered meal planning application that helps families plan dinners, manage recipes, and generate grocery lists. The service includes a recipe vault, weekly planning tools, a multi-week grocery list, cook mode, and Dot, an AI kitchen assistant.</p>
+
+        <h2>Account Registration</h2>
+        <p>You must create an account to use Simply Sous. You are responsible for maintaining the security of your account credentials. You must provide accurate information during registration. You must be at least 18 years old to create an account.</p>
+
+        <h2>Subscription and Billing</h2>
+        <p>Simply Sous offers three plans:</p>
         <ul>
-          <li>Keeping your password secure and confidential</li>
-          <li>All activity that occurs under your account</li>
-          <li>Notifying us immediately if you suspect unauthorized access</li>
+          <li><strong style="color:#F8F3EC;font-weight:500">Monthly</strong> — $7.99/month, billed monthly, cancel anytime</li>
+          <li><strong style="color:#F8F3EC;font-weight:500">Annual</strong> — $79.99/year, billed annually, cancel anytime</li>
+          <li><strong style="color:#F8F3EC;font-weight:500">Lifetime</strong> — $119.99 one-time payment, access to all current and future features</li>
         </ul>
-        <p>You must be at least 13 years old to create an account. If you are creating an account on behalf of your family, you represent that you have the authority to do so.</p>
+        <p>All plans begin with a 14-day free trial. No credit card is required to start a trial. Monthly and Annual plans renew automatically unless cancelled. You may cancel your subscription at any time through your account settings or by contacting us. Cancellation takes effect at the end of the current billing period.</p>
 
-        <h2>3. Subscription and billing</h2>
-        <p>Simply Sous offers the following plans:</p>
+        <h2>Free Trial</h2>
+        <p>New accounts receive a 14-day free trial with full access to all Simply Sous features. No credit card is required. After the trial period, continued access requires a paid subscription. We reserve the right to modify free trial terms at any time.</p>
+
+        <h2>Refunds</h2>
+        <p>Monthly and Annual subscriptions are not refunded for partial periods after cancellation. If you are unsatisfied with Simply Sous within the first 30 days of a paid subscription, contact us at hello@simplysous.com for a full refund. Lifetime access purchases are non-refundable after 30 days.</p>
+
+        <h2>Your Content</h2>
+        <p>You retain full ownership of all recipes, meal plans, and data you add to Simply Sous. By using the service, you grant us a limited license to process and store your content solely for the purpose of providing the service to you. We do not claim ownership of your recipes or data.</p>
+
+        <h2>AI-Generated Content</h2>
+        <p>Simply Sous uses AI to generate meal plans, recipe suggestions, and Dot's responses. AI-generated content is provided for convenience and informational purposes. We do not guarantee the accuracy, completeness, or suitability of AI-generated meal plans or recipes. Always use your judgment regarding dietary needs, allergens, and food safety.</p>
+
+        <h2>Acceptable Use</h2>
+        <p>You agree not to:</p>
         <ul>
-          <li><strong>Free trial:</strong> 14 days of full access, no credit card required</li>
-          <li><strong>Monthly:</strong> $7.99/month, billed monthly, cancel anytime</li>
-          <li><strong>Annual:</strong> $79.99/year, billed annually, cancel anytime</li>
-          <li><strong>Lifetime:</strong> $119.99 one-time payment, permanent access including all future updates</li>
-        </ul>
-        <div className="highlight">
-          <p>For monthly and annual plans, your subscription renews automatically unless you cancel before the renewal date. You can cancel at any time from your account settings.</p>
-        </div>
-        <p>We do not offer refunds for partial billing periods. If you cancel a monthly or annual subscription, you retain access until the end of your current paid period.</p>
-        <p>Lifetime access is a one-time purchase. It grants you permanent access to Simply Sous and all features we build in the future, for as long as the service exists.</p>
-
-        <h2>4. Your content and data</h2>
-        <p>You own your content. Recipes you save, meal plans you create, and preferences you set belong entirely to you. We do not claim ownership over any content you add to Simply Sous.</p>
-        <p>You grant Simply Sous a limited license to store and display your content solely for the purpose of providing the service to you. We do not share, sell, or use your personal recipe data for any other purpose.</p>
-        <p>You are responsible for ensuring that any recipes you save do not infringe on third-party copyrights. Saving a recipe URL or photo for personal household use is generally considered fair use, but we make no legal representations on your behalf.</p>
-
-        <h2>5. AI-generated content</h2>
-        <p>Simply Sous uses artificial intelligence (powered by Anthropic&apos;s Claude) to extract recipes, generate meal plans, create grocery lists, and power our Dot AI assistant. While we strive for accuracy, AI-generated content may occasionally contain errors.</p>
-        <ul>
-          <li>Always verify ingredient quantities and cooking temperatures before serving food to your family</li>
-          <li>AI suggestions are recommendations only — you retain full control over what your family eats</li>
-          <li>We are not responsible for outcomes resulting from following AI-generated recipes or meal plans</li>
+          <li>Use Simply Sous for any unlawful purpose</li>
+          <li>Attempt to gain unauthorized access to any part of the service</li>
+          <li>Scrape, copy, or redistribute Simply Sous content or the curated recipe database</li>
+          <li>Interfere with the normal operation of the service</li>
+          <li>Share your account credentials with others</li>
         </ul>
 
-        <h2>6. Sharing features</h2>
-        <p>Simply Sous allows you to share recipes and collections with other users. When you share content:</p>
-        <ul>
-          <li>You control who can see your content through privacy settings</li>
-          <li>You can revoke sharing at any time</li>
-          <li>You remain responsible for the content you choose to share</li>
-          <li>Do not share content that is illegal, harmful, or violates others&apos; rights</li>
-        </ul>
+        <h2>Intellectual Property</h2>
+        <p>Simply Sous, its logo, design, curated recipe database, and software are owned by Inboxx Digital, LLC and protected by copyright and trademark law. The Simply Sous name and logo are trademarks of Inboxx Digital, LLC. You may not use our trademarks without written permission.</p>
 
-        <h2>7. Acceptable use</h2>
-        <p>You agree not to use Simply Sous to:</p>
-        <ul>
-          <li>Violate any applicable laws or regulations</li>
-          <li>Attempt to gain unauthorized access to other users&apos; accounts or data</li>
-          <li>Reverse engineer, copy, or reproduce the service</li>
-          <li>Use the service for any commercial purpose without our written permission</li>
-          <li>Transmit malicious code or interfere with the service&apos;s operation</li>
-        </ul>
+        <h2>Disclaimer of Warranties</h2>
+        <p>Simply Sous is provided "as is" without warranties of any kind, either express or implied. We do not warrant that the service will be uninterrupted, error-free, or free of harmful components. Meal plans and recipe suggestions are AI-generated and should not be relied upon as professional nutritional or medical advice.</p>
 
-        <h2>8. Service availability</h2>
-        <p>We work hard to keep Simply Sous available and reliable, but we cannot guarantee 100% uptime. We may occasionally take the service offline for maintenance or updates. We will provide reasonable notice when planned downtime is expected.</p>
+        <h2>Limitation of Liability</h2>
+        <p>To the fullest extent permitted by law, Inboxx Digital, LLC shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of Simply Sous. Our total liability to you for any claims arising from these Terms or your use of the service shall not exceed the amount you paid us in the 12 months preceding the claim.</p>
 
-        <h2>9. Termination</h2>
-        <p>You may delete your account at any time from your account settings. Upon deletion, your personal data will be removed from our systems within 30 days, except where retention is required by law.</p>
-        <p>We reserve the right to suspend or terminate accounts that violate these terms, with or without notice depending on the severity of the violation.</p>
+        <h2>Termination</h2>
+        <p>We may suspend or terminate your account if you violate these Terms. You may delete your account at any time. Upon termination, your data will be handled in accordance with our Privacy Policy.</p>
 
-        <h2>10. Limitation of liability</h2>
-        <p>Simply Sous is provided &quot;as is&quot; without warranty of any kind. To the maximum extent permitted by law, we are not liable for any indirect, incidental, or consequential damages arising from your use of the service.</p>
-        <p>Our total liability to you for any claim arising from use of Simply Sous shall not exceed the amount you paid us in the 12 months prior to the claim.</p>
+        <h2>Changes to Terms</h2>
+        <p>We may update these Terms from time to time. We will notify you of material changes by email or via the app. Continued use of Simply Sous after changes take effect constitutes your acceptance of the revised Terms.</p>
 
-        <h2>11. Changes to these terms</h2>
-        <p>We may update these terms from time to time. When we do, we&apos;ll update the date at the top of this page and notify you by email if the changes are material. Continued use of Simply Sous after changes are posted constitutes acceptance of the updated terms.</p>
+        <h2>Governing Law</h2>
+        <p>These Terms are governed by the laws of the State of Wyoming, United States, without regard to conflict of law principles. Any disputes shall be resolved in the courts of Wyoming.</p>
 
-        <h2>12. Contact us</h2>
-        <p>Questions about these terms? We&apos;re real people and happy to help.</p>
-        <p>Email us at <a href="mailto:hello@simplysous.com">hello@simplysous.com</a></p>
+        <h2>Contact Us</h2>
+        <p>Inboxx Digital, LLC (dba Simply Sous)<br/>
+        Wyoming, United States<br/>
+        <a href="mailto:hello@simplysous.com">hello@simplysous.com</a></p>
 
-        <div className="footer">
-          <span>© 2026 Simply Sous. All rights reserved.</span>
-          <span><a href="/privacy">Privacy Policy</a> · <a href="mailto:hello@simplysous.com">Contact</a></span>
-        </div>
+        <div className="legal-footer">© 2026 Inboxx Digital, LLC · Simply Sous is a trademark of Inboxx Digital, LLC</div>
       </div>
-    </>
+    </div>
   )
 }
