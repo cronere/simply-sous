@@ -1,5 +1,4 @@
 'use client'
-
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
@@ -7,1032 +6,815 @@ import { createClient } from '@supabase/supabase-js'
 let _client = null
 const getClient = () => {
   if (_client) return _client
-  _client = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  _client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
   return _client
 }
 
+function getLocalDateStr() {
+  const d = new Date()
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+}
+
+function getWeekStart() {
+  const d = new Date()
+  const day = d.getDay()
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1))
+  d.setHours(0,0,0,0)
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+}
+
+function calcStartTime(dinnerHour, cookMins) {
+  if (!dinnerHour || !cookMins) return null
+  // dinnerHour is like "17:00:00"
+  const parts = dinnerHour.split(':')
+  const dinnerMins = parseInt(parts[0]) * 60 + parseInt(parts[1])
+  const startMins = dinnerMins - cookMins
+  const h = Math.floor(startMins / 60)
+  const m = startMins % 60
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h > 12 ? h - 12 : (h === 0 ? 12 : h)
+  return h12 + ':' + String(m).padStart(2,'0') + ' ' + ampm
+}
+
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  body{background:#1A1612;color:#F8F3EC;font-family:'Outfit',sans-serif;font-weight:300}
-  .plan-root{min-height:100vh;background:#1A1612;padding:0 0 6rem}
-  .plan-hd{padding:1.75rem 2rem 1rem;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem}
-  .plan-hd h1{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:300;color:#F8F3EC}
-  .plan-hd h1 em{font-style:italic;color:#B8874A}
-  .plan-hd-sub{font-size:.97rem;color:rgba(248,243,236,.82);margin-top:.25rem}
-  .week-nav{display:flex;align-items:center;gap:.75rem;padding:0 2rem 1.25rem}
-  .wn-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:2rem;
-    padding:.45rem 1rem;font-size:.94rem;color:rgba(248,243,236,.82);cursor:pointer;
-    transition:all .2s;font-family:'Outfit',sans-serif}
-  .wn-btn:hover{border-color:rgba(184,135,74,.3);color:#B8874A}
-  .week-label{font-size:1rem;color:rgba(248,243,236,.72);flex:1;text-align:center}
-  .plan-status{display:inline-flex;align-items:center;gap:.4rem;font-size:.94rem;font-weight:500;
-    letter-spacing:.08em;text-transform:uppercase;padding:.28rem .7rem;border-radius:2rem;margin-left:.5rem}
-  .plan-status.draft{background:rgba(184,135,74,.1);color:#B8874A;border:1px solid rgba(184,135,74,.2)}
-  .plan-status.confirmed{background:rgba(107,126,103,.1);color:#8FA889;border:1px solid rgba(107,126,103,.2)}
-  .generate-wrap{padding:.5rem 2rem 2rem}
-  .generate-card{background:rgba(184,135,74,.05);border:1.5px dashed rgba(184,135,74,.2);
-    border-radius:1.5rem;padding:3.5rem 2rem;text-align:center}
-  .generate-ico{font-size:3.5rem;margin-bottom:1.25rem;display:block}
-  .generate-title{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:300;
-    color:#F8F3EC;margin-bottom:.6rem}
-  .generate-sub{font-size:1.04rem;color:rgba(248,243,236,.82);line-height:1.8;
-    max-width:420px;margin:0 auto 2rem}
-  .generate-btn{background:#B8874A;color:#1A1612;border:none;padding:1rem 2.75rem;
-    border-radius:3rem;font-family:'Outfit',sans-serif;font-size:1rem;font-weight:600;
-    cursor:pointer;transition:all .2s;box-shadow:0 8px 28px rgba(184,135,74,.25)}
-  .generate-btn:hover:not(:disabled){background:#D4A46A;transform:translateY(-2px);
-    box-shadow:0 14px 36px rgba(184,135,74,.35)}
-  .generate-btn:disabled{opacity:.5;cursor:not-allowed}
-  .generating-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
-    border-radius:1.5rem;padding:3.5rem 2rem;text-align:center}
-  .gen-ico{font-size:3rem;display:block;margin-bottom:1rem;animation:pulse 1.5s ease infinite}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-  .gen-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:#F8F3EC;margin-bottom:.5rem}
-  .gen-sub{font-size:1rem;color:rgba(248,243,236,.72);line-height:1.7}
-  .plan-grid{padding:0 2rem}
-  .plan-day{display:flex;gap:1rem;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.05)}
-  .plan-day:last-child{border:none}
-  .day-label{width:3.5rem;flex-shrink:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:flex-start;padding-top:.3rem;gap:.15rem}
-  .day-name{font-size:.80rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;
-    color:rgba(248,243,236,.60)}
-  .day-date{font-size:1.04rem;color:rgba(248,243,236,.2)}
-  .day-name.tod{color:#B8874A}
-  .day-date.tod{color:rgba(184,135,74,.7);font-weight:500}
-  .day-content{flex:1;min-width:0}
-  .recipe-slot{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
-    border-radius:.875rem;padding:1rem 1.25rem;cursor:pointer;transition:all .2s}
-  .recipe-slot:hover{background:rgba(255,255,255,.07);border-color:rgba(184,135,74,.2)}
-  .recipe-slot.tonight{background:rgba(184,135,74,.08);border-color:rgba(184,135,74,.3)}
-  .tonight-badge{font-size:.62rem;color:#B8874A;letter-spacing:.1em;text-transform:uppercase;
-    font-weight:500;margin-bottom:.35rem}
-  .slot-title{font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:#F8F3EC;
-    line-height:1.3;margin-bottom:.35rem}
-  .slot-meta{display:flex;gap:.75rem;font-size:.87rem;color:rgba(248,243,236,.65);flex-wrap:wrap}
-  .slot-cook-time{font-size:.94rem;color:rgba(184,135,74,.7);margin-top:.4rem;display:block}
-  .skip-slot{background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.06);
-    border-radius:.875rem;padding:.85rem 1.25rem}
-  .skip-label{font-size:.94rem;color:rgba(248,243,236,.48);font-style:italic}
-  .empty-slot{background:rgba(255,255,255,.02);border:1.5px dashed rgba(255,255,255,.07);
-    border-radius:.875rem;padding:.85rem 1.25rem;cursor:pointer;transition:all .2s}
-  .empty-slot:hover{border-color:rgba(184,135,74,.25);background:rgba(184,135,74,.03)}
-  .empty-label{font-size:.94rem;color:rgba(248,243,236,.48)}
-  .plan-actions{position:sticky;bottom:0;background:linear-gradient(to top,#1A1612 65%,transparent);
-    padding:2rem 2rem 1rem;display:flex;gap:.75rem;margin-top:1rem}
-  .confirm-btn{flex:1;background:#B8874A;color:#1A1612;border:none;padding:.9rem;
-    border-radius:2rem;font-family:'Outfit',sans-serif;font-size:1.04rem;font-weight:600;
-    cursor:pointer;transition:all .2s}
-  .confirm-btn:hover:not(:disabled){background:#D4A46A;transform:translateY(-1px)}
-  .confirm-btn:disabled{opacity:.5;cursor:not-allowed}
-  .regen-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
-    color:rgba(248,243,236,.85);padding:.9rem 1.5rem;border-radius:2rem;
-    font-family:'Outfit',sans-serif;font-size:1rem;cursor:pointer;transition:all .2s;white-space:nowrap}
-  .regen-btn:hover{background:rgba(255,255,255,.09);color:#F8F3EC}
-  .plan-err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;
-    color:#EF4444;font-size:.97rem;padding:12px 16px;margin:0 2rem 1rem;line-height:1.6}
-  .sp{width:16px;height:16px;border:2px solid rgba(26,22,18,.2);border-top-color:#1A1612;
-    border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:5px}
+  body{font-family:'Outfit',sans-serif;font-weight:300;background:#1A1612;color:#F8F3EC;min-height:100vh}
+  .today-wrap{max-width:680px;margin:0 auto;padding:2rem 1.5rem 6rem}
+  .today-eyebrow{font-size:.72rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:rgba(248,243,236,.45);margin-bottom:.35rem}
+  .today-date{font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:rgba(248,243,236,.6);margin-bottom:2rem}
+  .tonight-card{background:linear-gradient(135deg,#2C2420 0%,#231E1B 100%);border:1px solid rgba(184,135,74,.2);border-radius:1.5rem;padding:2rem;margin-bottom:1.5rem;position:relative;overflow:hidden}
+  .tonight-card::before{content:'';position:absolute;top:0;right:0;width:200px;height:200px;background:radial-gradient(circle at top right,rgba(184,135,74,.06),transparent 70%);pointer-events:none}
+  .tonight-label{font-size:.68rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#B8874A;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
+  .tonight-dot{width:6px;height:6px;border-radius:50%;background:#B8874A;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+  .tonight-title{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:400;color:#F8F3EC;line-height:1.15;margin-bottom:.75rem;cursor:pointer}
+  .tonight-title:hover{color:#D4A46A}
+  .tonight-meta{display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:1.5rem}
+  .tonight-meta-item{display:flex;align-items:center;gap:.4rem;font-size:.9rem;color:rgba(248,243,236,.65)}
+  .start-time-box{background:rgba(184,135,74,.08);border:1px solid rgba(184,135,74,.2);border-radius:1rem;padding:.85rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between}
+  .start-time-label{font-size:.78rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:rgba(248,243,236,.45)}
+  .start-time-value{font-family:'Cormorant Garamond',serif;font-size:1.75rem;color:#B8874A;font-weight:400}
+  .tonight-actions{display:flex;gap:.75rem;flex-wrap:wrap}
+  .action-btn{display:flex;align-items:center;gap:.5rem;padding:.7rem 1.25rem;border-radius:2rem;font-family:'Outfit',sans-serif;font-size:.92rem;font-weight:500;cursor:pointer;transition:all .2s;border:none}
+  .action-btn.primary{background:#B8874A;color:#1A1612;flex:1;justify-content:center}
+  .action-btn.primary:hover{background:#D4A46A;transform:translateY(-1px)}
+  .action-btn.secondary{background:rgba(255,255,255,.06);color:rgba(248,243,236,.75);border:1px solid rgba(255,255,255,.1)}
+  .action-btn.secondary:hover{background:rgba(255,255,255,.1);color:#F8F3EC}
+  .action-btn.danger{background:rgba(239,68,68,.08);color:#EF4444;border:1px solid rgba(239,68,68,.2)}
+  .action-btn.danger:hover{background:rgba(239,68,68,.15)}
+  .no-plan-card{text-align:center;padding:3rem 1.5rem;background:#2C2420;border-radius:1.5rem;border:1px solid rgba(255,255,255,.06)}
+  .no-plan-icon{font-size:2.5rem;margin-bottom:1rem}
+  .no-plan-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:#F8F3EC;margin-bottom:.5rem}
+  .no-plan-sub{font-size:.95rem;color:rgba(248,243,236,.55);line-height:1.7;margin-bottom:1.5rem}
+  .cta-btn{background:#B8874A;color:#1A1612;border:none;padding:.75rem 2rem;border-radius:2rem;font-family:'Outfit',sans-serif;font-size:.97rem;font-weight:600;cursor:pointer;transition:all .2s}
+  .cta-btn:hover{background:#D4A46A}
+  .cook-mode{position:fixed;inset:0;background:#1A1612;z-index:100;overflow-y:auto;padding:2rem 1.5rem 6rem}
+  .cook-mode-wrap{max-width:640px;margin:0 auto}
+  .cook-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem}
+  .cook-back{background:none;border:none;color:rgba(248,243,236,.6);font-family:'Outfit',sans-serif;font-size:.97rem;cursor:pointer;display:flex;align-items:center;gap:.4rem;padding:0}
+  .cook-back:hover{color:#F8F3EC}
+  .cook-title{font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:#F8F3EC;margin-bottom:1.5rem;line-height:1.2}
+  .cook-progress{display:flex;gap:.35rem;margin-bottom:2rem}
+  .cook-pip{height:3px;flex:1;border-radius:2px;background:rgba(255,255,255,.1);transition:background .3s}
+  .cook-pip.done{background:#B8874A}
+  .cook-pip.active{background:rgba(184,135,74,.5)}
+  .step-card{background:#2C2420;border-radius:1.25rem;padding:1.75rem;margin-bottom:1rem;border:1px solid rgba(255,255,255,.06)}
+  .step-number{font-size:.7rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:#B8874A;margin-bottom:.65rem}
+  .step-text{font-size:1.05rem;color:rgba(248,243,236,.9);line-height:1.75}
+  .step-timer{display:flex;align-items:center;gap:.5rem;margin-top:1rem;padding:.6rem 1rem;background:rgba(184,135,74,.08);border-radius:.75rem;font-size:.9rem;color:rgba(248,243,236,.65);width:fit-content}
+  .cook-nav{display:flex;gap:.75rem;margin-top:1.5rem}
+  .cook-nav-btn{flex:1;padding:.9rem;border-radius:2rem;font-family:'Outfit',sans-serif;font-size:1rem;font-weight:500;cursor:pointer;transition:all .2s;border:none}
+  .cook-nav-btn.prev{background:rgba(255,255,255,.06);color:rgba(248,243,236,.65)}
+  .cook-nav-btn.next{background:#B8874A;color:#1A1612}
+  .cook-nav-btn.next:hover{background:#D4A46A}
+  .cook-nav-btn.finish{background:#8FA889;color:#1A1612}
+  .ingr-list{background:#2C2420;border-radius:1.25rem;padding:1.5rem;margin-bottom:1.5rem;border:1px solid rgba(255,255,255,.06)}
+  .ingr-title{font-size:.7rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:rgba(248,243,236,.45);margin-bottom:1rem}
+  .ingr-item{display:flex;justify-content:space-between;padding:.45rem 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.95rem}
+  .ingr-item:last-child{border-bottom:none}
+  .ingr-name{color:rgba(248,243,236,.85)}
+  .ingr-amt{color:#B8874A;text-align:right}
+  .rate-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+  .rate-sheet{background:#2C2420;border-radius:1.5rem 1.5rem 0 0;width:100%;max-width:640px;padding:2rem}
+  .rate-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:#F8F3EC;margin-bottom:.5rem}
+  .rate-sub{font-size:.95rem;color:rgba(248,243,236,.55);margin-bottom:1.75rem}
+  .rate-btns{display:flex;gap:.75rem}
+  .rate-btn{flex:1;padding:1rem;border-radius:1rem;border:1px solid rgba(255,255,255,.1);background:none;font-family:'Outfit',sans-serif;font-size:.95rem;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:.4rem}
+  .rate-btn:hover{background:rgba(255,255,255,.06)}
+  .rate-btn .rate-emoji{font-size:1.75rem}
+  .rate-btn .rate-label{font-size:.82rem;color:rgba(248,243,236,.6)}
+  .skip-tonight-sheet{background:#2C2420;border-radius:1.5rem 1.5rem 0 0;width:100%;max-width:640px;padding:2rem}
+  .skip-option{display:flex;align-items:center;gap:1rem;padding:1rem;border-radius:1rem;cursor:pointer;transition:background .15s;margin-bottom:.5rem}
+  .skip-option:hover{background:rgba(255,255,255,.05)}
+  .skip-option-icon{font-size:1.5rem;width:2.5rem;text-align:center;flex-shrink:0}
+  .skip-option-title{font-size:1rem;color:#F8F3EC;margin-bottom:.2rem}
+  .skip-option-sub{font-size:.85rem;color:rgba(248,243,236,.45)}
   @keyframes spin{to{transform:rotate(360deg)}}
   @media(max-width:600px){
-    .plan-hd,.plan-grid,.generate-wrap,.plan-actions,.week-nav{padding-left:1rem;padding-right:1rem}
-    .plan-hd{padding-top:1.25rem;padding-bottom:.75rem}
-    .week-nav{gap:.5rem;padding-bottom:1rem}
-    .week-label{font-size:.85rem}
-    .week-nav-btn{padding:.4rem .8rem;font-size:.82rem}
-    .slot-card,.skip-card,.empty-slot{padding:.85rem 1rem;border-radius:.75rem}
-    .slot-title{font-size:1rem}
-    .slot-meta{gap:.4rem;font-size:.82rem}
-    .slot-actions{flex-wrap:wrap;gap:.35rem}
-    .slot-actions button{font-size:.78rem;padding:.35rem .7rem}
-    .confirm-btn,.generate-btn{width:100%;text-align:center;padding:.85rem}
-    .gen-card{padding:1.5rem 1rem}
-    .gen-title{font-size:1.5rem}
-    .plan-grid{padding-bottom:2rem}
+    .today-wrap{padding:1.5rem 1rem 6rem}
+    .tonight-card{padding:1.25rem}
+    .tonight-actions{flex-direction:column}
+    .action-btn{width:100%;justify-content:center}
+    .start-time-box{flex-direction:column;gap:.5rem;text-align:center}
+    .cook-mode{padding:1.5rem 1rem 6rem}
   }
 `
 
-function getWeekStart(date) {
-  const d = new Date(date)
-  // Use local date components to avoid UTC timezone shift
-  const localDay = d.getDay()
-  const diff = d.getDate() - localDay + (localDay === 0 ? -6 : 1)
-  d.setDate(diff)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function formatWeekLabel(ws) {
-  const end = new Date(ws)
-  end.setDate(end.getDate() + 6)
-  const o = { month:'short', day:'numeric' }
-  return `${ws.toLocaleDateString('en-US',o)} – ${end.toLocaleDateString('en-US',o)}`
-}
-
-function isToday(dateStr) {
-  const now = new Date()
-  const localDate = now.getFullYear() + '-' +
-    String(now.getMonth() + 1).padStart(2, '0') + '-' +
-    String(now.getDate()).padStart(2, '0')
-  return dateStr === localDate
-}
-
-export default function PlanPage() {
+export default function TodayPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [userId, setUserId] = useState(null)
-  const [weekOffset, setWeekOffset] = useState(0)
-  const [weekStart, setWeekStart] = useState(null)
-  const [plan, setPlan] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [tonightMeal, setTonightMeal] = useState(null)
+  const [dinnerHour, setDinnerHour] = useState(null)
+  const [cookMins, setCookMins] = useState(30)
   const [planId, setPlanId] = useState(null)
-  const [planStatus, setPlanStatus] = useState(null)
-  const [generating, setGenerating] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const [error, setError] = useState('')
-  const [showVarietyPrompt, setShowVarietyPrompt] = useState(false)
-  const [pendingGenerate, setPendingGenerate] = useState(false)
-  const [pickerDate, setPickerDate] = useState(null)
-  const [pickerSearch, setPickerSearch] = useState('')
-  const [vaultRecipes, setVaultRecipes] = useState([])
-  const [sysModal, setSysModal] = useState(null) // system recipe to preview
+  const [mealId, setMealId] = useState(null)
+  const [cookMode, setCookMode] = useState(false)
+  const [cookStep, setCookStep] = useState(0)
+  const [showRate, setShowRate] = useState(false)
+  const [showSkip, setShowSkip] = useState(false)
+  const [rated, setRated] = useState(false)
+  const [swapping, setSwapping] = useState(false)
+  const [showSwap, setShowSwap] = useState(false)
+  const [swapSuggestions, setSwapSuggestions] = useState([])
+  const [loadingSwap, setLoadingSwap] = useState(false)
+  const [swapShowAll, setSwapShowAll] = useState(false)
 
-  useEffect(() => {
-    setMounted(true)
-    getClient().auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.replace('/login'); return }
-      setUserId(session.user.id)
-    })
-  }, [router])
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     if (!mounted) return
-    const base = getWeekStart(new Date())
-    base.setDate(base.getDate() + weekOffset * 7)
-    setWeekStart(new Date(base))
-  }, [mounted, weekOffset])
-
-  const weekStartStr = weekStart ? (
-    weekStart.getFullYear() + '-' +
-    String(weekStart.getMonth() + 1).padStart(2, '0') + '-' +
-    String(weekStart.getDate()).padStart(2, '0')
-  ) : null
-
-  useEffect(() => {
-    if (!userId || !weekStartStr) return
-    // Reset planId when week changes to prevent stale ID from previous week
-    setPlanId(null)
-    setPlanStatus(null)
-    setPlan(null)
-    loadPlan()
-  }, [userId, weekStartStr])
+    const sb = getClient()
+    sb.auth.getSession().then(({ data: { session } }) => {
+      if (!session) { router.replace('/login'); return }
+      setUserId(session.user.id)
+    })
+  }, [mounted, router])
 
   useEffect(() => {
     if (!userId) return
-    getClient()
-      .from('recipes')
-      .select('id, title, cuisine, total_time_mins, tags, is_favorite')
-      .eq('profile_id', userId)
-      .order('is_favorite', { ascending: false })
-      .then(({ data }) => { if (data) setVaultRecipes(data) })
+    loadTonight()
   }, [userId])
 
-  const loadPlan = async () => {
+  const loadTonight = async () => {
+    setLoading(true)
     const sb = getClient()
+    const today = getLocalDateStr()
+    const weekStart = getWeekStart()
 
-    // Fetch plan and current blackout days in parallel
-    const [plansRes, blackoutRes] = await Promise.all([
-      sb.from('weekly_plans')
-        .select(`id, status, planned_meals (
-          id, meal_date, is_skipped, skip_reason, start_cooking_at, notes, recipe_snapshot,
-          recipes ( id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite )
-        )`)
-        .eq('profile_id', userId)
-        .eq('week_start_date', weekStartStr)
-        .order('updated_at', { ascending: false })
-        .limit(1),
-      sb.from('blackout_days').select('day_of_week').eq('profile_id', userId)
-    ])
+    // Get profile for dinner hour
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('dinner_hour, family_size')
+      .eq('id', userId)
+      .single()
 
-    const data = plansRes.data && plansRes.data.length > 0 ? plansRes.data[0] : null
-    const currentBlackoutDays = (blackoutRes.data || []).map(b => b.day_of_week)
+    if (profile) setDinnerHour(profile.dinner_hour)
 
-    if (data) {
-      setPlanId(data.id)
-      setPlanStatus(data.status)
-      const meals = (data.planned_meals || []).sort((a,b) => a.meal_date.localeCompare(b.meal_date))
-
-      // Debug: log what came back from DB
-      meals.forEach(m => {
-        console.log('loadPlan meal:', m.meal_date,
-          '| recipe_id:', m.recipes?.id || 'null',
-          '| notes:', m.notes || 'null',
-          '| snap_title:', m.recipe_snapshot?.title || 'null',
-          '| snap_sys_id:', m.recipe_snapshot?.system_recipe_id || 'null',
-          '| snap_ing:', (m.recipe_snapshot?.ingredients || []).length
-        )
-      })
-
-      // Collect system recipe IDs that need full data fetched
-      const sysIdsNeeded = meals
-        .filter(m => !m.recipes && m.recipe_snapshot?.system_recipe_id)
-        .map(m => m.recipe_snapshot.system_recipe_id)
-        .filter((id, i, arr) => arr.indexOf(id) === i)
-
-      let sysMap = {}
-      if (sysIdsNeeded.length > 0) {
-        const { data: sysData } = await sb
-          .from('system_recipes')
-          .select('id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, ingredients, instructions, description')
-          .in('id', sysIdsNeeded)
-        if (sysData) sysData.forEach(r => { sysMap[r.id] = r })
-      }
-
-      const formatted = meals.map(m => {
-        const sysId = m.recipe_snapshot?.system_recipe_id
-        const sysRecipe = sysId ? sysMap[sysId] : null
-        const recipe = m.recipes
-          || (sysRecipe ? { ...sysRecipe, system_recipe_id: sysId } : null)
-          || m.recipe_snapshot
-          || (m.notes ? { title: m.notes, cuisine: null, total_time_mins: null } : null)
-        const recipe_id = m.recipes?.id
-          || (sysId ? 'sys-' + sysId : null)
-          || null
-        // Re-evaluate blackout status based on CURRENT blackout days
-        // This handles the case where user changed blackout days after generating
-        const mealDayOfWeek = new Date(m.meal_date + 'T12:00:00').getDay()
-        const isCurrentlyBlackout = currentBlackoutDays.includes(mealDayOfWeek)
-        const wasBlackoutSkip = m.skip_reason === 'blackout day'
-
-        // If day is no longer a blackout day but was saved as one, restore it
-        // If day is now a blackout day but wasn't saved as one, mark it
-        let finalSkipped = m.is_skipped
-        let finalSkipReason = m.skip_reason
-        if (wasBlackoutSkip && !isCurrentlyBlackout) {
-          finalSkipped = false
-          finalSkipReason = null
-        } else if (isCurrentlyBlackout && !wasBlackoutSkip) {
-          finalSkipped = true
-          finalSkipReason = 'blackout day'
-        }
-
-        return {
-          date: m.meal_date,
-          recipe: finalSkipped && isCurrentlyBlackout ? null : recipe,
-          recipe_id: finalSkipped && isCurrentlyBlackout ? null : recipe_id,
-          is_skipped: finalSkipped,
-          skip_reason: finalSkipReason,
-          start_cooking_at: m.start_cooking_at,
-          dayName: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][mealDayOfWeek],
-        }
-      })
-      setPlan(formatted)
-    } else {
-      setPlan(null); setPlanId(null); setPlanStatus(null)
-    }
-  }
-
-  const saveDraft = async (planData) => {
-    if (!planData || !userId || !weekStartStr) return
-    if (isSavingDraft) return // prevent concurrent saves
-    setIsSavingDraft(true)
-    const sb = getClient()
-    try {
-      // Always check DB for existing plan first — never rely on planId state
-      // This prevents duplicate plans when saveDraft is called multiple times
-      let currentPlanId = planId
-      
-      const { data: existingPlan } = await sb
-        .from('weekly_plans')
-        .select('id, status')
-        .eq('profile_id', userId)
-        .eq('week_start_date', weekStartStr)
-        .maybeSingle()
-
-      if (existingPlan) {
-        currentPlanId = existingPlan.id
-        // Only update status if not already confirmed
-        if (existingPlan.status !== 'confirmed') {
-          await sb.from('weekly_plans').update({ status: 'draft' }).eq('id', currentPlanId)
-        }
-        setPlanId(currentPlanId)
-      } else if (!currentPlanId) {
-        const { data: np, error: pe } = await sb
-          .from('weekly_plans')
-          .insert({
-            profile_id: userId,
-            week_start_date: weekStartStr,
-            status: 'draft',
-            ai_generated: true,
-          })
-          .select('id')
-          .single()
-        if (pe) throw pe
-        currentPlanId = np.id
-        setPlanId(currentPlanId)
-      }
-
-      // Save planned meals
-      await sb.from('planned_meals').delete().eq('weekly_plan_id', currentPlanId)
-
-      const meals = planData.map(slot => ({
-        weekly_plan_id: currentPlanId,
-        profile_id: userId,
-        // Only save real vault UUIDs as recipe_id — system recipes use snapshot only
-        recipe_id: (slot.recipe_id && !String(slot.recipe_id || '').startsWith('sys-') && !String(slot.recipe_id || '').startsWith('emg-')) ? slot.recipe_id : null,
-        meal_date: slot.date,
-        servings: slot.recipe?.base_servings || 4,
-        is_skipped: slot.is_skipped || false,
-        skip_reason: slot.skip_reason || null,
-        start_cooking_at: null,
-        // Always store recipe title in notes as fallback for display
-        notes: slot.recipe?.title || null,
-        recipe_snapshot: slot.recipe ? (() => {
-          // Derive system_recipe_id from the slot's recipe_id (strips 'sys-' prefix)
-          const sysId = slot.recipe_id && String(slot.recipe_id).startsWith('sys-')
-            ? String(slot.recipe_id).replace('sys-', '')
-            : (slot.recipe.system_recipe_id || null)
-          return {
-            id: slot.recipe.id || null,
-            system_recipe_id: sysId,
-            title: slot.recipe.title,
-            description: slot.recipe.description || null,
-            cuisine: slot.recipe.cuisine || null,
-            total_time_mins: slot.recipe.total_time_mins || null,
-            tags: slot.recipe.tags || [],
-            dietary_flags: slot.recipe.dietary_flags || [],
-            is_favorite: slot.recipe.is_favorite || false,
-            base_servings: slot.recipe.base_servings || 4,
-            ingredients: slot.recipe.ingredients || [],
-            instructions: slot.recipe.instructions || [],
-          }
-        })() : null,
-      }))
-
-      // Debug: log first system recipe slot to verify snapshot
-      const firstSys = meals.find(m => m.recipe_snapshot && m.recipe_snapshot.system_recipe_id)
-      if (firstSys) {
-        console.log('Snapshot check - sys_id:', firstSys.recipe_snapshot.system_recipe_id, 
-          '| title:', firstSys.recipe_snapshot.title,
-          '| ing count:', (firstSys.recipe_snapshot.ingredients || []).length)
-      }
-
-      const { error: insertErr } = await sb.from('planned_meals').insert(meals)
-      if (insertErr) {
-        console.error('Draft save error:', insertErr.message)
-        // If recipe_snapshot column doesn't exist, try without it
-        if (insertErr.message && insertErr.message.includes('recipe_snapshot')) {
-          const mealsWithoutSnapshot = meals.map(function(m) {
-            const { recipe_snapshot, ...rest } = m
-            return rest
-          })
-          await sb.from('planned_meals').insert(mealsWithoutSnapshot)
-        }
-      }
-      console.log('Draft auto-saved, meals=' + meals.length)
-    } catch (e) {
-      console.error('Auto-save failed:', e)
-      // Non-critical — don't show error to user
-    } finally {
-      setIsSavingDraft(false)
-    }
-  }
-
-  // Is this a future week that shouldn't be accessible yet?
-  // Locked only if: we're ahead of current week AND current week has a draft (not confirmed)
-  // If current week has no plan at all, future weeks are also locked (need to plan in order)
-  const currentWeekHasDraft = weekOffset === 0 && plan && planStatus !== 'confirmed'
-
-  const generatePlan = async (useVariety = null) => {
-    // If useVariety hasn't been decided and vault is large enough, ask first
-    if (useVariety === null) {
-      const sb = getClient()
-      const { count } = await sb
-        .from('recipes')
-        .select('id', { count: 'exact', head: true })
-        .eq('profile_id', userId)
-
-      // Use actual blackout days if available, otherwise assume 2
-      const cookingDaysCount = 7 - (plan ? plan.filter(s => s.is_skipped).length : 2)
-      if ((count || 0) >= cookingDaysCount) {
-        setShowVarietyPrompt(true)
-        setPendingGenerate(true)
-        return
-      }
-    }
-
-    setShowVarietyPrompt(false)
-    setPendingGenerate(false)
-    setGenerating(true); setError('')
-    try {
-      const res = await fetch('/api/plan/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, weekStartDate: weekStartStr, useVariety: useVariety ?? false }),
-      })
-      const data = await res.json()
-      if (!res.ok || data.error) throw new Error(data.error || 'Generation failed')
-      setPlan(data.plan); setPlanStatus('draft')
-
-      // Auto-save draft immediately so navigating away doesn't lose it
-      await saveDraft(data.plan)
-    } catch (e) {
-      const msg = e.message || ''
-      if (msg.includes('529') || msg.includes('overload') || msg.includes('Overloaded')) {
-        setError("Dot is a little busy right now — Anthropic's servers are at capacity. Wait 30 seconds and try again.")
-      } else {
-        setError(msg || 'Could not generate plan. Please try again.')
-      }
-    }
-    setGenerating(false)
-  }
-
-  const swapMeal = async (date) => {
-    if (!plan || generating) return
-    setError('')
-    // Remove this day's meal and re-ask Claude for just that day
-    // For now: cycle to next available vault recipe not already in plan
-    const sb = getClient()
-    const { data: vaultRecipes } = await sb
-      .from('recipes')
-      .select('id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite')
+    // Get user prefs for max cook time
+    const { data: prefs } = await sb
+      .from('user_preferences')
+      .select('max_weeknight_mins')
       .eq('profile_id', userId)
+      .maybeSingle()
 
-    if (!vaultRecipes?.length) {
-      setError('Add more recipes to your vault to enable swapping.')
+    if (prefs && prefs.max_weeknight_mins) setCookMins(prefs.max_weeknight_mins)
+
+    // Get this week's confirmed plan
+    const { data: plans } = await sb
+      .from('weekly_plans')
+      .select('id, status')
+      .eq('profile_id', userId)
+      .eq('week_start_date', weekStart)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+
+    const plan = plans && plans[0]
+    if (!plan || plan.status !== 'confirmed') {
+      setLoading(false)
       return
     }
 
-    const usedIds = plan.filter(s => s.date !== date && !s.is_skipped).map(s => s.recipe_id)
-    const available = vaultRecipes.filter(r => !usedIds.includes(r.id))
-    const pool = available.length > 0 ? available : vaultRecipes
+    setPlanId(plan.id)
 
-    // Pick a random one from the pool
-    const pick = pool[Math.floor(Math.random() * pool.length)]
+    // Get tonight's meal
+    const { data: meal } = await sb
+      .from('planned_meals')
+      .select('id, recipe_snapshot, recipes(id, title, cuisine, total_time_mins, ingredients, instructions, tags, description)')
+      .eq('weekly_plan_id', plan.id)
+      .eq('meal_date', today)
+      .eq('is_skipped', false)
+      .maybeSingle()
 
-    setPlan(prev => prev.map(slot =>
-      slot.date === date
-        ? { ...slot, recipe_id: pick.id, recipe: pick }
-        : slot
-    ))
-  }
+    if (!meal) { setLoading(false); return }
 
-  const [confirmAndShop, setConfirmAndShop] = useState(false)
-  const [isSavingDraft, setIsSavingDraft] = useState(false)
+    setMealId(meal.id)
 
-  const confirmPlan = async (andShop = false) => {
-    setConfirmAndShop(andShop)
-    if (!plan) return
-    setConfirming(true); setError('')
-    const sb = getClient()
-    try {
-      // Always look up plan by week — never trust planId state which may be stale
-      const { data: existingPlan } = await sb
-        .from('weekly_plans')
-        .select('id')
-        .eq('profile_id', userId)
-        .eq('week_start_date', weekStartStr)
-        .maybeSingle()
+    // Use vault recipe or snapshot
+    const recipe = meal.recipes || meal.recipe_snapshot
 
-      let currentPlanId = existingPlan?.id
-      if (!currentPlanId) {
-        const { data: np, error: pe } = await sb.from('weekly_plans').insert({
-          profile_id: userId,
-          week_start_date: weekStartStr,
-          status: 'confirmed',
-          ai_generated: true,
-        }).select('id').single()
-        if (pe) throw pe
-        currentPlanId = np.id
-      } else {
-        await sb.from('weekly_plans').update({ status: 'confirmed' }).eq('id', currentPlanId)
-      }
-      setPlanId(currentPlanId)
-
-      await sb.from('planned_meals').delete().eq('weekly_plan_id', currentPlanId)
-
-      const meals = plan.map(slot => {
-        let startCooking = null
-        if (!slot.is_skipped && slot.recipe?.total_time_mins) {
-          // Default dinner at 6pm, calculate back
-          const mins = slot.recipe.total_time_mins
-          const dinnerH = 18, dinnerM = 0
-          let startM = dinnerH * 60 + dinnerM - mins
-          const sh = Math.floor(startM / 60)
-          const sm = startM % 60
-          startCooking = `${String(sh).padStart(2,'0')}:${String(sm).padStart(2,'0')}:00`
-        }
-        const sysId = slot.recipe_id && String(slot.recipe_id).startsWith('sys-')
-          ? String(slot.recipe_id).replace('sys-', '') : null
-        return {
-          weekly_plan_id: currentPlanId,
-          profile_id: userId,
-          recipe_id: (!slot.recipe_id || String(slot.recipe_id).startsWith('sys-') || String(slot.recipe_id).startsWith('emg-')) ? null : slot.recipe_id,
-          meal_date: slot.date,
-          servings: slot.recipe?.base_servings || 4,
-          is_skipped: slot.is_skipped || false,
-          skip_reason: slot.skip_reason || null,
-          start_cooking_at: startCooking,
-          notes: slot.recipe?.title || null,
-          recipe_snapshot: slot.recipe ? {
-            id: slot.recipe.id || null,
-            system_recipe_id: sysId || slot.recipe.system_recipe_id || null,
-            title: slot.recipe.title,
-            description: slot.recipe.description || null,
-            cuisine: slot.recipe.cuisine || null,
-            total_time_mins: slot.recipe.total_time_mins || null,
-            tags: slot.recipe.tags || [],
-            dietary_flags: slot.recipe.dietary_flags || [],
-            is_favorite: slot.recipe.is_favorite || false,
-            base_servings: slot.recipe.base_servings || 4,
-            ingredients: slot.recipe.ingredients || [],
-            instructions: slot.recipe.instructions || [],
-          } : null,
-        }
-      })
-
-      const { error: me } = await sb.from('planned_meals').insert(meals)
-      if (me) throw me
-
-      setPlanStatus('confirmed')
-
-      // Redirect to grocery if user clicked "Confirm & shop"
-      if (andShop) {
-        router.push('/grocery')
+    // If system recipe, fetch full data
+    if (!meal.recipes && meal.recipe_snapshot && meal.recipe_snapshot.system_recipe_id) {
+      const { data: sysRecipe } = await sb
+        .from('system_recipes')
+        .select('*')
+        .eq('id', meal.recipe_snapshot.system_recipe_id)
+        .single()
+      if (sysRecipe) {
+        setTonightMeal(sysRecipe)
+        setLoading(false)
         return
       }
-
-      // Update last_planned_date to the week start date (not today)
-      // This ensures rotation correctly calculates days since last planned
-      const usedVaultIds = plan
-        .filter(s => !s.is_skipped && s.recipe_id && !String(s.recipe_id).startsWith('sys-') && !String(s.recipe_id).startsWith('emg-'))
-        .map(s => s.recipe_id)
-      if (usedVaultIds.length > 0) {
-        for (const rid of usedVaultIds) {
-          try { await sb.from('recipes').update({ last_planned_date: weekStartStr }).eq('id', rid) } catch(e) {}
-        }
-      }
-
-      // Don't auto-redirect — let user choose grocery or next week
-      setConfirmAndShop(false)
-    } catch (e) {
-      console.error(e)
-      setError(`Could not confirm plan: ${e.message}`)
     }
-    setConfirming(false)
+
+    setTonightMeal(recipe)
+    setLoading(false)
   }
 
-  if (!mounted) return null
+  const startCooking = () => {
+    setCookStep(0)
+    setCookMode(true)
+  }
+
+  const loadSwapSuggestions = async () => {
+    setLoadingSwap(true)
+    setShowSwap(true)
+    const sb = getClient()
+
+    // Get vault recipes excluding tonight's
+    const { data: vaultRecipes } = await sb
+      .from('recipes')
+      .select('id, title, cuisine, total_time_mins, tags, description, ingredients')
+      .eq('profile_id', userId)
+      .neq('id', tonightMeal?.id || '')
+      .order('is_favorite', { ascending: false })
+      .limit(20)
+
+    // Get system recipes
+    const { data: sysRecipes } = await sb
+      .from('system_recipes')
+      .select('id, title, cuisine, total_time_mins, tags, description')
+      .order('times_served', { ascending: true })
+      .limit(20)
+
+    // Pick 3 vault + 3 system, varied cuisines
+    const pickDiverse = (recipes, count) => {
+      const picked = []
+      const usedCuisines = []
+      for (const r of (recipes || [])) {
+        if (picked.length >= count) break
+        if (!usedCuisines.includes(r.cuisine)) {
+          picked.push(r)
+          usedCuisines.push(r.cuisine)
+        }
+      }
+      // Fill remainder if not enough diverse
+      for (const r of (recipes || [])) {
+        if (picked.length >= count) break
+        if (!picked.find(p => p.id === r.id)) picked.push(r)
+      }
+      return picked
+    }
+
+    const vault3 = pickDiverse(vaultRecipes, 3)
+    const sys3 = pickDiverse(sysRecipes, 3).map(r => ({ ...r, isSystem: true }))
+
+    setSwapSuggestions([...vault3, ...sys3])
+    setLoadingSwap(false)
+  }
+
+  const applySwap = async (recipe) => {
+    const sb = getClient()
+    const today = getLocalDateStr()
+
+    if (recipe.isSystem) {
+      // Update planned meal with system recipe snapshot
+      const { data: full } = await sb
+        .from('system_recipes')
+        .select('*')
+        .eq('id', recipe.id)
+        .single()
+
+      await sb.from('planned_meals').update({
+        recipe_id: null,
+        notes: recipe.title,
+        recipe_snapshot: {
+          system_recipe_id: recipe.id,
+          title: recipe.title,
+          cuisine: recipe.cuisine,
+          total_time_mins: recipe.total_time_mins,
+          tags: recipe.tags || [],
+          ingredients: full?.ingredients || [],
+          instructions: full?.instructions || [],
+          description: recipe.description || null,
+        }
+      }).eq('id', mealId)
+      setTonightMeal(full || recipe)
+    } else {
+      // Update with vault recipe
+      await sb.from('planned_meals').update({
+        recipe_id: recipe.id,
+        notes: recipe.title,
+        recipe_snapshot: {
+          id: recipe.id,
+          title: recipe.title,
+          cuisine: recipe.cuisine,
+          total_time_mins: recipe.total_time_mins,
+          tags: recipe.tags || [],
+          ingredients: recipe.ingredients || [],
+          description: recipe.description || null,
+        }
+      }).eq('id', mealId)
+      setTonightMeal(recipe)
+    }
+    setShowSwap(false)
+  }
+
+  const handleRate = async (rating) => {
+    const sb = getClient()
+    setShowRate(false)
+    setRated(true)
+
+    // Update was_made and rating on planned meal
+    if (mealId) {
+      await sb.from('planned_meals')
+        .update({ was_made: true, made_at: new Date().toISOString() })
+        .eq('id', mealId)
+    }
+
+    // Update recipe average rating
+    if (tonightMeal && tonightMeal.id) {
+      const { data: recipe } = await sb
+        .from('recipes')
+        .select('times_made, average_rating')
+        .eq('id', tonightMeal.id)
+        .single()
+
+      if (recipe) {
+        const ratingVal = rating === 'love' ? 5 : rating === 'ok' ? 3 : 1
+        const newTimes = (recipe.times_made || 0) + 1
+        const newAvg = ((recipe.average_rating || 0) * (newTimes - 1) + ratingVal) / newTimes
+        await sb.from('recipes')
+          .update({ times_made: newTimes, average_rating: newAvg })
+          .eq('id', tonightMeal.id)
+      }
+    }
+  }
+
+  const handleSkip = async (type) => {
+    setShowSkip(false)
+    const sb = getClient()
+
+    if (type === 'swap') {
+      loadSwapSuggestions()
+
+    } else if (type === 'never') {
+      // Remove from rotation — stop suggesting this recipe
+      if (tonightMeal && tonightMeal.id) {
+        await sb.from('recipes')
+          .update({ in_rotation: false, rotation_frequency: null })
+          .eq('id', tonightMeal.id)
+      }
+      router.push('/plan')
+
+    } else if (type === 'tomorrow') {
+      // Mark tonight's meal as skipped — plans changed
+      if (mealId) {
+        await sb.from('planned_meals')
+          .update({ is_skipped: true, skip_reason: 'plans changed' })
+          .eq('id', mealId)
+      }
+      setTonightMeal(null)
+    }
+  }
+
+  const formatAmt = (ing) => {
+    if (!ing.amount && !ing.unit) return ''
+    const amt = typeof ing.amount === 'number'
+      ? (Number.isInteger(ing.amount) ? ing.amount : +ing.amount.toFixed(2))
+      : ing.amount
+    return [amt, ing.unit].filter(Boolean).join(' ')
+  }
+
+  const today = new Date()
+  const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][today.getDay()]
+  const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][today.getMonth()]
+  const dateStr = dayName + ', ' + monthName + ' ' + today.getDate()
+
+  const startTime = tonightMeal ? calcStartTime(dinnerHour, tonightMeal.total_time_mins || cookMins) : null
+  const instructions = (tonightMeal && tonightMeal.instructions) || []
+  const ingredients = (tonightMeal && tonightMeal.ingredients) || []
+
+  if (!mounted || loading) return (
+    <div style={{minHeight:'100vh',background:'#1A1612',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{width:24,height:24,border:'2px solid rgba(184,135,74,.2)',borderTopColor:'#B8874A',borderRadius:'50%',animation:'spin .7s linear infinite'}}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+
+  // Cook mode view
+  if (cookMode && tonightMeal) {
+    const step = instructions[cookStep]
+    return (
+      <div style={{minHeight:'100vh',background:'#1A1612'}}>
+        <style>{css}</style>
+        <div className="cook-mode">
+          <div className="cook-mode-wrap">
+            <div className="cook-hd">
+              <button className="cook-back" onClick={() => setCookMode(false)}>← Back</button>
+              <span style={{fontSize:'.85rem',color:'rgba(248,243,236,.45)'}}>Step {cookStep+1} of {instructions.length}</span>
+            </div>
+
+            <div className="cook-title">{tonightMeal.title}</div>
+
+            {/* Progress pips */}
+            <div className="cook-progress">
+              {instructions.map((_, i) => (
+                <div key={i} className={'cook-pip' + (i < cookStep ? ' done' : i === cookStep ? ' active' : '')}/>
+              ))}
+            </div>
+
+            {/* Ingredients on step 0 */}
+            {cookStep === 0 && ingredients.length > 0 && (
+              <div className="ingr-list">
+                <div className="ingr-title">Ingredients</div>
+                {ingredients.map((ing, i) => (
+                  <div key={i} className="ingr-item">
+                    <span className="ingr-name">{ing.name}</span>
+                    <span className="ingr-amt">{formatAmt(ing)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Current step */}
+            {step && (
+              <div className="step-card">
+                <div className="step-number">Step {cookStep + 1}</div>
+                <div className="step-text">{step.text}</div>
+                {step.timer_minutes && (
+                  <div className="step-timer">⏱ {step.timer_minutes} min timer</div>
+                )}
+              </div>
+            )}
+
+            {/* Navigation */}
+            <div className="cook-nav">
+              {cookStep > 0 && (
+                <button className="cook-nav-btn prev" onClick={() => setCookStep(s => s - 1)}>← Back</button>
+              )}
+              {cookStep < instructions.length - 1 ? (
+                <button className="cook-nav-btn next" onClick={() => setCookStep(s => s + 1)}>Next step →</button>
+              ) : (
+                <button className="cook-nav-btn finish" onClick={() => { setCookMode(false); setShowRate(true) }}>
+                  Done! Rate dinner 🎉
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="plan-root">
+    <div style={{minHeight:'100vh',background:'#1A1612'}}>
       <style>{css}</style>
 
-      <div className="plan-hd">
-        <div>
-          <h1>Weekly <em>Plan</em></h1>
-          <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:'.5rem',marginTop:'.3rem'}}>
-            <span className="plan-hd-sub">{weekStart ? formatWeekLabel(weekStart) : '...'}</span>
-            {planStatus && <span className={`plan-status ${planStatus}`}>{planStatus === 'confirmed' ? '✓ Confirmed' : '✏️ Draft'}</span>}
-          </div>
-        </div>
-      </div>
+      <div className="today-wrap">
+        <div className="today-eyebrow">Tonight</div>
+        <div className="today-date">{dateStr}</div>
 
-      <div className="week-nav">
-        <button className="wn-btn"
-          onClick={() => setWeekOffset(o => Math.max(o-1, -2))}
-          disabled={weekOffset <= -2}
-          style={{opacity: weekOffset <= -2 ? .3 : 1}}>
-          ← Prev
-        </button>
-        <span className="week-label">
-          {weekOffset === 0 ? 'This week' : weekOffset === 1 ? 'Next week' : weekOffset === -1 ? 'Last week' : `${weekOffset > 0 ? '+':''}${weekOffset} weeks`}
-        </span>
-        <button className="wn-btn"
-          onClick={() => {
-            if (weekOffset >= 0 && planStatus !== 'confirmed') {
-              setError('Please confirm this week before moving ahead.')
-              return
-            }
-            setWeekOffset(o => Math.min(o+1, 4))
-          }}
-          disabled={weekOffset >= 4}
-          style={{opacity: weekOffset >= 4 ? .3 : 1}}>
-          Next →
-        </button>
-      </div>
-
-      {error && <div className="plan-err">{error}</div>}
-
-            {/* Variety prompt */}
-      {showVarietyPrompt && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',zIndex:200,
-          display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
-          <div style={{background:'#2C2420',border:'1px solid rgba(255,255,255,.1)',
-            borderRadius:'1.5rem',padding:'2.5rem',maxWidth:'420px',width:'100%',textAlign:'center'}}>
-            <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>🍽️</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.5rem',
-              color:'#F8F3EC',marginBottom:'.6rem'}}>Your vault covers this week</div>
-            <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.5)',lineHeight:1.7,marginBottom:'2rem'}}>
-              You have enough personal recipes to fill the whole week. Would you like Dot to stick to your vault, or mix in some new ideas from our recipe database?
+        {!tonightMeal ? (
+          <div className="no-plan-card">
+            <div className="no-plan-icon">📅</div>
+            <div className="no-plan-title">No dinner planned tonight</div>
+            <div className="no-plan-sub">
+              {planId
+                ? "Tonight isn't scheduled — enjoy a night off or add a meal to your plan."
+                : "You don't have a confirmed plan for this week yet."}
             </div>
-            <div style={{display:'flex',flexDirection:'column',gap:'.75rem'}}>
-              <button onClick={() => generatePlan(false)}
-                style={{background:'#B8874A',color:'#1A1612',border:'none',padding:'.9rem',
-                  borderRadius:'2rem',fontFamily:"'Outfit',sans-serif",fontSize:'.95rem',
-                  fontWeight:600,cursor:'pointer'}}>
-                Use my vault only
-              </button>
-              <button onClick={() => generatePlan(true)}
-                style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',
-                  color:'rgba(248,243,236,.7)',padding:'.9rem',borderRadius:'2rem',
-                  fontFamily:"'Outfit',sans-serif",fontSize:'.92rem',cursor:'pointer'}}>
-                Mix in some new recipes ✨
-              </button>
-            </div>
+            <button className="cta-btn" onClick={() => router.push('/plan')}>
+              {planId ? 'Go to plan →' : 'Create this week\'s plan →'}
+            </button>
           </div>
-        </div>
-      )}
+        ) : (
+          <>
+            {/* Tonight's recipe card */}
+            <div className="tonight-card">
+              <div className="tonight-label">
+                <div className="tonight-dot"/>
+                Tonight&apos;s dinner
+              </div>
 
-      {generating && (
-        <div className="generate-wrap">
-          <div className="generating-card">
-            <span className="gen-ico">👵</span>
-            <div className="gen-title">Dot is planning your week...</div>
-            <div className="gen-sub">She&apos;s going through your vault, checking your preferences and blackout days, and building a balanced week of dinners. Takes about 15 seconds.</div>
-          </div>
-        </div>
-      )}
+              <div className="tonight-title" onClick={() => router.push(tonightMeal.id && !tonightMeal.system_recipe_id ? '/vault/' + tonightMeal.id : '#')}>
+                {tonightMeal.title}
+              </div>
 
-      {!generating && !plan && (
-        <div className="generate-wrap">
-          <div className="generate-card">
-            <span className="generate-ico">📅</span>
-            <div className="generate-title">No plan yet for this week</div>
-            <div className="generate-sub">Dot will pick meals from your vault, respect your preferences and blackout days, and build a balanced week of dinners automatically.</div>
-            <button className="generate-btn" onClick={() => generatePlan(null)}>✨ Generate my week →</button>
-          </div>
-        </div>
-      )}
+              <div className="tonight-meta">
+                {tonightMeal.cuisine && (
+                  <div className="tonight-meta-item">🌍 {tonightMeal.cuisine}</div>
+                )}
+                {tonightMeal.total_time_mins && (
+                  <div className="tonight-meta-item">⏱ {tonightMeal.total_time_mins} min</div>
+                )}
+                {ingredients.length > 0 && (
+                  <div className="tonight-meta-item">🧂 {ingredients.length} ingredients</div>
+                )}
+              </div>
 
-      {!generating && plan && (
-        <>
-          <div className="plan-grid">
-            {plan.map(slot => {
-              const tod = isToday(slot.date)
-              return (
-                <div key={slot.date} className="plan-day">
-                  <div className="day-label">
-                    <div className={`day-name${tod ? ' tod' : ''}`}>{slot.dayName?.slice(0,3)}</div>
-                    <div className={`day-date${tod ? ' tod' : ''}`}>{new Date(slot.date + 'T12:00:00').getDate()}</div>
-                  </div>
-                  <div className="day-content">
-                    {slot.is_skipped ? (
-                      <div className="skip-slot">
-                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem'}}>
-                          <div className="skip-label">{slot.skip_reason || '🍕 Eating out / night off'}</div>
-                          {planStatus !== 'confirmed' && (
-                            <button
-                              onClick={() => {
-                                setPlan(prev => prev.map(s =>
-                                  s.date === slot.date
-                                    ? { ...s, is_skipped: false, skip_reason: null }
-                                    : s
-                                ))
-                              }}
-                              style={{background:'none',border:'1px solid rgba(255,255,255,.15)',
-                                borderRadius:'1rem',padding:'.3rem .75rem',fontSize:'.78rem',
-                                color:'rgba(248,243,236,.55)',cursor:'pointer',
-                                fontFamily:"'Outfit',sans-serif",whiteSpace:'nowrap',
-                                transition:'all .2s',flexShrink:0}}>
-                              + Cook instead
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ) : slot.recipe ? (
-                      <div className={`recipe-slot${tod ? ' tonight' : ''}`}>
-                        <div style={{display:'flex',alignItems:'flex-start',gap:'.5rem'}}>
-                          <div style={{flex:1,minWidth:0}}
-                            onClick={async () => {
-                              if (!slot.recipe_id) {
-                                if (slot.recipe) setSysModal(slot.recipe)
-                                return
-                              }
-                              if (String(slot.recipe_id || '').startsWith('sys-') || String(slot.recipe_id || '').startsWith('emg-')) {
-                                // Try to get system_recipe_id from snapshot or recipe_id
-                                const sysId = (slot.recipe?.system_recipe_id) ||
-                                  String(slot.recipe_id).replace('sys-', '')
-                                if (sysId && !sysId.startsWith('emg')) {
-                                  try {
-                                    const sb = getClient()
-                                    const { data: fullRecipe } = await sb.from('system_recipes').select('*').eq('id', sysId).single()
-                                    if (fullRecipe) { setSysModal(fullRecipe); return }
-                                  } catch(e) {}
-                                }
-                                if (slot.recipe) setSysModal(slot.recipe)
-                                return
-                              }
-                              // Open vault recipe in modal instead of navigating away
-                              try {
-                                const sb = getClient()
-                                const { data: vr } = await sb.from('recipes').select('*').eq('id', slot.recipe_id).single()
-                                if (vr) setSysModal({ ...vr, isVaultRecipe: true })
-                              } catch(e) {
-                                router.push('/vault/' + slot.recipe_id)
-                              }
-                            }}>
-                            {tod && <div className="tonight-badge">☀️ Tonight</div>}
-                            <div className="slot-title">{slot.recipe.title}</div>
-                            <div className="slot-meta">
-                              {slot.recipe.cuisine && <span>🌍 {slot.recipe.cuisine}</span>}
-                              {slot.recipe.total_time_mins && <span>⏱ {slot.recipe.total_time_mins} min</span>}
-                              {slot.recipe.is_favorite && <span>❤️ Favorite</span>}
-                              {(!slot.recipe_id || String(slot.recipe_id || '').startsWith('sys-') || String(slot.recipe_id || '').startsWith('emg-')) && (
-                                <span style={{fontSize:'.78rem',color:'rgba(184,135,74,.7)',fontStyle:'italic'}}>✨ Dot</span>
-                              )}
-                            </div>
-                            {slot.start_cooking_at && planStatus === 'confirmed' && (
-                              <span className="slot-cook-time">
-                                Start by {new Date(`2000-01-01T${slot.start_cooking_at}`).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
-                              </span>
-                            )}
-                          </div>
-                          {planStatus !== 'confirmed' && (
-                            <button
-                              onClick={() => swapMeal(slot.date)}
-                              title="Swap this meal"
-                              style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',
-                                borderRadius:'.5rem',padding:'.3rem .55rem',fontSize:'.7rem',
-                                color:'rgba(248,243,236,.4)',cursor:'pointer',transition:'all .2s',
-                                fontFamily:"'Outfit',sans-serif",flexShrink:0,marginTop:'.15rem'}}>
-                              ↺ Swap
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="empty-slot" onClick={() => { setPickerDate(slot.date); setPickerSearch('') }}>
-                        <div className="empty-label">+ Add a meal</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+              {tonightMeal.description && (
+                <p style={{fontSize:'.95rem',color:'rgba(248,243,236,.65)',lineHeight:1.7,marginBottom:'1.25rem'}}>
+                  {tonightMeal.description}
+                </p>
+              )}
 
-          {/* System recipe preview modal */}
-          {sysModal && (
-            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',zIndex:300,
-              display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}
-              onClick={() => setSysModal(null)}>
-              <div style={{background:'#2C2420',borderRadius:'1.5rem',width:'100%',
-                maxWidth:'560px',maxHeight:'85vh',overflow:'auto'}}
-                onClick={e => e.stopPropagation()}>
-                {/* Header */}
-                <div style={{padding:'1.5rem 1.5rem 1rem',borderBottom:'1px solid rgba(255,255,255,.08)',
-                  display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'1rem'}}>
+              {/* Start time */}
+              {startTime && (
+                <div className="start-time-box">
                   <div>
-                    <div style={{fontSize:'.72rem',fontWeight:500,letterSpacing:'.12em',
-                      textTransform:'uppercase',color:'#B8874A',marginBottom:'.4rem'}}>
-                      {sysModal.isVaultRecipe ? '📖 Your Recipe' : '✨ Dot\'s Recipe'}
-                    </div>
-                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.6rem',
-                      color:'#F8F3EC',lineHeight:1.2}}>{sysModal.title}</div>
-                    <div style={{display:'flex',gap:'.75rem',marginTop:'.5rem',flexWrap:'wrap'}}>
-                      {sysModal.cuisine && <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.65)'}}>🌍 {sysModal.cuisine}</span>}
-                      {sysModal.total_time_mins && <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.65)'}}>⏱ {sysModal.total_time_mins} min</span>}
-                      {sysModal.base_servings && <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.65)'}}>👥 Serves {sysModal.base_servings}</span>}
-                    </div>
+                    <div className="start-time-label">Start cooking by</div>
+                    <div className="start-time-value">{startTime}</div>
                   </div>
-                  <button onClick={() => setSysModal(null)}
-                    style={{background:'none',border:'none',color:'rgba(248,243,236,.5)',
-                      fontSize:'1.4rem',cursor:'pointer',lineHeight:1,flexShrink:0}}>✕</button>
+                  <div style={{fontSize:'2rem'}}>🍳</div>
                 </div>
-                {/* Body */}
-                <div style={{padding:'1.25rem 1.5rem'}}>
-                  {sysModal.description && (
-                    <p style={{fontSize:'1rem',color:'rgba(248,243,236,.75)',lineHeight:1.7,marginBottom:'1.25rem'}}>
-                      {sysModal.description}
-                    </p>
-                  )}
-                  {/* Tags */}
-                  {sysModal.tags && sysModal.tags.length > 0 && (
-                    <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem',marginBottom:'1.25rem'}}>
-                      {sysModal.tags.map(function(t) { return (
-                        <span key={t} style={{background:'rgba(255,255,255,.06)',borderRadius:'2rem',
-                          padding:'.25rem .7rem',fontSize:'.82rem',color:'rgba(248,243,236,.65)'}}>
-                          {t}
-                        </span>
-                      )})}
-                    </div>
-                  )}
-                  {/* Ingredients */}
-                  {sysModal.ingredients && sysModal.ingredients.length > 0 && (
-                    <div style={{marginBottom:'1.25rem'}}>
-                      <div style={{fontSize:'.72rem',fontWeight:500,letterSpacing:'.12em',
-                        textTransform:'uppercase',color:'rgba(248,243,236,.45)',marginBottom:'.75rem'}}>
-                        Ingredients
-                      </div>
-                      {sysModal.ingredients.map(function(ing, i) { return (
-                        <div key={i} style={{display:'flex',gap:'.75rem',padding:'.4rem 0',
-                          borderBottom:'1px solid rgba(255,255,255,.05)'}}>
-                          <span style={{fontSize:'.9rem',color:'#B8874A',minWidth:'4rem',flexShrink:0}}>
-                            {ing.amount} {ing.unit}
-                          </span>
-                          <span style={{fontSize:'.95rem',color:'rgba(248,243,236,.88)'}}>
-                            {ing.name}
-                            {ing.notes && <span style={{color:'rgba(248,243,236,.45)',fontStyle:'italic'}}> — {ing.notes}</span>}
-                          </span>
-                        </div>
-                      )})}
-                    </div>
-                  )}
-                  {/* Instructions */}
-                  {sysModal.instructions && sysModal.instructions.length > 0 && (
-                    <div>
-                      <div style={{fontSize:'.72rem',fontWeight:500,letterSpacing:'.12em',
-                        textTransform:'uppercase',color:'rgba(248,243,236,.45)',marginBottom:'.75rem'}}>
-                        Instructions
-                      </div>
-                      {sysModal.instructions.map(function(step, i) { return (
-                        <div key={i} style={{display:'flex',gap:'.85rem',marginBottom:'.85rem'}}>
-                          <div style={{width:'1.75rem',height:'1.75rem',borderRadius:'50%',
-                            background:'rgba(184,135,74,.1)',border:'1px solid rgba(184,135,74,.2)',
-                            display:'flex',alignItems:'center',justifyContent:'center',
-                            fontSize:'.78rem',color:'#B8874A',flexShrink:0,marginTop:'.15rem'}}>
-                            {step.step || i+1}
-                          </div>
-                          <p style={{fontSize:'.97rem',color:'rgba(248,243,236,.85)',lineHeight:1.7,margin:0}}>
-                            {step.text}
-                          </p>
-                        </div>
-                      )})}
-                    </div>
-                  )}
-                  {/* CTA */}
-                  <div style={{marginTop:'1.5rem',padding:'1rem',background:'rgba(184,135,74,.06)',
-                    border:'1px solid rgba(184,135,74,.15)',borderRadius:'1rem',
-                    display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap'}}>
-                    {sysModal.isVaultRecipe ? (
-                      <>
-                        <div style={{fontSize:'.9rem',color:'rgba(248,243,236,.65)'}}>
-                          View the full recipe, edit, or start cooking.
-                        </div>
-                        <div style={{display:'flex',gap:'.75rem',flexWrap:'wrap'}}>
-                          <button
-                            onClick={() => { setSysModal(null); router.push('/vault/' + sysModal.id) }}
-                            style={{background:'#B8874A',color:'#1A1612',border:'none',
-                              padding:'.6rem 1.5rem',borderRadius:'2rem',fontSize:'.9rem',
-                              fontWeight:600,cursor:'pointer',fontFamily:"'Outfit',sans-serif"}}>
-                            View full recipe →
-                          </button>
-                        </div>
-                      </>
+              )}
+
+              {/* Actions */}
+              <div className="tonight-actions">
+                {!rated ? (
+                  <>
+                    {instructions.length > 0 ? (
+                      <button className="action-btn primary" onClick={startCooking}>
+                        👨‍🍳 Start cooking
+                      </button>
                     ) : (
-                      <>
-                        <div style={{fontSize:'.9rem',color:'rgba(248,243,236,.65)'}}>
-                          Like this recipe? Save it to your vault.
-                        </div>
-                        <button
-                          onClick={() => { setSysModal(null); router.push('/vault/add') }}
-                          style={{background:'#B8874A',color:'#1A1612',border:'none',
-                            padding:'.6rem 1.5rem',borderRadius:'2rem',fontSize:'.9rem',
-                            fontWeight:600,cursor:'pointer',fontFamily:"'Outfit',sans-serif"}}>
-                          Add to vault →
-                        </button>
-                      </>
+                      <button className="action-btn primary" onClick={() => setShowRate(true)}>
+                        ✓ Mark as made
+                      </button>
                     )}
+                    <button className="action-btn secondary" onClick={() => setShowSkip(true)}>
+                      🔄 Not tonight
+                    </button>
+                  </>
+                ) : (
+                  <div style={{display:'flex',alignItems:'center',gap:'.75rem',padding:'.75rem 1rem',background:'rgba(143,168,137,.1)',border:'1px solid rgba(143,168,137,.2)',borderRadius:'1rem',flex:1}}>
+                    <span style={{fontSize:'1.25rem'}}>✓</span>
+                    <span style={{fontSize:'.95rem',color:'#8FA889'}}>Dinner logged! Enjoy your meal.</span>
                   </div>
-                </div>
+                )}
               </div>
             </div>
-          )}
 
-          {/* Recipe picker modal */}
-          {pickerDate && (
-            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.8)',zIndex:200,
-              display:'flex',alignItems:'flex-end',justifyContent:'center'}}
-              onClick={() => setPickerDate(null)}>
-              <div style={{background:'#2C2420',borderRadius:'1.5rem 1.5rem 0 0',
-                width:'100%',maxWidth:'640px',maxHeight:'80vh',display:'flex',
-                flexDirection:'column',overflow:'hidden'}}
-                onClick={e => e.stopPropagation()}>
-                {/* Picker header */}
-                <div style={{padding:'1.25rem 1.5rem',borderBottom:'1px solid rgba(255,255,255,.08)',
-                  display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.2rem',color:'#F8F3EC'}}>
-                    Pick a meal
+            {/* Quick ingredients preview */}
+            {ingredients.length > 0 && (
+              <div style={{background:'#2C2420',border:'1px solid rgba(255,255,255,.06)',borderRadius:'1.25rem',padding:'1.5rem',marginBottom:'1rem'}}>
+                <div style={{fontSize:'.7rem',fontWeight:500,letterSpacing:'.15em',textTransform:'uppercase',color:'rgba(248,243,236,.4)',marginBottom:'1rem'}}>
+                  Ingredients
+                </div>
+                {ingredients.slice(0, 6).map((ing, i) => (
+                  <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'.4rem 0',borderBottom:'1px solid rgba(255,255,255,.05)',fontSize:'.95rem'}}>
+                    <span style={{color:'rgba(248,243,236,.82)'}}>{ing.name}</span>
+                    <span style={{color:'#B8874A'}}>{formatAmt(ing)}</span>
                   </div>
-                  <button onClick={() => setPickerDate(null)}
-                    style={{background:'none',border:'none',color:'rgba(248,243,236,.5)',
-                      fontSize:'1.25rem',cursor:'pointer',lineHeight:1}}>✕</button>
+                ))}
+                {ingredients.length > 6 && (
+                  <div style={{fontSize:'.85rem',color:'rgba(248,243,236,.35)',marginTop:'.75rem',textAlign:'center'}}>
+                    +{ingredients.length - 6} more ingredients
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Swap suggestions modal */}
+      {showSwap && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',zIndex:200,
+          display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}
+          onClick={() => setShowSwap(false)}>
+          <div style={{background:'#2C2420',borderRadius:'1.5rem',width:'100%',
+            maxWidth:'520px',maxHeight:'88vh',overflow:'auto'}}
+            onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div style={{padding:'1.5rem 1.5rem 1rem',borderBottom:'1px solid rgba(255,255,255,.07)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'.25rem'}}>
+                <div style={{fontSize:'.7rem',fontWeight:500,letterSpacing:'.15em',
+                  textTransform:'uppercase',color:'#B8874A'}}>✨ Dot suggests</div>
+                <button onClick={() => setShowSwap(false)}
+                  style={{background:'none',border:'none',color:'rgba(248,243,236,.4)',
+                    fontSize:'1.2rem',cursor:'pointer',lineHeight:1}}>✕</button>
+              </div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.5rem',color:'#F8F3EC',marginBottom:'.75rem'}}>
+                Something quick and easy tonight
+              </div>
+              <div style={{display:'flex',gap:'.5rem'}}>
+                <button
+                  onClick={() => setSwapShowAll(false)}
+                  style={{padding:'.3rem .85rem',borderRadius:'2rem',fontSize:'.8rem',cursor:'pointer',
+                    fontFamily:"'Outfit',sans-serif",border:'none',transition:'all .2s',
+                    background: !swapShowAll ? '#B8874A' : 'rgba(255,255,255,.08)',
+                    color: !swapShowAll ? '#1A1612' : 'rgba(248,243,236,.6)'}}>
+                  Under 30 min
+                </button>
+                <button
+                  onClick={() => setSwapShowAll(true)}
+                  style={{padding:'.3rem .85rem',borderRadius:'2rem',fontSize:'.8rem',cursor:'pointer',
+                    fontFamily:"'Outfit',sans-serif",border:'none',transition:'all .2s',
+                    background: swapShowAll ? '#B8874A' : 'rgba(255,255,255,.08)',
+                    color: swapShowAll ? '#1A1612' : 'rgba(248,243,236,.6)'}}>
+                  All recipes
+                </button>
+              </div>
+            </div>
+
+            {/* Suggestions */}
+            <div style={{padding:'1rem 1.25rem'}}>
+              {loadingSwap ? (
+                <div style={{textAlign:'center',padding:'2rem',color:'rgba(248,243,236,.45)'}}>
+                  <div style={{width:20,height:20,border:'2px solid rgba(184,135,74,.2)',
+                    borderTopColor:'#B8874A',borderRadius:'50%',animation:'spin .7s linear infinite',
+                    margin:'0 auto .75rem'}}/>
+                  Finding options...
                 </div>
-                {/* Search */}
-                <div style={{padding:'.75rem 1.5rem',borderBottom:'1px solid rgba(255,255,255,.06)'}}>
-                  <input
-                    type="text"
-                    placeholder="Search your vault..."
-                    value={pickerSearch}
-                    onChange={e => setPickerSearch(e.target.value)}
-                    autoFocus
-                    style={{width:'100%',background:'rgba(255,255,255,.06)',
-                      border:'1px solid rgba(255,255,255,.1)',borderRadius:'2rem',
-                      padding:'.65rem 1.1rem',color:'#F8F3EC',fontFamily:"'Outfit',sans-serif",
-                      fontSize:'1rem',outline:'none'}}
-                  />
-                </div>
-                {/* Recipe list */}
-                <div style={{flex:1,overflowY:'auto',padding:'.5rem .75rem'}}>
-                  {vaultRecipes.length === 0 ? (
-                    <div style={{textAlign:'center',padding:'2rem',color:'rgba(248,243,236,.5)',fontSize:'.97rem'}}>
-                      No recipes in your vault yet.{' '}
-                      <span style={{color:'#B8874A',cursor:'pointer'}}
-                        onClick={() => router.push('/vault/add')}>
-                        Add one →
-                      </span>
-                    </div>
-                  ) : (
-                    vaultRecipes
-                      .filter(r => !pickerSearch ||
-                        r.title.toLowerCase().includes(pickerSearch.toLowerCase()) ||
-                        (r.cuisine && r.cuisine.toLowerCase().includes(pickerSearch.toLowerCase())) ||
-                        (r.tags && r.tags.some(t => t.toLowerCase().includes(pickerSearch.toLowerCase())))
-                      )
-                      .map(r => (
+              ) : (
+                <>
+                  {/* Vault recipes */}
+                  {(() => {
+                    const vaultItems = swapSuggestions.filter(r => !r.isSystem && (swapShowAll || (r.total_time_mins && r.total_time_mins <= 30)))
+                    if (vaultItems.length === 0) return null
+                    return (
+                    <>
+                      <div style={{fontSize:'.68rem',fontWeight:500,letterSpacing:'.14em',
+                        textTransform:'uppercase',color:'rgba(248,243,236,.4)',margin:'.5rem 0 .75rem'}}>
+                        From your vault
+                      </div>
+                      {vaultItems.map(r => (
                         <div key={r.id}
-                          onClick={() => {
-                            setPlan(prev => prev.map(s =>
-                              s.date === pickerDate
-                                ? { ...s, recipe_id: r.id, recipe: r, is_skipped: false, skip_reason: null }
-                                : s
-                            ))
-                            setPickerDate(null)
-                            setPickerSearch('')
-                          }}
+                          onClick={() => applySwap(r)}
                           style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-                            padding:'.85rem 1rem',borderRadius:'.75rem',cursor:'pointer',
-                            transition:'background .15s',marginBottom:'.25rem'}}
-                          onMouseOver={e => e.currentTarget.style.background='rgba(255,255,255,.06)'}
-                          onMouseOut={e => e.currentTarget.style.background='transparent'}>
+                            padding:'.9rem 1rem',borderRadius:'1rem',cursor:'pointer',
+                            marginBottom:'.5rem',background:'rgba(255,255,255,.03)',
+                            border:'1px solid rgba(255,255,255,.06)',transition:'all .15s'}}
+                          onMouseOver={e => e.currentTarget.style.background='rgba(184,135,74,.08)'}
+                          onMouseOut={e => e.currentTarget.style.background='rgba(255,255,255,.03)'}>
                           <div>
-                            <div style={{fontSize:'1rem',color:'#F8F3EC',marginBottom:'.2rem'}}>
-                              {r.is_favorite && '❤️ '}{r.title}
-                            </div>
-                            <div style={{fontSize:'.85rem',color:'rgba(248,243,236,.55)',display:'flex',gap:'.75rem'}}>
+                            <div style={{fontSize:'1rem',color:'#F8F3EC',marginBottom:'.25rem'}}>{r.title}</div>
+                            <div style={{display:'flex',gap:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.5)'}}>
                               {r.cuisine && <span>🌍 {r.cuisine}</span>}
                               {r.total_time_mins && <span>⏱ {r.total_time_mins} min</span>}
                             </div>
                           </div>
-                          <div style={{color:'rgba(184,135,74,.7)',fontSize:.9+'rem',flexShrink:0,marginLeft:'1rem'}}>
-                            Add →
+                          <div style={{color:'#B8874A',fontSize:'.85rem',flexShrink:0,marginLeft:'1rem'}}>
+                            Tonight →
                           </div>
                         </div>
-                      ))
+                      ))}
+                    </>
+                  )})()}
+
+                  {/* System recipes */}
+                  {(() => {
+                    const sysItems = swapSuggestions.filter(r => r.isSystem && (swapShowAll || (r.total_time_mins && r.total_time_mins <= 30)))
+                    if (sysItems.length === 0) return null
+                    return (
+                    <>
+                      <div style={{fontSize:'.68rem',fontWeight:500,letterSpacing:'.14em',
+                        textTransform:'uppercase',color:'rgba(248,243,236,.4)',margin:'1rem 0 .75rem'}}>
+                        ✨ From Dot
+                      </div>
+                      {sysItems.map(r => (
+                        <div key={r.id}
+                          onClick={() => applySwap(r)}
+                          style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                            padding:'.9rem 1rem',borderRadius:'1rem',cursor:'pointer',
+                            marginBottom:'.5rem',background:'rgba(255,255,255,.03)',
+                            border:'1px solid rgba(255,255,255,.06)',transition:'all .15s'}}
+                          onMouseOver={e => e.currentTarget.style.background='rgba(184,135,74,.08)'}
+                          onMouseOut={e => e.currentTarget.style.background='rgba(255,255,255,.03)'}>
+                          <div>
+                            <div style={{fontSize:'1rem',color:'#F8F3EC',marginBottom:'.25rem'}}>{r.title}</div>
+                            <div style={{display:'flex',gap:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.5)'}}>
+                              {r.cuisine && <span>🌍 {r.cuisine}</span>}
+                              {r.total_time_mins && <span>⏱ {r.total_time_mins} min</span>}
+                            </div>
+                          </div>
+                          <div style={{color:'#B8874A',fontSize:'.85rem',flexShrink:0,marginLeft:'1rem'}}>
+                            Tonight →
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )})()}
+
+                  {/* Nothing quick message */}
+                  {!swapShowAll && swapSuggestions.filter(r => r.total_time_mins && r.total_time_mins <= 30).length === 0 && (
+                    <div style={{textAlign:'center',padding:'1.5rem 0',color:'rgba(248,243,236,.45)',fontSize:'.95rem'}}>
+                      No recipes under 30 min found.
+                      <button onClick={() => setSwapShowAll(true)}
+                        style={{display:'block',margin:'.5rem auto 0',background:'none',border:'none',
+                          color:'#B8874A',cursor:'pointer',fontFamily:"'Outfit',sans-serif",fontSize:'.95rem'}}>
+                        Show all recipes →
+                      </button>
+                    </div>
                   )}
-                </div>
+
+                  {/* Search vault CTA */}
+                  <div style={{marginTop:'1.25rem',paddingTop:'1.25rem',
+                    borderTop:'1px solid rgba(255,255,255,.07)',textAlign:'center'}}>
+                    <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.45)',marginBottom:'.75rem'}}>
+                      Don&apos;t see what you want?
+                    </div>
+                    <button
+                      onClick={() => { setShowSwap(false); router.push('/vault') }}
+                      style={{background:'none',border:'1px solid rgba(255,255,255,.15)',
+                        borderRadius:'2rem',padding:'.65rem 1.75rem',
+                        color:'rgba(248,243,236,.75)',fontFamily:"'Outfit',sans-serif",
+                        fontSize:'.95rem',cursor:'pointer',transition:'all .2s'}}
+                      onMouseOver={e => e.currentTarget.style.borderColor='rgba(184,135,74,.4)'}
+                      onMouseOut={e => e.currentTarget.style.borderColor='rgba(255,255,255,.15)'}>
+                      🔍 Search your vault
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rating sheet */}
+      {showRate && (
+        <div className="rate-overlay" onClick={() => setShowRate(false)}>
+          <div className="rate-sheet" onClick={e => e.stopPropagation()}>
+            <div className="rate-title">How was dinner?</div>
+            <div className="rate-sub">{tonightMeal?.title}</div>
+            <div className="rate-btns">
+              <button className="rate-btn" onClick={() => handleRate('love')}>
+                <span className="rate-emoji">😍</span>
+                <span className="rate-label">Loved it</span>
+              </button>
+              <button className="rate-btn" onClick={() => handleRate('ok')}>
+                <span className="rate-emoji">😊</span>
+                <span className="rate-label">It was good</span>
+              </button>
+              <button className="rate-btn" onClick={() => handleRate('meh')}>
+                <span className="rate-emoji">😐</span>
+                <span className="rate-label">Just ok</span>
+              </button>
+              <button className="rate-btn" onClick={() => handleRate('skip')}>
+                <span className="rate-emoji">👎</span>
+                <span className="rate-label">Skip next time</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Skip / Not tonight sheet */}
+      {showSkip && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.8)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}} onClick={() => setShowSkip(false)}>
+          <div style={{background:'#2C2420',borderRadius:'1.5rem',width:'100%',maxWidth:'480px',padding:'2rem'}} onClick={e => e.stopPropagation()}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'#F8F3EC',marginBottom:'.5rem'}}>Not feeling it tonight?</div>
+            <div style={{fontSize:'.92rem',color:'rgba(248,243,236,.5)',marginBottom:'1.5rem'}}>What would you like to do?</div>
+
+            <div className="skip-option" onClick={() => handleSkip('swap')}>
+              <div className="skip-option-icon">🔄</div>
+              <div>
+                <div className="skip-option-title">Swap for something else</div>
+                <div className="skip-option-sub">Pick a different recipe from your vault</div>
               </div>
             </div>
-          )}
 
-          <div className="plan-actions">
-            {planStatus !== 'confirmed' ? (
-              <>
-                <button className="regen-btn" onClick={() => generatePlan(null)} disabled={generating}>↺ Regenerate</button>
-                <button className="confirm-btn" onClick={() => confirmPlan()} disabled={confirming}>
-                  {confirming ? <><span className="sp"/>Saving...</> : '✓ Confirm this week →'}
-                </button>
-              </>
-            ) : (
-              <div style={{display:'flex',gap:'.75rem',flex:1}}>
-                <button
-                  onClick={() => router.push('/grocery')}
-                  style={{flex:1,background:'rgba(184,135,74,.15)',color:'#D4A46A',
-                    border:'1px solid rgba(184,135,74,.3)',borderRadius:'2rem',
-                    padding:'.9rem',fontFamily:"'Outfit',sans-serif",fontSize:'1rem',
-                    fontWeight:600,cursor:'pointer',transition:'all .2s'}}>
-                  🛒 See grocery list
-                </button>
-                <button
-                  onClick={() => {
-                    if (weekOffset >= 3) {
-                      setError('You can only plan up to 4 weeks ahead.')
-                      return
-                    }
-                    setWeekOffset(o => o + 1)
-                    setError('')
-                  }}
-                  className="confirm-btn"
-                  style={{opacity: weekOffset >= 3 ? .5 : 1}}>
-                  Plan next week →
-                </button>
+            <div className="skip-option" onClick={() => handleSkip('never')}>
+              <div className="skip-option-icon">🚫</div>
+              <div>
+                <div className="skip-option-title">Remove from rotation</div>
+                <div className="skip-option-sub">Stop suggesting this recipe in future plans</div>
               </div>
-            )}
+            </div>
+
+            <div className="skip-option" onClick={() => handleSkip('tomorrow')}>
+              <div className="skip-option-icon">📅</div>
+              <div>
+                <div className="skip-option-title">Plans changed tonight</div>
+                <div className="skip-option-sub">Skip tonight, keep the recipe for tomorrow</div>
+              </div>
+            </div>
+
+            <div className="skip-option" onClick={() => setShowSkip(false)}>
+              <div className="skip-option-icon">✕</div>
+              <div>
+                <div className="skip-option-title">Never mind, keep it</div>
+                <div className="skip-option-sub">Stick with tonight&apos;s plan</div>
+              </div>
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   )
