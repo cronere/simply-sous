@@ -130,12 +130,10 @@ h1 em{font-style:italic;color:var(--clay)}
 
 /* DEMO / PHONE MOCKUP */
 .hero-demo{position:relative;z-index:1;opacity:0;animation:up 1s cubic-bezier(.16,1,.3,1) .6s forwards}
-.phones-wrap{display:flex;gap:1.5rem;align-items:flex-start;justify-content:center}
-.phone-unit{display:flex;flex-direction:column;align-items:center;gap:.75rem}
-.phone-label{font-size:.68rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:rgba(184,135,74,.6)}
-.demo-phone{width:195px;background:#111;border-radius:2rem;padding:.4rem;box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 30px 70px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.04)}
-.demo-body{background:#1A1612;border-radius:1.65rem;overflow:hidden}
-.demo-island{width:3.5rem;height:.9rem;background:#000;border-radius:2rem;margin:.5rem auto .3rem;position:relative;z-index:2}
+
+.demo-phone{width:280px;background:#111;border-radius:2.8rem;padding:.5rem;box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 40px 100px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.04)}
+.demo-body{background:#1A1612;border-radius:2.4rem;overflow:hidden}
+.demo-island{width:5.5rem;height:1.4rem;background:#000;border-radius:2rem;margin:.7rem auto .4rem;position:relative;z-index:2}
 .demo-screen{min-height:598px;position:relative}
 
 
@@ -389,10 +387,6 @@ section{padding:8rem 5%;position:relative}
 .demo-slide.active{display:block}
 
 /* RESPONSIVE */
-@media(max-width:1100px){
-  .demo-phone{width:160px}
-  .phones-wrap{gap:1rem}
-}
 @media(max-width:1024px){
   .bento{grid-template-columns:1fr 1fr}
   .c7,.c5,.c4,.c8,.c6,.c12{grid-column:span 1}
@@ -450,10 +444,7 @@ section{padding:8rem 5%;position:relative}
 }
 @media(max-width:480px){
   .hero-btns{flex-direction:column;align-items:center}
-  .demo-phone{width:220px}
-  .phones-wrap{gap:.75rem}
-  .phones-wrap .phone-unit:nth-child(2){margin-top:2rem}
-  .phones-wrap .phone-unit:nth-child(3){display:none}
+  .demo-phone{width:240px}
   .footer-bottom{margin-left:-5%;margin-right:-5%;padding:1.5rem 5%}
 }
 </style>
@@ -502,69 +493,24 @@ const LANDING_HTML = `
       <p class="hero-trial">14 days free · No credit card · Cancel anytime</p>
     </div>
 
-  <!-- 3 Phone demos with real screenshots -->
+  <!-- Single phone with 5 real screenshots -->
   <div class="hero-demo">
-    <div class="phones-wrap">
-
-      <!-- Phone 1: Today + Plan -->
-      <div class="phone-unit">
-        <div class="phone-label">Daily view</div>
-        <div class="demo-phone">
-          <div class="demo-body">
-            <div class="demo-island"></div>
-            <div class="demo-screen">
-              <img src="/screenshots/01_-_Today.jpg" class="demo-slide active" id="p1s0" style="width:100%;display:block"/>
-              <img src="/screenshots/03_-_Plan.jpg" class="demo-slide" id="p1s1" style="width:100%;display:none"/>
-            </div>
-          </div>
-        </div>
-        <div class="demo-nav">
-          <div class="demo-arrow" onclick="ph(1,-1)">&#8592;</div>
-          <div class="demo-counter" id="p1c">1 / 2</div>
-          <div class="demo-arrow" onclick="ph(1,1)">&#8594;</div>
+    <div class="demo-phone">
+      <div class="demo-body">
+        <div class="demo-island"></div>
+        <div class="demo-screen">
+          <img src="/screenshots/01_-_Today.jpg" id="slide0" style="width:100%;display:block"/>
+          <img src="/screenshots/02_-_Vault_-_1.jpg" id="slide1" style="width:100%;display:none"/>
+          <img src="/screenshots/03_-_Plan.jpg" id="slide2" style="width:100%;display:none"/>
+          <img src="/screenshots/05_-_Dot.jpg" id="slide3" style="width:100%;display:none"/>
+          <img src="/screenshots/06_-_Setting_-_7.jpg" id="slide4" style="width:100%;display:none"/>
         </div>
       </div>
-
-      <!-- Phone 2: Vault + Grocery -->
-      <div class="phone-unit" style="margin-top:3rem">
-        <div class="phone-label">Recipe &amp; shopping</div>
-        <div class="demo-phone">
-          <div class="demo-body">
-            <div class="demo-island"></div>
-            <div class="demo-screen">
-              <img src="/screenshots/02_-_Vault_-_1.jpg" class="demo-slide active" id="p2s0" style="width:100%;display:block"/>
-              <img src="/screenshots/02_-_Vault_-_2.jpg" class="demo-slide" id="p2s1" style="width:100%;display:none"/>
-              <img src="/screenshots/04_-_Grocery.jpg" class="demo-slide" id="p2s2" style="width:100%;display:none"/>
-            </div>
-          </div>
-        </div>
-        <div class="demo-nav">
-          <div class="demo-arrow" onclick="ph(2,-1)">&#8592;</div>
-          <div class="demo-counter" id="p2c">1 / 3</div>
-          <div class="demo-arrow" onclick="ph(2,1)">&#8594;</div>
-        </div>
-      </div>
-
-      <!-- Phone 3: Dot + Settings -->
-      <div class="phone-unit">
-        <div class="phone-label">AI + personalization</div>
-        <div class="demo-phone">
-          <div class="demo-body">
-            <div class="demo-island"></div>
-            <div class="demo-screen">
-              <img src="/screenshots/05_-_Dot.jpg" class="demo-slide active" id="p3s0" style="width:100%;display:block"/>
-              <img src="/screenshots/06_-_Setting_-_1.jpg" class="demo-slide" id="p3s1" style="width:100%;display:none"/>
-              <img src="/screenshots/06_-_Setting_-_7.jpg" class="demo-slide" id="p3s2" style="width:100%;display:none"/>
-            </div>
-          </div>
-        </div>
-        <div class="demo-nav">
-          <div class="demo-arrow" onclick="ph(3,-1)">&#8592;</div>
-          <div class="demo-counter" id="p3c">1 / 3</div>
-          <div class="demo-arrow" onclick="ph(3,1)">&#8594;</div>
-        </div>
-      </div>
-
+    </div>
+    <div class="demo-nav">
+      <div class="demo-arrow" onclick="prevSlide()">&#8592;</div>
+      <div class="demo-counter" id="demoCounter">1 / 5</div>
+      <div class="demo-arrow" onclick="nextSlide()">&#8594;</div>
     </div>
   </div>
   </div>
@@ -572,16 +518,15 @@ const LANDING_HTML = `
 
 <script>
 (function() {
-  var state = {1:{cur:0,n:2}, 2:{cur:0,n:3}, 3:{cur:0,n:3}};
-  window.ph = function(phone, dir) {
-    var s = state[phone];
-    var prev = s.cur;
-    s.cur = ((s.cur + dir) % s.n + s.n) % s.n;
-    var prefix = 'p' + phone + 's';
-    document.getElementById(prefix + prev).style.display = 'none';
-    document.getElementById(prefix + s.cur).style.display = 'block';
-    document.getElementById('p' + phone + 'c').textContent = (s.cur + 1) + ' / ' + s.n;
-  };
+  var cur = 0, n = 5;
+  window.nextSlide = function() { go(cur + 1); };
+  window.prevSlide = function() { go(cur - 1); };
+  function go(to) {
+    document.getElementById('slide' + cur).style.display = 'none';
+    cur = ((to % n) + n) % n;
+    document.getElementById('slide' + cur).style.display = 'block';
+    document.getElementById('demoCounter').textContent = (cur + 1) + ' / ' + n;
+  }
 })();
 </script>
 
