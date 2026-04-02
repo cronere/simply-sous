@@ -130,7 +130,7 @@ h1 em{font-style:italic;color:var(--clay)}
 
 /* DEMO / PHONE MOCKUP */
 .hero-demo{position:relative;z-index:1;opacity:0;animation:up 1s cubic-bezier(.16,1,.3,1) .6s forwards}
-.demo-phone{width:280px;margin:0 auto;background:#111;border-radius:2.8rem;padding:.5rem;box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 40px 100px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.04)}
+.demo-phone{width:322px;margin:0 auto;background:#111;border-radius:2.8rem;padding:.5rem;box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 40px 100px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.04)}
 .demo-body{background:#1A1612;border-radius:2.4rem;overflow:hidden}
 .demo-island{width:5.5rem;height:1.4rem;background:#000;border-radius:2rem;margin:.7rem auto .4rem;position:relative;z-index:2}
 .demo-screen{min-height:520px;position:relative}
@@ -177,9 +177,10 @@ h1 em{font-style:italic;color:var(--clay)}
 .ds-msg.a strong{color:var(--clay);font-weight:500}
 
 /* Slide dots */
-.demo-dots{display:flex;gap:.75rem;justify-content:center;margin-top:1.25rem;padding:.5rem}
-.demo-dot{width:.65rem;height:.65rem;border-radius:50%;background:rgba(255,255,255,.15);transition:background .3s,transform .3s;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:.5rem;box-sizing:content-box}
-.demo-dot.active{background:var(--clay);transform:scale(1.2)}
+.demo-nav{display:flex;align-items:center;justify-content:center;gap:1rem;margin-top:1rem}
+.demo-arrow{width:2.2rem;height:2.2rem;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(248,243,236,.7);font-size:.85rem;transition:all .2s;-webkit-tap-highlight-color:transparent;user-select:none}
+.demo-arrow:hover{background:rgba(184,135,74,.2);border-color:rgba(184,135,74,.4);color:#B8874A}
+.demo-counter{font-size:.75rem;color:rgba(248,243,236,.3);letter-spacing:.08em;min-width:2.5rem;text-align:center}
 .iphone-home{width:3.5rem;height:.3rem;background:rgba(255,255,255,.18);border-radius:1rem;margin:.55rem auto}
 
 /* TRUST BAR */
@@ -380,8 +381,9 @@ section{padding:8rem 5%;position:relative}
 .overlay.open{opacity:1;pointer-events:all}
 .mob-close{position:absolute;top:1.5rem;right:1.5rem;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(248,243,236,.4);font-size:1.2rem}
 
-/* Demo animation */
-@keyframes slideDemo{0%,30%{opacity:1;transform:translateY(0)}35%,65%{opacity:0;transform:translateY(-8px)}70%,100%{opacity:0;transform:translateY(8px)}}
+/* Demo */
+.demo-slide{position:absolute;inset:0;transition:opacity .5s ease;opacity:0;pointer-events:none}
+.demo-slide.active{opacity:1;pointer-events:all;position:relative}
 
 /* RESPONSIVE */
 @media(max-width:1024px){
@@ -441,7 +443,7 @@ section{padding:8rem 5%;position:relative}
 }
 @media(max-width:480px){
   .hero-btns{flex-direction:column;align-items:center}
-  .demo-phone{width:240px}
+  .demo-phone{width:260px}
   .footer-bottom{margin-left:-5%;margin-right:-5%;padding:1.5rem 5%}
 }
 </style>
@@ -556,10 +558,10 @@ const LANDING_HTML = `
         </div>
       </div>
     </div>
-    <div class="demo-dots">
-      <div class="demo-dot active" id="dot0" onclick="goSlide(0)"></div>
-      <div class="demo-dot" id="dot1" onclick="goSlide(1)"></div>
-      <div class="demo-dot" id="dot2" onclick="goSlide(2)"></div>
+    <div class="demo-nav">
+      <div class="demo-arrow" onclick="prevSlide()">&#8592;</div>
+      <div class="demo-counter" id="demoCounter">1 / 3</div>
+      <div class="demo-arrow" onclick="nextSlide()">&#8594;</div>
     </div>
   </div>
   </div>
@@ -567,17 +569,20 @@ const LANDING_HTML = `
 
 <script>
 var currentSlide = 0;
-var slideTimer;
-function goSlide(n) {
-  document.getElementById('slide' + currentSlide).classList.remove('active');
-  document.getElementById('dot' + currentSlide).classList.remove('active');
-  currentSlide = n;
-  document.getElementById('slide' + n).classList.add('active');
-  document.getElementById('dot' + n).classList.add('active');
-  clearInterval(slideTimer);
-  slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
+var total = 3;
+function showSlide(n) {
+  for (var i = 0; i < total; i++) {
+    var el = document.getElementById('slide' + i);
+    if (el) el.classList.remove('active');
+  }
+  currentSlide = (n + total) % total;
+  var active = document.getElementById('slide' + currentSlide);
+  if (active) active.classList.add('active');
+  var counter = document.getElementById('demoCounter');
+  if (counter) counter.textContent = (currentSlide + 1) + ' / ' + total;
 }
-slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
+function nextSlide() { showSlide(currentSlide + 1); }
+function prevSlide() { showSlide(currentSlide - 1); }
 </script>
 
 <!-- TRUST BAR -->
