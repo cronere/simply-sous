@@ -22,8 +22,15 @@ function toDateStr(date) {
 }
 
 export async function GET(request) {
+  const { searchParams } = new URL(request.url)
+  const isTest = searchParams.get('test') === 'true'
+
+  // Allow test mode with just the cron secret as a query param
   const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const querySecret = searchParams.get('secret')
+  const validAuth = authHeader === `Bearer ${process.env.CRON_SECRET}` || querySecret === process.env.CRON_SECRET
+
+  if (!validAuth) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
