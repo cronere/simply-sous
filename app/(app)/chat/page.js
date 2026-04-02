@@ -59,6 +59,19 @@ const css = `
   @keyframes spin{to{transform:rotate(360deg)}}
   .save-toast{position:fixed;bottom:6rem;left:50%;transform:translateX(-50%);background:#8FA889;color:#1A1612;padding:.6rem 1.5rem;border-radius:2rem;font-size:.9rem;font-weight:500;z-index:100;animation:toastIn .3s ease}
   @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+  .recipe-preview-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem}
+  .recipe-preview-modal{background:#2C2420;border-radius:1.5rem;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;display:flex;flex-direction:column}
+  .recipe-preview-hd{padding:1.5rem 1.5rem 1rem;border-bottom:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;position:sticky;top:0;background:#2C2420;z-index:1}
+  .recipe-preview-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:#F8F3EC;line-height:1.2}
+  .recipe-preview-body{padding:1.25rem 1.5rem 1.5rem;flex:1}
+  .recipe-preview-meta{display:flex;gap:1rem;font-size:.88rem;color:rgba(248,243,236,.55);margin-bottom:1rem;flex-wrap:wrap}
+  .recipe-preview-desc{font-size:.97rem;color:rgba(248,243,236,.75);line-height:1.7;margin-bottom:1.25rem}
+  .recipe-section-label{font-size:.7rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:rgba(248,243,236,.4);margin-bottom:.65rem}
+  .recipe-ingredient{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.92rem}
+  .recipe-step{padding:.75rem 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .recipe-step-num{font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#B8874A;margin-bottom:.3rem}
+  .recipe-step-text{font-size:.92rem;color:rgba(248,243,236,.82);line-height:1.65}
+  .recipe-preview-footer{padding:1rem 1.5rem;border-top:1px solid rgba(255,255,255,.07);display:flex;gap:.75rem;position:sticky;bottom:0;background:#2C2420}
 `
 
 const SUGGESTIONS = [
@@ -99,6 +112,9 @@ export default function DotPage() {
   const [vaultTitles, setVaultTitles] = useState([])
   const [savedRecipes, setSavedRecipes] = useState({})
   const [toast, setToast] = useState(null)
+  const [previewRecipe, setPreviewRecipe] = useState(null)
+  const [previewSaveKey, setPreviewSaveKey] = useState(null)
+  const [fetchingPreview, setFetchingPreview] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -243,6 +259,34 @@ RESPONSE RULES:
     setLoading(false)
   }
 
+  const openPreview = async (recipe, msgIdx, recipeIdx) => {
+    const key = msgIdx + '-' + recipeIdx
+    setPreviewSaveKey(key)
+    setFetchingPreview(true)
+
+    // If vault recipe, fetch full details
+    if (recipe.source === 'vault' && recipe.vault_id) {
+      const sb = getClient()
+      const { data } = await sb
+        .from('recipes')
+        .select('*')
+        .eq('id', recipe.vault_id)
+        .single()
+      setPreviewRecipe(data ? { ...data, source: 'vault', vault_id: recipe.vault_id } : recipe)
+    } else if (recipe.system_recipe_id) {
+      const sb = getClient()
+      const { data } = await sb
+        .from('system_recipes')
+        .select('*')
+        .eq('id', recipe.system_recipe_id)
+        .single()
+      setPreviewRecipe(data ? { ...data, source: 'new' } : recipe)
+    } else {
+      setPreviewRecipe(recipe)
+    }
+    setFetchingPreview(false)
+  }
+
   const saveRecipe = async (recipe, msgIdx, recipeIdx) => {
     const key = msgIdx + '-' + recipeIdx
     if (savedRecipes[key]) return
@@ -385,19 +429,20 @@ RESPONSE RULES:
                           </p>
                         )}
                         <div className="recipe-card-actions">
-                          {recipe.source === 'vault' ? (
-                            <button className="recipe-card-btn view"
-                              onClick={() => router.push('/vault/' + recipe.vault_id)}>
-                              View recipe →
-                            </button>
-                          ) : saveState === 'saved' ? (
-                            <button className="recipe-card-btn saved">✓ Saved to vault</button>
-                          ) : (
-                            <button className="recipe-card-btn save"
-                              onClick={() => saveRecipe(recipe, msgIdx, recipeIdx)}
-                              disabled={saveState === 'saving'}>
-                              {saveState === 'saving' ? 'Saving...' : '+ Save to vault'}
-                            </button>
+                          <button className="recipe-card-btn view"
+                            onClick={() => openPreview(recipe, msgIdx, recipeIdx)}>
+                            View recipe →
+                          </button>
+                          {recipe.source !== 'vault' && (
+                            saveState === 'saved' ? (
+                              <button className="recipe-card-btn saved">✓ Saved</button>
+                            ) : (
+                              <button className="recipe-card-btn save"
+                                onClick={() => saveRecipe(recipe, msgIdx, recipeIdx)}
+                                disabled={saveState === 'saving'}>
+                                {saveState === 'saving' ? '...' : '+ Save'}
+                              </button>
+                            )
                           )}
                         </div>
                       </div>
@@ -454,6 +499,116 @@ RESPONSE RULES:
       </div>
 
       {toast && <div className="save-toast">{toast}</div>}
+
+      {/* Recipe Preview Modal */}
+      {previewRecipe && (
+        <div className="recipe-preview-overlay" onClick={() => setPreviewRecipe(null)}>
+          <div className="recipe-preview-modal" onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div className="recipe-preview-hd">
+              <div>
+                <div style={{fontSize:'.7rem',fontWeight:500,letterSpacing:'.14em',textTransform:'uppercase',color:'#B8874A',marginBottom:'.35rem'}}>
+                  {previewRecipe.source === 'vault' ? '📖 In your vault' : '✨ From Dot'}
+                </div>
+                <div className="recipe-preview-title">{previewRecipe.title}</div>
+              </div>
+              <button onClick={() => setPreviewRecipe(null)}
+                style={{background:'none',border:'none',color:'rgba(248,243,236,.4)',fontSize:'1.3rem',cursor:'pointer',flexShrink:0,lineHeight:1}}>
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="recipe-preview-body">
+              <div className="recipe-preview-meta">
+                {previewRecipe.cuisine && <span>🌍 {previewRecipe.cuisine}</span>}
+                {previewRecipe.total_time_mins && <span>⏱ {previewRecipe.total_time_mins} min</span>}
+                {previewRecipe.base_servings && <span>👥 Serves {previewRecipe.base_servings}</span>}
+              </div>
+
+              {previewRecipe.description && (
+                <div className="recipe-preview-desc">{previewRecipe.description}</div>
+              )}
+
+              {/* Ingredients */}
+              {previewRecipe.ingredients && previewRecipe.ingredients.length > 0 && (
+                <div style={{marginBottom:'1.5rem'}}>
+                  <div className="recipe-section-label">Ingredients</div>
+                  {previewRecipe.ingredients.map((ing, i) => (
+                    <div key={i} className="recipe-ingredient">
+                      <span style={{color:'rgba(248,243,236,.85)'}}>{ing.name}</span>
+                      <span style={{color:'#B8874A',textAlign:'right',marginLeft:'1rem'}}>
+                        {[ing.amount, ing.unit].filter(Boolean).join(' ')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Instructions */}
+              {previewRecipe.instructions && previewRecipe.instructions.length > 0 && (
+                <div>
+                  <div className="recipe-section-label">Instructions</div>
+                  {previewRecipe.instructions.map((step, i) => (
+                    <div key={i} className="recipe-step">
+                      <div className="recipe-step-num">Step {i + 1}</div>
+                      <div className="recipe-step-text">{step.text || step}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(!previewRecipe.ingredients || previewRecipe.ingredients.length === 0) &&
+               (!previewRecipe.instructions || previewRecipe.instructions.length === 0) && (
+                <div style={{color:'rgba(248,243,236,.45)',fontSize:'.95rem',textAlign:'center',padding:'2rem 0'}}>
+                  Full recipe details not available yet.<br/>Save to your vault to add them.
+                </div>
+              )}
+            </div>
+
+            {/* Footer actions */}
+            <div className="recipe-preview-footer">
+              <button onClick={() => setPreviewRecipe(null)}
+                style={{flex:1,padding:'.8rem',border:'1px solid rgba(255,255,255,.12)',borderRadius:'2rem',
+                  background:'none',color:'rgba(248,243,236,.65)',fontFamily:"'Outfit',sans-serif",
+                  fontSize:'.97rem',cursor:'pointer'}}>
+                ← Back to chat
+              </button>
+              {previewRecipe.source === 'vault' ? (
+                <button
+                  onClick={() => { setPreviewRecipe(null); router.push('/vault/' + previewRecipe.vault_id) }}
+                  style={{flex:1,padding:'.8rem',background:'#B8874A',color:'#1A1612',border:'none',
+                    borderRadius:'2rem',fontFamily:"'Outfit',sans-serif",fontSize:'.97rem',
+                    fontWeight:600,cursor:'pointer'}}>
+                  Open in vault →
+                </button>
+              ) : (
+                savedRecipes[previewSaveKey] === 'saved' ? (
+                  <button style={{flex:1,padding:'.8rem',background:'rgba(143,168,137,.2)',color:'#8FA889',
+                    border:'none',borderRadius:'2rem',fontFamily:"'Outfit',sans-serif",fontSize:'.97rem',cursor:'default'}}>
+                    ✓ Saved to vault
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      const [msgIdx, recipeIdx] = previewSaveKey.split('-').map(Number)
+                      const msg = messages[msgIdx]
+                      const recipe = msg?.recipes?.[recipeIdx]
+                      if (recipe) await saveRecipe(recipe, msgIdx, recipeIdx)
+                      setPreviewRecipe(null)
+                    }}
+                    style={{flex:1,padding:'.8rem',background:'#B8874A',color:'#1A1612',border:'none',
+                      borderRadius:'2rem',fontFamily:"'Outfit',sans-serif",fontSize:'.97rem',
+                      fontWeight:600,cursor:'pointer'}}>
+                    + Save to vault
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
