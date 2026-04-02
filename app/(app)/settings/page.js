@@ -43,10 +43,10 @@ const css = `
   .s-chip.danger.active{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#EF4444}
   .s-chip.day.active{background:rgba(143,168,137,.12);border-color:rgba(143,168,137,.3);color:#8FA889}
   .s-tags-input{display:flex;gap:.5rem;margin-bottom:.65rem}
-  .s-tags-input input{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:.75rem;padding:.6rem .9rem;color:#F8F3EC;font-family:'Outfit',sans-serif;font-size:1rem;outline:none}
+  .s-tags-input input{flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:.75rem;padding:.6rem .9rem;color:#F8F3EC;font-family:'Outfit',sans-serif;font-size:1rem;outline:none}
   .s-tags-input input:focus{border-color:rgba(184,135,74,.4)}
   .s-tags-input input::placeholder{color:rgba(248,243,236,.25)}
-  .s-add-btn{background:rgba(184,135,74,.15);border:1px solid rgba(184,135,74,.3);color:#B8874A;border-radius:.75rem;padding:.6rem 1rem;font-family:'Outfit',sans-serif;font-size:.9rem;cursor:pointer;white-space:nowrap;transition:all .2s}
+  .s-add-btn{background:rgba(184,135,74,.15);border:1px solid rgba(184,135,74,.3);color:#B8874A;border-radius:.75rem;padding:.6rem 1rem;font-family:'Outfit',sans-serif;font-size:.9rem;cursor:pointer;white-space:nowrap;transition:all .2s;flex-shrink:0}
   .s-add-btn:hover{background:rgba(184,135,74,.25)}
   .s-tag{display:flex;align-items:center;gap:.4rem;padding:.3rem .75rem;border-radius:2rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font-size:.85rem;color:rgba(248,243,236,.75)}
   .s-tag-remove{background:none;border:none;color:rgba(248,243,236,.4);cursor:pointer;font-size:.9rem;line-height:1;padding:0;transition:color .2s}
