@@ -91,6 +91,13 @@ export default function SettingsPage() {
   // Blackout days
   const [blackoutDays, setBlackoutDays] = useState([])
 
+  // Family members
+  const [familyMembers, setFamilyMembers] = useState([])
+  const [showAddMember, setShowAddMember] = useState(false)
+  const [newMemberName, setNewMemberName] = useState('')
+  const [newMemberMonth, setNewMemberMonth] = useState(1)
+  const [newMemberYear, setNewMemberYear] = useState(new Date().getFullYear() - 5)
+
   // Tag inputs
   const [newDisliked, setNewDisliked] = useState('')
   const [newPantry, setNewPantry] = useState('')
@@ -141,6 +148,9 @@ export default function SettingsPage() {
     if (blackoutRes.data) {
       setBlackoutDays(blackoutRes.data.map(b => b.day_of_week))
     }
+
+    const membersRes = await sb.from('family_members').select('*').eq('profile_id', uid).order('birth_year', { ascending: true })
+    if (membersRes.data) setFamilyMembers(membersRes.data)
   }
 
   const saveSettings = async () => {
@@ -170,6 +180,8 @@ export default function SettingsPage() {
       }, { onConflict: 'profile_id' }),
     ])
 
+    // Family members are saved individually via add/remove — no batch save needed
+
     // Update blackout days — delete and re-insert
     await sb.from('blackout_days').delete().eq('profile_id', userId)
     if (blackoutDays.length > 0) {
@@ -181,6 +193,43 @@ export default function SettingsPage() {
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
+  }
+
+  const getAge = (month, year) => {
+    const now = new Date()
+    let age = now.getFullYear() - year
+    if (now.getMonth() + 1 < month) age--
+    return Math.max(0, age)
+  }
+
+  const getMemberLabel = (m) => {
+    const age = getAge(m.birth_month, m.birth_year)
+    return m.name || ('Child · ' + age + ' yr' + (age !== 1 ? 's' : ''))
+  }
+
+  const addFamilyMember = async () => {
+    if (!userId) return
+    const sb = getClient()
+    const { data } = await sb.from('family_members').insert({
+      profile_id: userId,
+      name: newMemberName.trim() || null,
+      birth_month: newMemberMonth,
+      birth_year: newMemberYear,
+      is_child: true,
+    }).select().single()
+    if (data) {
+      setFamilyMembers(prev => [...prev, data])
+      setNewMemberName('')
+      setNewMemberMonth(1)
+      setNewMemberYear(new Date().getFullYear() - 5)
+      setShowAddMember(false)
+    }
+  }
+
+  const removeFamilyMember = async (id) => {
+    const sb = getClient()
+    await sb.from('family_members').delete().eq('id', id)
+    setFamilyMembers(prev => prev.filter(m => m.id !== id))
   }
 
   const signOut = async () => {
@@ -414,6 +463,99 @@ export default function SettingsPage() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Family Members */}
+        <div className="s-section">
+          <div className="s-section-hd">
+            <span className="s-section-icon">👶</span>
+            <span className="s-section-title">Children in Your Household</span>
+          </div>
+          <div className="s-section-body">
+            <div style={{fontSize:'.85rem',color:'rgba(248,243,236,.5)',marginBottom:'1rem',lineHeight:1.6}}>
+              Adding children helps us suggest kid-friendly meals and adjust portions. Names are optional — we&apos;ll use their age instead.
+            </div>
+
+            {/* Existing members */}
+            {familyMembers.map(m => {
+              const age = getAge(m.birth_month, m.birth_year)
+              return (
+                <div key={m.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                  padding:'.75rem 1rem',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',
+                  borderRadius:'.85rem',marginBottom:'.5rem'}}>
+                  <div>
+                    <div style={{fontSize:'.97rem',color:'#F8F3EC'}}>{getMemberLabel(m)}</div>
+                    <div style={{fontSize:'.82rem',color:'rgba(248,243,236,.45)',marginTop:'.1rem'}}>
+                      {age < 3 ? 'Toddler — very simple foods' :
+                       age < 6 ? 'Young child — mild flavors' :
+                       age < 13 ? 'Kid — classic kid-friendly meals' :
+                       'Teen — nearly adult portions'}
+                    </div>
+                  </div>
+                  <button onClick={() => removeFamilyMember(m.id)}
+                    style={{background:'none',border:'none',color:'rgba(248,243,236,.35)',
+                      cursor:'pointer',fontSize:'1.1rem',padding:'.25rem',transition:'color .2s'}}
+                    onMouseOver={e => e.currentTarget.style.color='#EF4444'}
+                    onMouseOut={e => e.currentTarget.style.color='rgba(248,243,236,.35)'}>
+                    ×
+                  </button>
+                </div>
+              )
+            })}
+
+            {/* Add member form */}
+            {showAddMember ? (
+              <div style={{background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',borderRadius:'1rem',padding:'1.1rem',marginTop:'.5rem'}}>
+                <div style={{fontSize:'.8rem',fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'rgba(248,243,236,.45)',marginBottom:'.75rem'}}>Add a child</div>
+                <div style={{marginBottom:'.75rem'}}>
+                  <div className="s-label">Name (optional)</div>
+                  <input className="s-input" placeholder="Leave blank for privacy"
+                    value={newMemberName} onChange={e => setNewMemberName(e.target.value)} />
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.75rem',marginBottom:'1rem'}}>
+                  <div>
+                    <div className="s-label">Birth Month</div>
+                    <select className="s-input" value={newMemberMonth} onChange={e => setNewMemberMonth(+e.target.value)}>
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => (
+                        <option key={i} value={i+1}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <div className="s-label">Birth Year</div>
+                    <select className="s-input" value={newMemberYear} onChange={e => setNewMemberYear(+e.target.value)}>
+                      {Array.from({length: 20}, (_,i) => new Date().getFullYear() - i).map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:'.5rem'}}>
+                  <button onClick={addFamilyMember}
+                    style={{flex:1,background:'#B8874A',color:'#1A1612',border:'none',borderRadius:'2rem',
+                      padding:'.7rem',fontFamily:"'Outfit',sans-serif",fontSize:'.95rem',fontWeight:600,cursor:'pointer'}}>
+                    Add child
+                  </button>
+                  <button onClick={() => setShowAddMember(false)}
+                    style={{background:'none',border:'1px solid rgba(255,255,255,.1)',borderRadius:'2rem',
+                      padding:'.7rem 1.1rem',color:'rgba(248,243,236,.55)',fontFamily:"'Outfit',sans-serif",
+                      fontSize:'.95rem',cursor:'pointer'}}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setShowAddMember(true)}
+                style={{width:'100%',background:'none',border:'1px dashed rgba(255,255,255,.15)',
+                  borderRadius:'.85rem',padding:'.8rem',color:'rgba(248,243,236,.45)',
+                  fontFamily:"'Outfit',sans-serif",fontSize:'.95rem',cursor:'pointer',
+                  transition:'all .2s',marginTop: familyMembers.length > 0 ? '.5rem' : 0}}
+                onMouseOver={e => {e.currentTarget.style.borderColor='rgba(184,135,74,.3)';e.currentTarget.style.color='#B8874A'}}
+                onMouseOut={e => {e.currentTarget.style.borderColor='rgba(255,255,255,.15)';e.currentTarget.style.color='rgba(248,243,236,.45)'}}>
+                + Add a child
+              </button>
+            )}
           </div>
         </div>
 
