@@ -348,17 +348,17 @@ section{padding:8rem 5%;position:relative}
 
 /* FOOTER CTA */
 .footer-cta{background:var(--ink);padding:9rem 5% 4rem;position:relative;overflow:hidden}
-.footer-cta::before{content:'SS';position:absolute;font-family:'Cormorant Garamond',serif;font-size:30vw;font-weight:600;color:rgba(255,255,255,.018);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;letter-spacing:-.05em;line-height:1}
+.footer-cta::before{display:none}
 .footer-cta-inner{position:relative;z-index:1;text-align:center}
 .footer-cta-t{font-family:'Cormorant Garamond',serif;font-size:clamp(3rem,8vw,6rem);font-weight:300;color:var(--parchment);line-height:.9;margin:1.5rem 0 1.25rem;letter-spacing:-.02em}
 .footer-cta-t em{font-style:italic;color:var(--clay)}
 .footer-cta-sub{font-size:1.1rem;color:rgba(248,243,236,.38);margin-bottom:2.75rem;line-height:1.7}
-.footer-bottom{margin-top:7rem;padding-top:1.75rem;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1.5rem}
-.f-logo{font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-weight:600;color:var(--parchment)}
+.footer-bottom{margin-top:7rem;background:rgba(0,0,0,.25);margin-left:-5%;margin-right:-5%;padding:1.75rem 5%;border-top:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem}
+.f-logo{font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:600;color:var(--parchment)}
 .f-logo span{color:var(--clay);font-style:italic}
-.f-tag{font-size:.8rem;color:rgba(248,243,236,.35);letter-spacing:.04em}
-.f-links{display:flex;gap:2rem}
-.f-links a{font-size:.9rem;color:rgba(248,243,236,.45);text-decoration:none;transition:color .2s}
+.f-tag{font-size:.78rem;color:rgba(248,243,236,.28);letter-spacing:.04em}
+.f-links{display:flex;gap:1.75rem;align-items:center}
+.f-links a{font-size:.82rem;color:rgba(248,243,236,.4);text-decoration:none;transition:color .2s}
 .f-links a:hover{color:var(--parchment)}
 
 /* ANIMATIONS */
@@ -409,16 +409,22 @@ section{padding:8rem 5%;position:relative}
   .footer-bottom{flex-direction:column;align-items:center;text-align:center}
   .f-links{justify-content:center}
   .trust{gap:1.25rem}
-  .ov,.ov-d{justify-content:center}
-  .sh,.sh-d{text-align:center}
-  .sp,.sp-d{text-align:center}
-  section > .section-inner > div > .ov,
-  section > .section-inner > div > .sh,
-  section > .section-inner > div > .sh-d{text-align:center}
+  .ov,.ov-d{justify-content:center !important}
+  .sh,.sh-d,.sp,.sp-d{text-align:center !important}
+  .section-inner .reveal > .ov,
+  .section-inner .reveal > .sh,
+  .section-inner .reveal > .sh-d,
+  .section-inner > .reveal > p{text-align:center !important}
+  .problem-grid p,.dot-grid p,.family-grid p{text-align:center}
+  .footer-bottom{flex-direction:column;align-items:center;text-align:center;gap:.75rem}
+  .f-links{justify-content:center}
+  .trust{gap:1rem;padding:1.2rem 5%}
+  .trust-item{font-size:.85rem}
 }
 @media(max-width:480px){
   .hero-btns{flex-direction:column;align-items:center}
   .demo-phone{width:240px}
+  .footer-bottom{margin-left:-5%;margin-right:-5%;padding:1.5rem 5%}
 }
 </style>
 `
@@ -951,17 +957,11 @@ slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
     </div>
   </div>
   <div class="footer-bottom">
-    <div style="display:flex;align-items:center;gap:1rem">
-      <div class="f-logo">Simply <span>Sous</span></div>
-      <div style="width:1px;height:1rem;background:rgba(255,255,255,.12)"></div>
-      <div class="f-tag">© 2026 Inboxx Digital, LLC</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:2rem">
-      <div class="f-tag">Dinner, decided.</div>
-      <div class="f-links">
-        <a href="/privacy">Privacy</a>
-        <a href="/terms">Terms</a>
-      </div>
+    <div class="f-logo">Simply <span>Sous</span></div>
+    <div class="f-tag">© 2026 Inboxx Digital, LLC · Dinner, decided.</div>
+    <div class="f-links">
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
     </div>
   </div>
 `
