@@ -112,7 +112,7 @@ nav.scrolled{background:rgba(26,22,18,.95);backdrop-filter:blur(20px);padding:1r
 .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8rem 5% 5rem;position:relative;overflow:hidden}
 .hero-bg{position:absolute;inset:0;background:radial-gradient(ellipse 90% 70% at 50% 0%,rgba(184,135,74,.12) 0%,transparent 65%),radial-gradient(ellipse 40% 40% at 80% 90%,rgba(192,92,48,.08) 0%,transparent 55%)}
 .hero-grain{position:absolute;inset:0;opacity:.25;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");pointer-events:none}
-.hero-layout{position:relative;z-index:1;display:grid;grid-template-columns:1fr auto;gap:5rem;align-items:center;max-width:1200px;margin:0 auto;width:100%}
+.hero-layout{position:relative;z-index:1;display:grid;grid-template-columns:1fr auto;gap:2rem;align-items:center;max-width:1000px;margin:0 auto;width:100%}
 .hero-inner{text-align:left}
 .eyebrow{display:inline-flex;align-items:center;gap:.6rem;font-size:.78rem;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--clay);margin-bottom:2rem;opacity:0;animation:up .9s cubic-bezier(.16,1,.3,1) .2s forwards}
 .eyebrow::before,.eyebrow::after{content:'';width:2rem;height:1px;background:var(--clay);opacity:.5}
@@ -517,17 +517,15 @@ const LANDING_HTML = `
 </section>
 
 <script>
-(function() {
-  var cur = 0, n = 5;
-  window.nextSlide = function() { go(cur + 1); };
-  window.prevSlide = function() { go(cur - 1); };
-  function go(to) {
-    document.getElementById('slide' + cur).style.display = 'none';
-    cur = ((to % n) + n) % n;
-    document.getElementById('slide' + cur).style.display = 'block';
-    document.getElementById('demoCounter').textContent = (cur + 1) + ' / ' + n;
-  }
-})();
+var _cur = 0, _n = 5;
+function nextSlide() { _go(_cur + 1); }
+function prevSlide() { _go(_cur - 1); }
+function _go(to) {
+  document.getElementById('slide' + _cur).style.display = 'none';
+  _cur = ((to % _n) + _n) % _n;
+  document.getElementById('slide' + _cur).style.display = 'block';
+  document.getElementById('demoCounter').textContent = (_cur + 1) + ' / ' + _n;
+}
 </script>
 
 <!-- TRUST BAR -->
