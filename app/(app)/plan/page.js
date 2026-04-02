@@ -81,12 +81,10 @@ const css = `
     border-radius:.875rem;padding:.85rem 1.25rem;cursor:pointer;transition:all .2s}
   .empty-slot:hover{border-color:rgba(184,135,74,.25);background:rgba(184,135,74,.03)}
   .empty-label{font-size:.94rem;color:rgba(248,243,236,.48)}
-  .plan-actions{position:sticky;bottom:0;background:linear-gradient(to top,#1A1612 65%,transparent);
-    padding:2rem 2rem 1rem;display:flex;gap:.75rem;margin-top:1rem}
+  .plan-actions{padding:1.5rem 2rem 2rem;display:flex;gap:.75rem;margin-top:.5rem}
   @media(max-width:768px){
-    .plan-actions{position:fixed;bottom:80px;left:0;right:0;padding:1rem 1.25rem;
-      background:linear-gradient(to top,#1A1612 60%,transparent);z-index:50}
-    .plan-grid{padding-bottom:9rem}
+    .plan-actions{padding:1.25rem 1rem 2rem;flex-direction:column}
+    .plan-actions a,.plan-actions button{width:100%;justify-content:center;text-align:center}
   }
   .confirm-btn{flex:1;background:#B8874A;color:#1A1612;border:none;padding:.9rem;
     border-radius:2rem;font-family:'Outfit',sans-serif;font-size:1.04rem;font-weight:600;
