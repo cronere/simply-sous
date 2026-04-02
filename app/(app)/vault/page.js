@@ -141,11 +141,21 @@ export default function VaultPage() {
 
   const saveToVault = async (recipe) => {
     if (savedToVault[recipe.id]) return
-    setSavedToVault(prev => ({ ...prev, [recipe.id]: 'saving' }))
+
+    // Get userId fresh from session in case state isn't set yet
     const sb = getClient()
+    let uid = userId
+    if (!uid) {
+      const { data: { session } } = await sb.auth.getSession()
+      if (!session) return
+      uid = session.user.id
+      setUserId(uid)
+    }
+
+    setSavedToVault(prev => ({ ...prev, [recipe.id]: 'saving' }))
     const { data: full } = await sb.from('system_recipes').select('*').eq('id', recipe.id).single()
     const { error } = await sb.from('recipes').insert({
-      profile_id: userId,
+      profile_id: uid,
       title: recipe.title,
       description: recipe.description || null,
       cuisine: recipe.cuisine || null,
