@@ -27,6 +27,7 @@ const css = `
 
   html,body{height:100%;background:var(--ink)}
   body{font-family:'Outfit',sans-serif;font-weight:300;color:var(--parchment);overflow-x:hidden}
+  input,select,textarea{font-size:max(1rem,16px) !important}
 
   /* ── LAYOUT ── */
   .shell{display:flex;min-height:100vh}
