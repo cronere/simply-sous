@@ -611,8 +611,8 @@ export default function OnboardingPage() {
     maxWeeknightMins: 45,
     cookingSkill: 2,
     // Step 4
-    pantryStaples: [],
-    fridgeStaples: [],
+    pantryStaples: [...PANTRY],
+    fridgeStaples: [...FRIDGE],
     customPantry: '',
     // Step 5
     uploadedFiles: [],
