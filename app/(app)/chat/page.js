@@ -207,9 +207,11 @@ RESPONSE RULES:
 - For pure cooking questions (no recipe needed), answer conversationally in 2-3 sentences.
 - When suggesting recipes, append a JSON block at the END of your message:
   <recipes>
-  [{"title":"Recipe Name","cuisine":"Italian","total_time_mins":25,"description":"One sentence description","source":"vault","vault_id":"uuid-if-from-vault"}]
+  [{"title":"Recipe Name","cuisine":"Italian","total_time_mins":25,"description":"One sentence description","source":"new","ingredients":[{"name":"chicken breast","amount":2,"unit":"lbs"},{"name":"garlic","amount":3,"unit":"cloves"}],"instructions":[{"text":"Season chicken and heat oil in skillet."},{"text":"Cook 6-7 minutes per side until golden."}]}]
   </recipes>
-- source="vault" for their saved recipes (include vault_id), source="new" for suggestions`
+- source="vault" for their saved recipes (include vault_id, no need for ingredients/instructions)
+- source="new" for suggestions — ALWAYS include full ingredients array and instructions array
+- Keep ingredients concise: {name, amount, unit}. Keep instructions concise: {text} only.`
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -275,7 +277,14 @@ RESPONSE RULES:
       return
     }
 
-    // 2. Try to find in system_recipes by title
+    // 2. Already has full data from Dot's response — use it immediately
+    if (recipe.ingredients && recipe.ingredients.length > 0) {
+      setPreviewRecipe({ ...recipe, source: 'new' })
+      setFetchingPreview(false)
+      return
+    }
+
+    // 3. Try to find in system_recipes by title
     const { data: sysMatch } = await sb
       .from('system_recipes')
       .select('*')
@@ -288,7 +297,7 @@ RESPONSE RULES:
       return
     }
 
-    // 3. Generate full recipe details via Claude
+    // 4. Generate full recipe details via Claude
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
