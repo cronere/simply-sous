@@ -154,13 +154,16 @@ export default function VaultPage() {
 
     setSavedToVault(prev => ({ ...prev, [recipe.id]: 'saving' }))
     const { data: full } = await sb.from('system_recipes').select('*').eq('id', recipe.id).single()
+    // total_time_mins is a generated column (prep + cook) — don't insert it directly
+    const cookMins = full?.cook_time_mins || recipe.total_time_mins || null
     const { error } = await sb.from('recipes').insert({
       profile_id: uid,
       title: recipe.title,
       description: recipe.description || null,
       cuisine: recipe.cuisine || null,
       meal_type: 'dinner',
-      total_time_mins: recipe.total_time_mins || null,
+      prep_time_mins: full?.prep_time_mins || null,
+      cook_time_mins: cookMins,
       tags: recipe.tags || [],
       dietary_flags: recipe.dietary_flags || [],
       source_type: 'dot',
