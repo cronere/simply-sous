@@ -58,6 +58,22 @@ function LandingPage() {
     })
     window.openMob = () => { document.getElementById('mobNav')?.classList.add('open'); document.getElementById('overlay')?.classList.add('open') }
     window.closeMob = () => { document.getElementById('mobNav')?.classList.remove('open'); document.getElementById('overlay')?.classList.remove('open') }
+
+    // Phone demo navigation - must be in useEffect, not in dangerouslySetInnerHTML (React strips scripts)
+    let _cur = 0
+    const _n = 5
+    const _go = (to) => {
+      const prev = document.getElementById('slide' + _cur)
+      if (prev) prev.style.display = 'none'
+      _cur = ((to % _n) + _n) % _n
+      const next = document.getElementById('slide' + _cur)
+      if (next) next.style.display = 'block'
+      const counter = document.getElementById('demoCounter')
+      if (counter) counter.textContent = (_cur + 1) + ' / ' + _n
+    }
+    window.nextSlide = () => _go(_cur + 1)
+    window.prevSlide = () => _go(_cur - 1)
+
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
   return (
@@ -516,17 +532,7 @@ const LANDING_HTML = `
   </div>
 </section>
 
-<script>
-var _cur = 0, _n = 5;
-function nextSlide() { _go(_cur + 1); }
-function prevSlide() { _go(_cur - 1); }
-function _go(to) {
-  document.getElementById('slide' + _cur).style.display = 'none';
-  _cur = ((to % _n) + _n) % _n;
-  document.getElementById('slide' + _cur).style.display = 'block';
-  document.getElementById('demoCounter').textContent = (_cur + 1) + ' / ' + _n;
-}
-</script>
+
 
 <!-- TRUST BAR -->
 <div class="trust">
