@@ -132,6 +132,7 @@ export default function TodayPage() {
   const [showSwap, setShowSwap] = useState(false)
   const [swapSuggestions, setSwapSuggestions] = useState([])
   const [loadingSwap, setLoadingSwap] = useState(false)
+  const [swapShowAll, setSwapShowAll] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -600,8 +601,26 @@ export default function TodayPage() {
                   style={{background:'none',border:'none',color:'rgba(248,243,236,.4)',
                     fontSize:'1.2rem',cursor:'pointer',lineHeight:1}}>✕</button>
               </div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.5rem',color:'#F8F3EC'}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.5rem',color:'#F8F3EC',marginBottom:'.75rem'}}>
                 Something quick and easy tonight
+              </div>
+              <div style={{display:'flex',gap:'.5rem'}}>
+                <button
+                  onClick={() => setSwapShowAll(false)}
+                  style={{padding:'.3rem .85rem',borderRadius:'2rem',fontSize:'.8rem',cursor:'pointer',
+                    fontFamily:"'Outfit',sans-serif",border:'none',transition:'all .2s',
+                    background: !swapShowAll ? '#B8874A' : 'rgba(255,255,255,.08)',
+                    color: !swapShowAll ? '#1A1612' : 'rgba(248,243,236,.6)'}}>
+                  Under 30 min
+                </button>
+                <button
+                  onClick={() => setSwapShowAll(true)}
+                  style={{padding:'.3rem .85rem',borderRadius:'2rem',fontSize:'.8rem',cursor:'pointer',
+                    fontFamily:"'Outfit',sans-serif",border:'none',transition:'all .2s',
+                    background: swapShowAll ? '#B8874A' : 'rgba(255,255,255,.08)',
+                    color: swapShowAll ? '#1A1612' : 'rgba(248,243,236,.6)'}}>
+                  All recipes
+                </button>
               </div>
             </div>
 
@@ -617,13 +636,16 @@ export default function TodayPage() {
               ) : (
                 <>
                   {/* Vault recipes */}
-                  {swapSuggestions.filter(r => !r.isSystem).length > 0 && (
+                  {(() => {
+                    const vaultItems = swapSuggestions.filter(r => !r.isSystem && (swapShowAll || (r.total_time_mins && r.total_time_mins <= 30)))
+                    if (vaultItems.length === 0) return null
+                    return (
                     <>
                       <div style={{fontSize:'.68rem',fontWeight:500,letterSpacing:'.14em',
                         textTransform:'uppercase',color:'rgba(248,243,236,.4)',margin:'.5rem 0 .75rem'}}>
                         From your vault
                       </div>
-                      {swapSuggestions.filter(r => !r.isSystem).map(r => (
+                      {vaultItems.map(r => (
                         <div key={r.id}
                           onClick={() => applySwap(r)}
                           style={{display:'flex',alignItems:'center',justifyContent:'space-between',
@@ -645,16 +667,19 @@ export default function TodayPage() {
                         </div>
                       ))}
                     </>
-                  )}
+                  )})()}
 
                   {/* System recipes */}
-                  {swapSuggestions.filter(r => r.isSystem).length > 0 && (
+                  {(() => {
+                    const sysItems = swapSuggestions.filter(r => r.isSystem && (swapShowAll || (r.total_time_mins && r.total_time_mins <= 30)))
+                    if (sysItems.length === 0) return null
+                    return (
                     <>
                       <div style={{fontSize:'.68rem',fontWeight:500,letterSpacing:'.14em',
                         textTransform:'uppercase',color:'rgba(248,243,236,.4)',margin:'1rem 0 .75rem'}}>
                         ✨ From Dot
                       </div>
-                      {swapSuggestions.filter(r => r.isSystem).map(r => (
+                      {sysItems.map(r => (
                         <div key={r.id}
                           onClick={() => applySwap(r)}
                           style={{display:'flex',alignItems:'center',justifyContent:'space-between',
@@ -676,6 +701,18 @@ export default function TodayPage() {
                         </div>
                       ))}
                     </>
+                  )})()}
+
+                  {/* Nothing quick message */}
+                  {!swapShowAll && swapSuggestions.filter(r => r.total_time_mins && r.total_time_mins <= 30).length === 0 && (
+                    <div style={{textAlign:'center',padding:'1.5rem 0',color:'rgba(248,243,236,.45)',fontSize:'.95rem'}}>
+                      No recipes under 30 min found.
+                      <button onClick={() => setSwapShowAll(true)}
+                        style={{display:'block',margin:'.5rem auto 0',background:'none',border:'none',
+                          color:'#B8874A',cursor:'pointer',fontFamily:"'Outfit',sans-serif",fontSize:'.95rem'}}>
+                        Show all recipes →
+                      </button>
+                    </div>
                   )}
 
                   {/* Search vault CTA */}
