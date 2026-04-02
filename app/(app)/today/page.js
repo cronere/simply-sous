@@ -129,6 +129,9 @@ export default function TodayPage() {
   const [showSkip, setShowSkip] = useState(false)
   const [rated, setRated] = useState(false)
   const [swapping, setSwapping] = useState(false)
+  const [showSwap, setShowSwap] = useState(false)
+  const [swapSuggestions, setSwapSuggestions] = useState([])
+  const [loadingSwap, setLoadingSwap] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -226,6 +229,100 @@ export default function TodayPage() {
     setCookMode(true)
   }
 
+  const loadSwapSuggestions = async () => {
+    setLoadingSwap(true)
+    setShowSwap(true)
+    const sb = getClient()
+
+    // Get vault recipes excluding tonight's
+    const { data: vaultRecipes } = await sb
+      .from('recipes')
+      .select('id, title, cuisine, total_time_mins, tags, description, ingredients')
+      .eq('profile_id', userId)
+      .neq('id', tonightMeal?.id || '')
+      .order('is_favorite', { ascending: false })
+      .limit(20)
+
+    // Get system recipes
+    const { data: sysRecipes } = await sb
+      .from('system_recipes')
+      .select('id, title, cuisine, total_time_mins, tags, description')
+      .order('times_served', { ascending: true })
+      .limit(20)
+
+    // Pick 3 vault + 3 system, varied cuisines
+    const pickDiverse = (recipes, count) => {
+      const picked = []
+      const usedCuisines = []
+      for (const r of (recipes || [])) {
+        if (picked.length >= count) break
+        if (!usedCuisines.includes(r.cuisine)) {
+          picked.push(r)
+          usedCuisines.push(r.cuisine)
+        }
+      }
+      // Fill remainder if not enough diverse
+      for (const r of (recipes || [])) {
+        if (picked.length >= count) break
+        if (!picked.find(p => p.id === r.id)) picked.push(r)
+      }
+      return picked
+    }
+
+    const vault3 = pickDiverse(vaultRecipes, 3)
+    const sys3 = pickDiverse(sysRecipes, 3).map(r => ({ ...r, isSystem: true }))
+
+    setSwapSuggestions([...vault3, ...sys3])
+    setLoadingSwap(false)
+  }
+
+  const applySwap = async (recipe) => {
+    const sb = getClient()
+    const today = getLocalDateStr()
+
+    if (recipe.isSystem) {
+      // Update planned meal with system recipe snapshot
+      const { data: full } = await sb
+        .from('system_recipes')
+        .select('*')
+        .eq('id', recipe.id)
+        .single()
+
+      await sb.from('planned_meals').update({
+        recipe_id: null,
+        notes: recipe.title,
+        recipe_snapshot: {
+          system_recipe_id: recipe.id,
+          title: recipe.title,
+          cuisine: recipe.cuisine,
+          total_time_mins: recipe.total_time_mins,
+          tags: recipe.tags || [],
+          ingredients: full?.ingredients || [],
+          instructions: full?.instructions || [],
+          description: recipe.description || null,
+        }
+      }).eq('id', mealId)
+      setTonightMeal(full || recipe)
+    } else {
+      // Update with vault recipe
+      await sb.from('planned_meals').update({
+        recipe_id: recipe.id,
+        notes: recipe.title,
+        recipe_snapshot: {
+          id: recipe.id,
+          title: recipe.title,
+          cuisine: recipe.cuisine,
+          total_time_mins: recipe.total_time_mins,
+          tags: recipe.tags || [],
+          ingredients: recipe.ingredients || [],
+          description: recipe.description || null,
+        }
+      }).eq('id', mealId)
+      setTonightMeal(recipe)
+    }
+    setShowSwap(false)
+  }
+
   const handleRate = async (rating) => {
     const sb = getClient()
     setShowRate(false)
@@ -262,7 +359,7 @@ export default function TodayPage() {
     const sb = getClient()
 
     if (type === 'swap') {
-      router.push('/plan')
+      loadSwapSuggestions()
 
     } else if (type === 'never') {
       // Remove from rotation — stop suggesting this recipe
@@ -484,6 +581,126 @@ export default function TodayPage() {
           </>
         )}
       </div>
+
+      {/* Swap suggestions modal */}
+      {showSwap && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',zIndex:200,
+          display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}
+          onClick={() => setShowSwap(false)}>
+          <div style={{background:'#2C2420',borderRadius:'1.5rem',width:'100%',
+            maxWidth:'520px',maxHeight:'88vh',overflow:'auto'}}
+            onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div style={{padding:'1.5rem 1.5rem 1rem',borderBottom:'1px solid rgba(255,255,255,.07)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'.25rem'}}>
+                <div style={{fontSize:'.7rem',fontWeight:500,letterSpacing:'.15em',
+                  textTransform:'uppercase',color:'#B8874A'}}>✨ Dot suggests</div>
+                <button onClick={() => setShowSwap(false)}
+                  style={{background:'none',border:'none',color:'rgba(248,243,236,.4)',
+                    fontSize:'1.2rem',cursor:'pointer',lineHeight:1}}>✕</button>
+              </div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.5rem',color:'#F8F3EC'}}>
+                Something quick and easy tonight
+              </div>
+            </div>
+
+            {/* Suggestions */}
+            <div style={{padding:'1rem 1.25rem'}}>
+              {loadingSwap ? (
+                <div style={{textAlign:'center',padding:'2rem',color:'rgba(248,243,236,.45)'}}>
+                  <div style={{width:20,height:20,border:'2px solid rgba(184,135,74,.2)',
+                    borderTopColor:'#B8874A',borderRadius:'50%',animation:'spin .7s linear infinite',
+                    margin:'0 auto .75rem'}}/>
+                  Finding options...
+                </div>
+              ) : (
+                <>
+                  {/* Vault recipes */}
+                  {swapSuggestions.filter(r => !r.isSystem).length > 0 && (
+                    <>
+                      <div style={{fontSize:'.68rem',fontWeight:500,letterSpacing:'.14em',
+                        textTransform:'uppercase',color:'rgba(248,243,236,.4)',margin:'.5rem 0 .75rem'}}>
+                        From your vault
+                      </div>
+                      {swapSuggestions.filter(r => !r.isSystem).map(r => (
+                        <div key={r.id}
+                          onClick={() => applySwap(r)}
+                          style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                            padding:'.9rem 1rem',borderRadius:'1rem',cursor:'pointer',
+                            marginBottom:'.5rem',background:'rgba(255,255,255,.03)',
+                            border:'1px solid rgba(255,255,255,.06)',transition:'all .15s'}}
+                          onMouseOver={e => e.currentTarget.style.background='rgba(184,135,74,.08)'}
+                          onMouseOut={e => e.currentTarget.style.background='rgba(255,255,255,.03)'}>
+                          <div>
+                            <div style={{fontSize:'1rem',color:'#F8F3EC',marginBottom:'.25rem'}}>{r.title}</div>
+                            <div style={{display:'flex',gap:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.5)'}}>
+                              {r.cuisine && <span>🌍 {r.cuisine}</span>}
+                              {r.total_time_mins && <span>⏱ {r.total_time_mins} min</span>}
+                            </div>
+                          </div>
+                          <div style={{color:'#B8874A',fontSize:'.85rem',flexShrink:0,marginLeft:'1rem'}}>
+                            Tonight →
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {/* System recipes */}
+                  {swapSuggestions.filter(r => r.isSystem).length > 0 && (
+                    <>
+                      <div style={{fontSize:'.68rem',fontWeight:500,letterSpacing:'.14em',
+                        textTransform:'uppercase',color:'rgba(248,243,236,.4)',margin:'1rem 0 .75rem'}}>
+                        ✨ From Dot
+                      </div>
+                      {swapSuggestions.filter(r => r.isSystem).map(r => (
+                        <div key={r.id}
+                          onClick={() => applySwap(r)}
+                          style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                            padding:'.9rem 1rem',borderRadius:'1rem',cursor:'pointer',
+                            marginBottom:'.5rem',background:'rgba(255,255,255,.03)',
+                            border:'1px solid rgba(255,255,255,.06)',transition:'all .15s'}}
+                          onMouseOver={e => e.currentTarget.style.background='rgba(184,135,74,.08)'}
+                          onMouseOut={e => e.currentTarget.style.background='rgba(255,255,255,.03)'}>
+                          <div>
+                            <div style={{fontSize:'1rem',color:'#F8F3EC',marginBottom:'.25rem'}}>{r.title}</div>
+                            <div style={{display:'flex',gap:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.5)'}}>
+                              {r.cuisine && <span>🌍 {r.cuisine}</span>}
+                              {r.total_time_mins && <span>⏱ {r.total_time_mins} min</span>}
+                            </div>
+                          </div>
+                          <div style={{color:'#B8874A',fontSize:'.85rem',flexShrink:0,marginLeft:'1rem'}}>
+                            Tonight →
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Search vault CTA */}
+                  <div style={{marginTop:'1.25rem',paddingTop:'1.25rem',
+                    borderTop:'1px solid rgba(255,255,255,.07)',textAlign:'center'}}>
+                    <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.45)',marginBottom:'.75rem'}}>
+                      Don&apos;t see what you want?
+                    </div>
+                    <button
+                      onClick={() => { setShowSwap(false); router.push('/vault') }}
+                      style={{background:'none',border:'1px solid rgba(255,255,255,.15)',
+                        borderRadius:'2rem',padding:'.65rem 1.75rem',
+                        color:'rgba(248,243,236,.75)',fontFamily:"'Outfit',sans-serif",
+                        fontSize:'.95rem',cursor:'pointer',transition:'all .2s'}}
+                      onMouseOver={e => e.currentTarget.style.borderColor='rgba(184,135,74,.4)'}
+                      onMouseOut={e => e.currentTarget.style.borderColor='rgba(255,255,255,.15)'}>
+                      🔍 Search your vault
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rating sheet */}
       {showRate && (
