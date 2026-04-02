@@ -109,16 +109,17 @@ nav.scrolled{background:rgba(26,22,18,.95);backdrop-filter:blur(20px);padding:1r
 .nav-menu span{width:22px;height:1.5px;background:var(--parchment);display:block;transition:all .3s}
 
 /* HERO */
-.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8rem 5% 5rem;position:relative;overflow:hidden}
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8rem 5% 5rem;position:relative;overflow:hidden}
 .hero-bg{position:absolute;inset:0;background:radial-gradient(ellipse 90% 70% at 50% 0%,rgba(184,135,74,.12) 0%,transparent 65%),radial-gradient(ellipse 40% 40% at 80% 90%,rgba(192,92,48,.08) 0%,transparent 55%)}
 .hero-grain{position:absolute;inset:0;opacity:.25;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");pointer-events:none}
-.hero-inner{position:relative;z-index:1;max-width:760px;margin:0 auto}
+.hero-layout{position:relative;z-index:1;display:grid;grid-template-columns:1fr auto;gap:5rem;align-items:center;max-width:1200px;margin:0 auto;width:100%}
+.hero-inner{text-align:left}
 .eyebrow{display:inline-flex;align-items:center;gap:.6rem;font-size:.78rem;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--clay);margin-bottom:2rem;opacity:0;animation:up .9s cubic-bezier(.16,1,.3,1) .2s forwards}
 .eyebrow::before,.eyebrow::after{content:'';width:2rem;height:1px;background:var(--clay);opacity:.5}
-h1{font-family:'Cormorant Garamond',serif;font-size:clamp(3.5rem,8vw,6.5rem);font-weight:300;line-height:.9;letter-spacing:-.02em;color:var(--parchment);opacity:0;animation:up 1s cubic-bezier(.16,1,.3,1) .4s forwards}
+h1{font-family:'Cormorant Garamond',serif;font-size:clamp(3.5rem,6vw,6rem);font-weight:300;line-height:.9;letter-spacing:-.02em;color:var(--parchment);opacity:0;animation:up 1s cubic-bezier(.16,1,.3,1) .4s forwards}
 h1 em{font-style:italic;color:var(--clay)}
-.hero-sub{font-size:clamp(1.05rem,2vw,1.3rem);color:rgba(248,243,236,.65);max-width:500px;margin:1.75rem auto 0;line-height:1.75;opacity:0;animation:up .9s cubic-bezier(.16,1,.3,1) .65s forwards}
-.hero-btns{display:flex;align-items:center;justify-content:center;gap:1.25rem;margin-top:2.5rem;flex-wrap:wrap;opacity:0;animation:up .9s cubic-bezier(.16,1,.3,1) .85s forwards}
+.hero-sub{font-size:clamp(1rem,1.5vw,1.2rem);color:rgba(248,243,236,.65);max-width:460px;margin:1.75rem 0 0;line-height:1.75;opacity:0;animation:up .9s cubic-bezier(.16,1,.3,1) .65s forwards}
+.hero-btns{display:flex;align-items:center;justify-content:flex-start;gap:1.25rem;margin-top:2.5rem;flex-wrap:wrap;opacity:0;animation:up .9s cubic-bezier(.16,1,.3,1) .85s forwards}
 .btn-p{font-size:1rem;font-weight:500;color:var(--ink);background:var(--clay);padding:1rem 2.5rem;border-radius:3rem;text-decoration:none;transition:background .2s,transform .2s,box-shadow .2s;box-shadow:0 8px 32px rgba(184,135,74,.35)}
 .btn-p:hover{background:var(--clay-l);transform:translateY(-2px);box-shadow:0 14px 40px rgba(184,135,74,.45)}
 .btn-s{font-size:1rem;color:rgba(248,243,236,.65);text-decoration:none;display:flex;align-items:center;gap:.5rem;transition:color .2s}
@@ -128,7 +129,7 @@ h1 em{font-style:italic;color:var(--clay)}
 .hero-trial{font-size:.85rem;color:rgba(248,243,236,.35);margin-top:.85rem;letter-spacing:.05em;opacity:0;animation:up .9s cubic-bezier(.16,1,.3,1) 1s forwards}
 
 /* DEMO / PHONE MOCKUP */
-.hero-demo{position:relative;z-index:1;margin-top:4rem;opacity:0;animation:up 1s cubic-bezier(.16,1,.3,1) 1.1s forwards}
+.hero-demo{position:relative;z-index:1;opacity:0;animation:up 1s cubic-bezier(.16,1,.3,1) .6s forwards}
 .demo-phone{width:280px;margin:0 auto;background:#111;border-radius:2.8rem;padding:.5rem;box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 40px 100px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.04)}
 .demo-body{background:#1A1612;border-radius:2.4rem;overflow:hidden}
 .demo-island{width:5.5rem;height:1.4rem;background:#000;border-radius:2rem;margin:.7rem auto .4rem;position:relative;z-index:2}
@@ -176,8 +177,8 @@ h1 em{font-style:italic;color:var(--clay)}
 .ds-msg.a strong{color:var(--clay);font-weight:500}
 
 /* Slide dots */
-.demo-dots{display:flex;gap:.5rem;justify-content:center;margin-top:1.25rem}
-.demo-dot{width:.45rem;height:.45rem;border-radius:50%;background:rgba(255,255,255,.15);transition:background .3s,transform .3s}
+.demo-dots{display:flex;gap:.75rem;justify-content:center;margin-top:1.25rem;padding:.5rem}
+.demo-dot{width:.65rem;height:.65rem;border-radius:50%;background:rgba(255,255,255,.15);transition:background .3s,transform .3s;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:.5rem;box-sizing:content-box}
 .demo-dot.active{background:var(--clay);transform:scale(1.2)}
 .iphone-home{width:3.5rem;height:.3rem;background:rgba(255,255,255,.18);border-radius:1rem;margin:.55rem auto}
 
@@ -399,6 +400,10 @@ section{padding:8rem 5%;position:relative}
   .nav-r .nav-r-links{display:none}
   .nav-r .nav-btn{display:none}
   .nav-menu{display:flex}
+  .hero-layout{grid-template-columns:1fr;text-align:center;gap:3rem}
+  .hero-inner{text-align:center}
+  .hero-btns{justify-content:center}
+  .hero-sub{margin:1.75rem auto 0}
   section{padding:5rem 5%}
   .problem-grid{grid-template-columns:1fr;gap:3.5rem}
   .steps{grid-template-columns:1fr}
@@ -473,16 +478,17 @@ const LANDING_HTML = `
 <section class="hero">
   <div class="hero-bg"></div>
   <div class="hero-grain"></div>
-  <div class="hero-inner">
-    <div class="eyebrow">Meet Simply Sous</div>
-    <h1>Dinner,<br><em>decided.</em></h1>
-    <p class="hero-sub">The AI meal planner that knows your family, your vault of recipes, and your evenings — and makes dinner feel effortless every night.</p>
-    <div class="hero-btns">
-      <a href="https://app.simplysous.com/signup" class="btn-p">Start your free trial →</a>
-      <a href="#how" class="btn-s">See how it works <div class="arr">↓</div></a>
+  <div class="hero-layout">
+    <div class="hero-inner">
+      <div class="eyebrow">Meet Simply Sous</div>
+      <h1>Dinner,<br><em>decided.</em></h1>
+      <p class="hero-sub">The AI meal planner that knows your family, your vault of recipes, and your evenings — and makes dinner feel effortless every night.</p>
+      <div class="hero-btns">
+        <a href="https://app.simplysous.com/signup" class="btn-p">Start your free trial →</a>
+        <a href="#how" class="btn-s">See how it works <div class="arr">↓</div></a>
+      </div>
+      <p class="hero-trial">14 days free · No credit card · Cancel anytime</p>
     </div>
-    <p class="hero-trial">14 days free · No credit card · Cancel anytime</p>
-  </div>
 
   <!-- Animated phone demo -->
   <div class="hero-demo">
@@ -555,6 +561,7 @@ const LANDING_HTML = `
       <div class="demo-dot" id="dot1" onclick="goSlide(1)"></div>
       <div class="demo-dot" id="dot2" onclick="goSlide(2)"></div>
     </div>
+  </div>
   </div>
 </section>
 
