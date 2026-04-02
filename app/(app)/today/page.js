@@ -259,18 +259,28 @@ export default function TodayPage() {
 
   const handleSkip = async (type) => {
     setShowSkip(false)
+    const sb = getClient()
+
     if (type === 'swap') {
-      // Navigate to plan page to swap
       router.push('/plan')
+
     } else if (type === 'never') {
-      // Mark recipe as never suggest (add to disliked or flag)
+      // Remove from rotation — stop suggesting this recipe
       if (tonightMeal && tonightMeal.id) {
-        const sb = getClient()
         await sb.from('recipes')
           .update({ in_rotation: false, rotation_frequency: null })
           .eq('id', tonightMeal.id)
       }
       router.push('/plan')
+
+    } else if (type === 'tomorrow') {
+      // Mark tonight's meal as skipped — plans changed
+      if (mealId) {
+        await sb.from('planned_meals')
+          .update({ is_skipped: true, skip_reason: 'plans changed' })
+          .eq('id', mealId)
+      }
+      setTonightMeal(null)
     }
   }
 
@@ -505,8 +515,8 @@ export default function TodayPage() {
 
       {/* Skip / Not tonight sheet */}
       {showSkip && (
-        <div className="rate-overlay" onClick={() => setShowSkip(false)}>
-          <div className="skip-tonight-sheet" onClick={e => e.stopPropagation()}>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.8)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}} onClick={() => setShowSkip(false)}>
+          <div style={{background:'#2C2420',borderRadius:'1.5rem',width:'100%',maxWidth:'480px',padding:'2rem'}} onClick={e => e.stopPropagation()}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'#F8F3EC',marginBottom:'.5rem'}}>Not feeling it tonight?</div>
             <div style={{fontSize:'.92rem',color:'rgba(248,243,236,.5)',marginBottom:'1.5rem'}}>What would you like to do?</div>
 
@@ -523,6 +533,14 @@ export default function TodayPage() {
               <div>
                 <div className="skip-option-title">Remove from rotation</div>
                 <div className="skip-option-sub">Stop suggesting this recipe in future plans</div>
+              </div>
+            </div>
+
+            <div className="skip-option" onClick={() => handleSkip('tomorrow')}>
+              <div className="skip-option-icon">📅</div>
+              <div>
+                <div className="skip-option-title">Plans changed tonight</div>
+                <div className="skip-option-sub">Skip tonight, keep the recipe for tomorrow</div>
               </div>
             </div>
 
