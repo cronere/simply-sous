@@ -210,13 +210,29 @@ export default function SettingsPage() {
   const addFamilyMember = async () => {
     if (!userId) return
     const sb = getClient()
-    const { data } = await sb.from('family_members').insert({
-      profile_id: userId,
+
+    // Get fresh userId from session if needed
+    let uid = userId
+    if (!uid) {
+      const { data: { session } } = await sb.auth.getSession()
+      if (!session) return
+      uid = session.user.id
+    }
+
+    const { data, error } = await sb.from('family_members').insert({
+      profile_id: uid,
       name: newMemberName.trim() || null,
       birth_month: newMemberMonth,
       birth_year: newMemberYear,
       is_child: true,
     }).select().single()
+
+    if (error) {
+      console.error('Add family member error:', error.message)
+      alert('Could not save. Make sure you ran the family_members migration in Supabase.')
+      return
+    }
+
     if (data) {
       setFamilyMembers(prev => [...prev, data])
       setNewMemberName('')
@@ -516,17 +532,25 @@ export default function SettingsPage() {
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.75rem',marginBottom:'1rem'}}>
                   <div>
                     <div className="s-label">Birth Month</div>
-                    <select className="s-input" value={newMemberMonth} onChange={e => setNewMemberMonth(+e.target.value)}>
-                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => (
-                        <option key={i} value={i+1}>{m}</option>
+                    <select value={newMemberMonth} onChange={e => setNewMemberMonth(+e.target.value)}
+                      style={{width:'100%',background:'#2C2420',border:'1px solid rgba(255,255,255,.15)',
+                        borderRadius:'.75rem',padding:'.7rem 1rem',color:'#F8F3EC',
+                        fontFamily:"'Outfit',sans-serif",fontSize:'1rem',outline:'none',cursor:'pointer',
+                        colorScheme:'dark'}}>
+                      {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m,i) => (
+                        <option key={i} value={i+1} style={{background:'#2C2420',color:'#F8F3EC'}}>{m}</option>
                       ))}
                     </select>
                   </div>
                   <div>
                     <div className="s-label">Birth Year</div>
-                    <select className="s-input" value={newMemberYear} onChange={e => setNewMemberYear(+e.target.value)}>
+                    <select value={newMemberYear} onChange={e => setNewMemberYear(+e.target.value)}
+                      style={{width:'100%',background:'#2C2420',border:'1px solid rgba(255,255,255,.15)',
+                        borderRadius:'.75rem',padding:'.7rem 1rem',color:'#F8F3EC',
+                        fontFamily:"'Outfit',sans-serif",fontSize:'1rem',outline:'none',cursor:'pointer',
+                        colorScheme:'dark'}}>
                       {Array.from({length: 20}, (_,i) => new Date().getFullYear() - i).map(y => (
-                        <option key={y} value={y}>{y}</option>
+                        <option key={y} value={y} style={{background:'#2C2420',color:'#F8F3EC'}}>{y}</option>
                       ))}
                     </select>
                   </div>
