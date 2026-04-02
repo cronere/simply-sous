@@ -67,8 +67,16 @@ const css = `
   @keyframes shimmer{0%,100%{opacity:.4}50%{opacity:.7}}
   @keyframes spin{to{transform:rotate(360deg)}}
   @media(max-width:600px){
-    .vault-hd,.vault-controls,.vault-tabs{padding-left:1.25rem;padding-right:1.25rem}
-    .vault-grid{grid-template-columns:1fr;padding:0 1.25rem 4rem}
+    .vault-hd,.vault-controls,.vault-tabs{padding-left:1rem;padding-right:1rem}
+    .vault-grid{grid-template-columns:1fr;padding:0 1rem 5rem}
+    .vault-hd{padding-top:1.25rem}
+    .add-recipe-btn{padding:.65rem 1.1rem;font-size:.92rem}
+    .vault-tab{padding:.55rem 1rem;font-size:.92rem}
+    .filter-btn{font-size:.88rem;padding:.4rem .85rem}
+    .search-input{font-size:1rem}
+    .recipe-card-body{padding:1.1rem}
+    .discover-card-body{padding:1rem}
+    .discover-save-btn{width:100%;text-align:center;padding:.6rem}
   }
 `
 
