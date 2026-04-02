@@ -236,6 +236,8 @@ section{padding:8rem 5%;position:relative}
 .bpill{font-size:.72rem;padding:.25rem .7rem;border-radius:2rem;border:1px solid rgba(255,255,255,.08);color:rgba(248,243,236,.3)}
 .bpill.on{background:rgba(184,135,74,.1);border-color:rgba(184,135,74,.25);color:var(--clay)}
 .bcode{background:rgba(0,0,0,.25);border-radius:.65rem;padding:.9rem 1.1rem;margin-top:1.1rem;font-size:.88rem;color:rgba(248,243,236,.35);line-height:1.75}
+.features-hd{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1.5rem;margin-bottom:0}
+.features-hd-sub{font-size:1rem;color:rgba(248,243,236,.32);max-width:260px;text-align:right;line-height:1.85}
 
 /* SHARING */
 .sharing{background:var(--ink2)}
@@ -403,6 +405,8 @@ section{padding:8rem 5%;position:relative}
   .bento{grid-template-columns:1fr}
   .bc.feat{grid-column:span 1}
   .ob-steps{grid-template-columns:1fr}
+  .features-hd{flex-direction:column;align-items:center;text-align:center}
+  .features-hd-sub{max-width:100%;text-align:center}
   h1{font-size:clamp(3rem,13vw,5.5rem)}
   .pricing-cards{grid-template-columns:1fr;max-width:380px;margin-left:auto;margin-right:auto}
   .share-grid{grid-template-columns:1fr}
@@ -410,16 +414,20 @@ section{padding:8rem 5%;position:relative}
   .f-links{justify-content:center}
   .trust{gap:1.25rem}
   .ov,.ov-d{justify-content:center !important}
-  .sh,.sh-d,.sp,.sp-d{text-align:center !important}
-  .section-inner .reveal > .ov,
-  .section-inner .reveal > .sh,
-  .section-inner .reveal > .sh-d,
-  .section-inner > .reveal > p{text-align:center !important}
-  .problem-grid p,.dot-grid p,.family-grid p{text-align:center}
+  .sh,.sh-d{text-align:center !important}
+  .sp,.sp-d{text-align:center !important}
+  .section-inner{text-align:center !important}
+  .section-inner p{text-align:center !important}
+  .section-inner h2{text-align:center !important}
+  .section-inner .reveal{text-align:center !important}
+  .section-inner .reveal > div{text-align:center !important}
   .footer-bottom{flex-direction:column;align-items:center;text-align:center;gap:.75rem}
   .f-links{justify-content:center}
   .trust{gap:1rem;padding:1.2rem 5%}
   .trust-item{font-size:.85rem}
+  .problem-grid{grid-template-columns:1fr}
+  .stat{border-left:none;padding-left:0;border-top:1px solid rgba(184,135,74,.15);padding-top:1.5rem}
+  .stat-col{gap:2rem}
 }
 @media(max-width:480px){
   .hero-btns{flex-direction:column;align-items:center}
@@ -636,12 +644,12 @@ slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
 <!-- FEATURES BENTO -->
 <section class="features" id="features">
   <div class="section-inner">
-    <div class="reveal" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1.5rem;margin-bottom:0">
+    <div class="reveal features-hd">
       <div>
         <div class="ov">Everything included</div>
         <h2 class="sh">Built for the way<br><em>families actually eat.</em></h2>
       </div>
-      <p style="font-size:1rem;color:rgba(248,243,236,.32);max-width:260px;text-align:right;line-height:1.85">Every feature designed around one question: what does a busy family need at 5pm on a Tuesday?</p>
+      <p class="features-hd-sub">Every feature designed around one question: what does a busy family need at 5pm on a Tuesday?</p>
     </div>
     <div class="bento">
       <div class="bc feat c7 reveal">
@@ -741,7 +749,7 @@ slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
 <!-- ONBOARDING -->
 <section class="onboard">
   <div class="section-inner">
-    <div class="reveal" style="max-width:580px">
+    <div class="reveal">
       <div class="ov ov-d">Personal setup</div>
       <h2 class="sh-d">Onboarding that<br><em>actually learns you.</em></h2>
       <p class="sp-d">A 5-minute setup that captures your family's food DNA — so every recommendation feels made specifically for you.</p>
