@@ -259,7 +259,7 @@ export async function POST(request) {
       return anthropic.messages.create({
         model: 'claude-opus-4-6',
         max_tokens: 1200,
-        system: 'Meal planning API. Output ONLY valid JSON array. Be concise.',
+        system: 'Meal planning API. Output ONLY a raw JSON array starting with [ and ending with ]. No markdown, no code fences, no explanation.',
         messages: [{ role: 'user', content: promptStr }]
       })
     })
