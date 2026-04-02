@@ -166,7 +166,7 @@ export default function VaultPage() {
       cook_time_mins: cookMins,
       tags: recipe.tags || [],
       dietary_flags: recipe.dietary_flags || [],
-      source_type: 'dot',
+      source_type: 'system',
       ai_processed: true,
       base_servings: recipe.base_servings || 4,
       ingredients: full?.ingredients || [],
