@@ -97,6 +97,9 @@ const css = `
   .sp{width:16px;height:16px;border:2px solid rgba(26,22,18,.2);border-top-color:#1A1612;
     border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:5px}
   @keyframes spin{to{transform:rotate(360deg)}}
+  @media(max-width:768px){
+    .plan-actions{bottom:80px}
+  }
   @media(max-width:600px){
     .plan-hd,.plan-grid,.generate-wrap,.plan-actions,.week-nav{padding-left:1rem;padding-right:1rem}
     .plan-hd{padding-top:1.25rem;padding-bottom:.75rem}
@@ -111,7 +114,7 @@ const css = `
     .confirm-btn,.generate-btn{width:100%;text-align:center;padding:.85rem}
     .gen-card{padding:1.5rem 1rem}
     .gen-title{font-size:1.5rem}
-    .plan-grid{padding-bottom:2rem}
+    .plan-grid{padding-bottom:8rem}
   }
 `
 
