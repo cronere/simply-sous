@@ -188,20 +188,23 @@ export default function PlanPage() {
 
   const loadPlan = async () => {
     const sb = getClient()
-    // Get the most recently updated plan for this week
-    // order by updated_at desc handles edge case of duplicate plans
-    const { data: plans } = await sb
-      .from('weekly_plans')
-      .select(`id, status, planned_meals (
-        id, meal_date, is_skipped, skip_reason, start_cooking_at, notes, recipe_snapshot,
-        recipes ( id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite )
-      )`)
-      .eq('profile_id', userId)
-      .eq('week_start_date', weekStartStr)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-    
-    const data = plans && plans.length > 0 ? plans[0] : null
+
+    // Fetch plan and current blackout days in parallel
+    const [plansRes, blackoutRes] = await Promise.all([
+      sb.from('weekly_plans')
+        .select(`id, status, planned_meals (
+          id, meal_date, is_skipped, skip_reason, start_cooking_at, notes, recipe_snapshot,
+          recipes ( id, title, cuisine, total_time_mins, tags, dietary_flags, base_servings, is_favorite )
+        )`)
+        .eq('profile_id', userId)
+        .eq('week_start_date', weekStartStr)
+        .order('updated_at', { ascending: false })
+        .limit(1),
+      sb.from('blackout_days').select('day_of_week').eq('profile_id', userId)
+    ])
+
+    const data = plansRes.data && plansRes.data.length > 0 ? plansRes.data[0] : null
+    const currentBlackoutDays = (blackoutRes.data || []).map(b => b.day_of_week)
 
     if (data) {
       setPlanId(data.id)
@@ -244,14 +247,32 @@ export default function PlanPage() {
         const recipe_id = m.recipes?.id
           || (sysId ? 'sys-' + sysId : null)
           || null
+        // Re-evaluate blackout status based on CURRENT blackout days
+        // This handles the case where user changed blackout days after generating
+        const mealDayOfWeek = new Date(m.meal_date + 'T12:00:00').getDay()
+        const isCurrentlyBlackout = currentBlackoutDays.includes(mealDayOfWeek)
+        const wasBlackoutSkip = m.skip_reason === 'blackout day'
+
+        // If day is no longer a blackout day but was saved as one, restore it
+        // If day is now a blackout day but wasn't saved as one, mark it
+        let finalSkipped = m.is_skipped
+        let finalSkipReason = m.skip_reason
+        if (wasBlackoutSkip && !isCurrentlyBlackout) {
+          finalSkipped = false
+          finalSkipReason = null
+        } else if (isCurrentlyBlackout && !wasBlackoutSkip) {
+          finalSkipped = true
+          finalSkipReason = 'blackout day'
+        }
+
         return {
           date: m.meal_date,
-          recipe,
-          recipe_id,
-          is_skipped: m.is_skipped,
-          skip_reason: m.skip_reason,
+          recipe: finalSkipped && isCurrentlyBlackout ? null : recipe,
+          recipe_id: finalSkipped && isCurrentlyBlackout ? null : recipe_id,
+          is_skipped: finalSkipped,
+          skip_reason: finalSkipReason,
           start_cooking_at: m.start_cooking_at,
-          dayName: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(m.meal_date + 'T12:00:00').getDay()],
+          dayName: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][mealDayOfWeek],
         }
       })
       setPlan(formatted)
@@ -262,6 +283,8 @@ export default function PlanPage() {
 
   const saveDraft = async (planData) => {
     if (!planData || !userId || !weekStartStr) return
+    if (isSavingDraft) return // prevent concurrent saves
+    setIsSavingDraft(true)
     const sb = getClient()
     try {
       // Always check DB for existing plan first — never rely on planId state
@@ -359,6 +382,8 @@ export default function PlanPage() {
     } catch (e) {
       console.error('Auto-save failed:', e)
       // Non-critical — don't show error to user
+    } finally {
+      setIsSavingDraft(false)
     }
   }
 
@@ -442,6 +467,7 @@ export default function PlanPage() {
   }
 
   const [confirmAndShop, setConfirmAndShop] = useState(false)
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
 
   const confirmPlan = async (andShop = false) => {
     setConfirmAndShop(andShop)
