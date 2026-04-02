@@ -1,24 +1,8 @@
 import './globals.css'
 
-export const viewport = {
-  themeColor: '#1A1612',
-}
-
 export const metadata = {
   title: 'Simply Sous — Dinner, decided.',
-  description: 'AI meal planning for families. Plan your week, build your grocery list, and walk into the kitchen knowing exactly what to make.',
-  icons: {
-    icon: '/favicon.svg',
-    apple: '/apple-touch-icon.svg',
-  },
-  manifest: '/manifest.json',
-  openGraph: {
-    title: 'Simply Sous — Dinner, decided.',
-    description: 'Stop answering the dinner question. AI meal planning for busy families.',
-    url: 'https://simplysous.com',
-    siteName: 'Simply Sous',
-    type: 'website',
-  },
+  description: 'AI meal planning for families.',
 }
 
 export default function RootLayout({ children }) {
