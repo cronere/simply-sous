@@ -266,15 +266,26 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="s-row">
-              <div className="s-label">Blackout Days (no cooking)</div>
+              <div className="s-label">Cooking Days</div>
+              <div style={{fontSize:'.82rem',color:'rgba(248,243,236,.4)',marginBottom:'.65rem'}}>Tap to toggle — dimmed days are nights off</div>
               <div className="s-chips">
-                {DAY_NAMES.map((day, i) => (
-                  <button key={day}
-                    className={'s-chip day' + (blackoutDays.includes(DAY_NUMS[i]) ? ' active' : '')}
-                    onClick={() => toggleChip(DAY_NUMS[i], blackoutDays, setBlackoutDays)}>
-                    {day.slice(0,3)}
-                  </button>
-                ))}
+                {DAY_NAMES.map((day, i) => {
+                  const isBlackout = blackoutDays.includes(DAY_NUMS[i])
+                  return (
+                    <button key={day}
+                      onClick={() => toggleChip(DAY_NUMS[i], blackoutDays, setBlackoutDays)}
+                      style={{
+                        padding:'.5rem 1rem',borderRadius:'2rem',fontSize:'.88rem',
+                        fontFamily:"'Outfit',sans-serif",cursor:'pointer',transition:'all .2s',
+                        border: isBlackout ? '1px solid rgba(255,255,255,.08)' : '1px solid rgba(184,135,74,.35)',
+                        background: isBlackout ? 'rgba(255,255,255,.03)' : 'rgba(184,135,74,.12)',
+                        color: isBlackout ? 'rgba(248,243,236,.25)' : '#D4A46A',
+                        textDecoration: isBlackout ? 'line-through' : 'none',
+                      }}>
+                      {day}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </div>
