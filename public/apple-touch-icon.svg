@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <rect width="180" height="180" rx="40" fill="#1A1612"/>
+  <text x="90" y="90" text-anchor="middle" dominant-baseline="central"
+    font-family="Georgia, 'Times New Roman', serif" font-size="78" font-weight="400"
+    fill="#B8874A" letter-spacing="-3">SS</text>
+  <line x1="58" y1="108" x2="122" y2="108" stroke="#D4A46A" stroke-width="2" opacity="0.5"/>
+</svg>

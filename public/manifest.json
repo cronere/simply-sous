@@ -1,0 +1,13 @@
+{
+  "name": "Simply Sous",
+  "short_name": "Simply Sous",
+  "description": "Dinner, decided. AI meal planning for families.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1A1612",
+  "theme_color": "#1A1612",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable any" }
+  ]
+}
