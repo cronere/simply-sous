@@ -40,9 +40,9 @@ export default function TermsPage() {
         <h2>Subscription and Billing</h2>
         <p>Simply Sous offers three plans:</p>
         <ul>
-          <li><strong style="color:#F8F3EC;font-weight:500">Monthly</strong> — $7.99/month, billed monthly, cancel anytime</li>
-          <li><strong style="color:#F8F3EC;font-weight:500">Annual</strong> — $79.99/year, billed annually, cancel anytime</li>
-          <li><strong style="color:#F8F3EC;font-weight:500">Lifetime</strong> — $119.99 one-time payment, access to all current and future features</li>
+          <li><strong style={{color:"#F8F3EC",fontWeight:500}}>Monthly</strong> — $7.99/month, billed monthly, cancel anytime</li>
+          <li><strong style={{color:"#F8F3EC",fontWeight:500}}>Annual</strong> — $79.99/year, billed annually, cancel anytime</li>
+          <li><strong style={{color:"#F8F3EC",fontWeight:500}}>Lifetime</strong> — $119.99 one-time payment, access to all current and future features</li>
         </ul>
         <p>All plans begin with a 14-day free trial. No credit card is required to start a trial. Monthly and Annual plans renew automatically unless cancelled. You may cancel your subscription at any time through your account settings or by contacting us. Cancellation takes effect at the end of the current billing period.</p>
 
