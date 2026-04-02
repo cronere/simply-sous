@@ -263,27 +263,61 @@ RESPONSE RULES:
     const key = msgIdx + '-' + recipeIdx
     setPreviewSaveKey(key)
     setFetchingPreview(true)
+    setPreviewRecipe({ ...recipe, _loading: true }) // show modal immediately with loading state
 
-    // If vault recipe, fetch full details
+    const sb = getClient()
+
+    // 1. Vault recipe — fetch from user's recipes
     if (recipe.source === 'vault' && recipe.vault_id) {
-      const sb = getClient()
-      const { data } = await sb
-        .from('recipes')
-        .select('*')
-        .eq('id', recipe.vault_id)
-        .single()
+      const { data } = await sb.from('recipes').select('*').eq('id', recipe.vault_id).single()
       setPreviewRecipe(data ? { ...data, source: 'vault', vault_id: recipe.vault_id } : recipe)
-    } else if (recipe.system_recipe_id) {
-      const sb = getClient()
-      const { data } = await sb
-        .from('system_recipes')
-        .select('*')
-        .eq('id', recipe.system_recipe_id)
-        .single()
-      setPreviewRecipe(data ? { ...data, source: 'new' } : recipe)
-    } else {
-      setPreviewRecipe(recipe)
+      setFetchingPreview(false)
+      return
     }
+
+    // 2. Try to find in system_recipes by title
+    const { data: sysMatch } = await sb
+      .from('system_recipes')
+      .select('*')
+      .ilike('title', recipe.title)
+      .maybeSingle()
+
+    if (sysMatch && sysMatch.ingredients && sysMatch.ingredients.length > 0) {
+      setPreviewRecipe({ ...sysMatch, source: 'new' })
+      setFetchingPreview(false)
+      return
+    }
+
+    // 3. Generate full recipe details via Claude
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Give me the full recipe for "' + recipe.title + '". Return ONLY a JSON object with these fields: ingredients (array of {name, amount, unit}), instructions (array of {text, timer_minutes}). No other text.' }],
+          systemPrompt: 'You are a recipe API. Return only valid JSON, no markdown.',
+        })
+      })
+      const data = await res.json()
+      if (data.content) {
+        const fi = data.content.indexOf('{')
+        const li = data.content.lastIndexOf('}')
+        if (fi >= 0 && li > fi) {
+          const parsed = JSON.parse(data.content.substring(fi, li + 1))
+          setPreviewRecipe({
+            ...recipe,
+            ingredients: parsed.ingredients || [],
+            instructions: parsed.instructions || [],
+            source: 'new'
+          })
+          setFetchingPreview(false)
+          return
+        }
+      }
+    } catch(e) {}
+
+    // 4. Fallback — show what we have
+    setPreviewRecipe({ ...recipe, source: 'new' })
     setFetchingPreview(false)
   }
 
@@ -559,12 +593,17 @@ RESPONSE RULES:
                 </div>
               )}
 
-              {(!previewRecipe.ingredients || previewRecipe.ingredients.length === 0) &&
-               (!previewRecipe.instructions || previewRecipe.instructions.length === 0) && (
-                <div style={{color:'rgba(248,243,236,.45)',fontSize:'.95rem',textAlign:'center',padding:'2rem 0'}}>
-                  Full recipe details not available yet.<br/>Save to your vault to add them.
+              {previewRecipe._loading || fetchingPreview ? (
+                <div style={{textAlign:'center',padding:'3rem 0'}}>
+                  <div style={{width:24,height:24,border:'2px solid rgba(184,135,74,.2)',borderTopColor:'#B8874A',borderRadius:'50%',animation:'spin .7s linear infinite',margin:'0 auto .75rem'}}/>
+                  <div style={{fontSize:'.9rem',color:'rgba(248,243,236,.4)'}}>Fetching recipe details...</div>
                 </div>
-              )}
+              ) : (!previewRecipe.ingredients || previewRecipe.ingredients.length === 0) &&
+                 (!previewRecipe.instructions || previewRecipe.instructions.length === 0) ? (
+                <div style={{color:'rgba(248,243,236,.45)',fontSize:'.95rem',textAlign:'center',padding:'2rem 0'}}>
+                  Full recipe details not available.<br/>Save to your vault to add them.
+                </div>
+              ) : null}
             </div>
 
             {/* Footer actions */}
