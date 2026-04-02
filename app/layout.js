@@ -2,7 +2,20 @@ import './globals.css'
 
 export const metadata = {
   title: 'Simply Sous — Dinner, decided.',
-  description: 'Your personal sous chef for the family table.',
+  description: 'AI meal planning for families. Plan your week, build your grocery list, and walk into the kitchen knowing exactly what to make.',
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/apple-touch-icon.svg',
+  },
+  manifest: '/manifest.json',
+  themeColor: '#1A1612',
+  openGraph: {
+    title: 'Simply Sous — Dinner, decided.',
+    description: 'Stop answering the dinner question. AI meal planning for busy families.',
+    url: 'https://simplysous.com',
+    siteName: 'Simply Sous',
+    type: 'website',
+  },
 }
 
 export default function RootLayout({ children }) {
