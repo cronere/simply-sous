@@ -1,8 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -29,6 +27,7 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const resend = new Resend(process.env.RESEND_API_KEY)
   const sb = getSupabase()
   const today = new Date()
   const todayDow = today.getDay()
