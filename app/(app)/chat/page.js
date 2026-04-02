@@ -285,7 +285,7 @@ INSTRUCTIONS:
         cook_time_mins: recipe.total_time_mins || null,
         tags: recipe.tags || [],
         dietary_flags: recipe.dietary_flags || [],
-        source_type: 'dot',
+        source_type: 'system',
         ai_processed: true,
         base_servings: 4,
         ingredients,
