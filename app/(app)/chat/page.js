@@ -205,7 +205,7 @@ RESPONSE RULES:
 - Never describe the recipes in your text — the cards already show that. Just say you found some ideas.
 - Never suggest recipes containing allergens.
 - For pure cooking questions (no recipe needed), answer conversationally in 2-3 sentences.
-- When suggesting recipes, append a JSON block at the END of your message:
+- CRITICAL: When suggesting recipes, you MUST wrap the JSON in <recipes> tags at the END of your message. Never output raw JSON without these tags:
   <recipes>
   [{"title":"Recipe Name","cuisine":"Italian","total_time_mins":25,"description":"One sentence description","source":"new","ingredients":[{"name":"chicken breast","amount":2,"unit":"lbs"},{"name":"garlic","amount":3,"unit":"cloves"}],"instructions":[{"text":"Season chicken and heat oil in skillet."},{"text":"Cook 6-7 minutes per side until golden."}]}]
   </recipes>
@@ -229,6 +229,7 @@ RESPONSE RULES:
       let content = data.content || ''
       let recipes = []
 
+      // Try <recipes> tags first
       const recipeMatch = content.match(/<recipes>([\s\S]*?)<\/recipes>/)
       if (recipeMatch) {
         try {
@@ -236,6 +237,21 @@ RESPONSE RULES:
           content = content.replace(/<recipes>[\s\S]*?<\/recipes>/, '').trim()
         } catch(e) {}
       }
+
+      // Fallback: strip any raw JSON array that leaked into content
+      if (recipes.length === 0) {
+        const fi = content.lastIndexOf('[{')
+        const li = content.lastIndexOf('}]')
+        if (fi >= 0 && li > fi) {
+          try {
+            recipes = JSON.parse(content.substring(fi, li + 2))
+            content = content.substring(0, fi).trim()
+          } catch(e) {}
+        }
+      }
+
+      // Also strip any leftover <recipes> or [ tags that didn't parse
+      content = content.replace(/<\/?recipes>/g, '').replace(/^\s*\[\s*$/gm, '').trim()
 
       // Enrich vault recipes with real IDs
       if (vaultRecipes && recipes.length > 0) {
