@@ -35,16 +35,24 @@ function buildGroceryList(meals, staples) {
   const ingredientMap = {}
 
   meals.forEach(meal => {
+    const title = (meal.recipes && meal.recipes.title) || (meal.recipe_snapshot && meal.recipe_snapshot.title) || null
     const ingredients = (meal.recipes && meal.recipes.ingredients) || (meal.recipe_snapshot && meal.recipe_snapshot.ingredients) || []
     ingredients.forEach(ing => {
       if (!ing.name) return
       const key = ing.name.toLowerCase().trim()
       if (ingredientMap[key]) {
+        // Add amount if same unit
         if (ingredientMap[key].unit === ing.unit && typeof ingredientMap[key].amount === 'number' && typeof ing.amount === 'number') {
           ingredientMap[key].amount += ing.amount
         }
+        // Track additional recipes using this ingredient
+        if (title && ingredientMap[key].recipes.indexOf(title) < 0) {
+          ingredientMap[key].recipes.push(title)
+        }
       } else {
-        ingredientMap[key] = Object.assign({}, ing)
+        ingredientMap[key] = Object.assign({}, ing, {
+          recipes: title ? [title] : []
+        })
       }
     })
   })
@@ -55,7 +63,7 @@ function buildGroceryList(meals, staples) {
   Object.values(ingredientMap).forEach(ing => {
     const key = ing.name.toLowerCase().trim()
     const isStaple = allStaples.some(s => key.includes(s) || s.includes(key))
-    const item = { name: ing.name, amount: ing.amount, unit: ing.unit, notes: ing.notes }
+    const item = { name: ing.name, amount: ing.amount, unit: ing.unit, notes: ing.notes, recipes: ing.recipes || [] }
     if (isStaple) youHave.push(item)
     else toBuy.push(item)
   })
@@ -304,11 +312,19 @@ export default function GroceryPage() {
                                 <div className="ing-check" style={{background: checked ? '#8FA889' : 'transparent', borderColor: checked ? '#8FA889' : 'rgba(184,135,74,.4)'}}>
                                   {checked && <span style={{color:'#F8F3EC',fontSize:'.65rem',fontWeight:700}}>✓</span>}
                                 </div>
-                                <div className="ing-name">
-                                  {item.name}
-                                  {item.notes && <span style={{fontSize:'.82rem',color:'rgba(248,243,236,.4)',fontStyle:'italic'}}> — {item.notes}</span>}
+                                <div className="ing-name" style={{flex:1}}>
+                                  <div>{item.name}{item.notes && <span style={{fontSize:'.82rem',color:'rgba(248,243,236,.4)',fontStyle:'italic'}}> — {item.notes}</span>}</div>
+                                  {item.recipes && item.recipes.length > 0 && (
+                                    <div style={{fontSize:'.75rem',color:'rgba(248,243,236,.35)',marginTop:'.15rem'}}>
+                                      {item.recipes.length === 1
+                                        ? item.recipes[0]
+                                        : item.recipes.length === 2
+                                          ? item.recipes.join(' · ')
+                                          : item.recipes[0] + ' + ' + (item.recipes.length - 1) + ' more'}
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="ing-amount">{formatAmt(item)}</div>
+                                <div className="ing-amount" style={{flexShrink:0,marginLeft:'.5rem'}}>{formatAmt(item)}</div>
                               </div>
                             )
                           })}
