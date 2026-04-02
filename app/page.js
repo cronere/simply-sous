@@ -133,9 +133,8 @@ h1 em{font-style:italic;color:var(--clay)}
 .demo-phone{width:322px;margin:0 auto;background:#111;border-radius:2.8rem;padding:.5rem;box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 40px 100px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.04)}
 .demo-body{background:#1A1612;border-radius:2.4rem;overflow:hidden}
 .demo-island{width:5.5rem;height:1.4rem;background:#000;border-radius:2rem;margin:.7rem auto .4rem;position:relative;z-index:2}
-.demo-screen{min-height:520px;position:relative}
-.demo-slide{position:absolute;inset:0;transition:opacity .8s ease,transform .8s ease;opacity:0;transform:translateY(8px)}
-.demo-slide.active{opacity:1;transform:translateY(0);z-index:1}
+.demo-screen{min-height:598px;position:relative}
+
 
 /* Screen 1 - Tonight */
 .ds-hd{background:linear-gradient(135deg,rgba(184,135,74,.15),rgba(192,92,48,.06));padding:1rem 1.1rem .8rem;border-bottom:1px solid rgba(255,255,255,.05)}
@@ -382,8 +381,9 @@ section{padding:8rem 5%;position:relative}
 .mob-close{position:absolute;top:1.5rem;right:1.5rem;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(248,243,236,.4);font-size:1.2rem}
 
 /* Demo */
-.demo-slide{position:absolute;inset:0;transition:opacity .5s ease;opacity:0;pointer-events:none}
-.demo-slide.active{opacity:1;pointer-events:all;position:relative}
+.demo-screen{position:relative;overflow:hidden}
+.demo-slide{display:none}
+.demo-slide.active{display:block}
 
 /* RESPONSIVE */
 @media(max-width:1024px){
@@ -568,21 +568,18 @@ const LANDING_HTML = `
 </section>
 
 <script>
-var currentSlide = 0;
-var total = 3;
-function showSlide(n) {
-  for (var i = 0; i < total; i++) {
-    var el = document.getElementById('slide' + i);
-    if (el) el.classList.remove('active');
+(function() {
+  var cur = 0;
+  var n = 3;
+  window.nextSlide = function() { go(cur + 1); };
+  window.prevSlide = function() { go(cur - 1); };
+  function go(to) {
+    document.getElementById('slide' + cur).className = 'demo-slide';
+    cur = ((to % n) + n) % n;
+    document.getElementById('slide' + cur).className = 'demo-slide active';
+    document.getElementById('demoCounter').textContent = (cur + 1) + ' / ' + n;
   }
-  currentSlide = (n + total) % total;
-  var active = document.getElementById('slide' + currentSlide);
-  if (active) active.classList.add('active');
-  var counter = document.getElementById('demoCounter');
-  if (counter) counter.textContent = (currentSlide + 1) + ' / ' + total;
-}
-function nextSlide() { showSlide(currentSlide + 1); }
-function prevSlide() { showSlide(currentSlide - 1); }
+})();
 </script>
 
 <!-- TRUST BAR -->
