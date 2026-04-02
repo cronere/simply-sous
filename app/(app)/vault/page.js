@@ -92,8 +92,31 @@ const css = `
     border-radius:1.25rem;height:200px;animation:shimmer 1.5s ease infinite}
   @keyframes shimmer{0%,100%{opacity:.4}50%{opacity:.7}}
 
+  .vault-tabs{display:flex;gap:.25rem;padding:1.25rem 2rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
+  .vault-tab{padding:.65rem 1.5rem;font-family:'Outfit',sans-serif;font-size:1rem;
+    font-weight:400;cursor:pointer;border:none;background:none;
+    color:rgba(248,243,236,.5);border-bottom:2px solid transparent;
+    margin-bottom:-1px;transition:all .2s}
+  .vault-tab.active{color:#B8874A;border-bottom-color:#B8874A}
+  .vault-tab:hover:not(.active){color:rgba(248,243,236,.8)}
+  .discover-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+    border-radius:1.25rem;overflow:hidden;transition:all .25s}
+  .discover-card:hover{background:rgba(255,255,255,.07);border-color:rgba(184,135,74,.2);
+    transform:translateY(-2px)}
+  .discover-card-body{padding:1.25rem}
+  .discover-card-title{font-family:'Cormorant Garamond',serif;font-size:1.15rem;
+    color:#F8F3EC;line-height:1.2;margin-bottom:.4rem}
+  .discover-card-meta{display:flex;gap:.75rem;font-size:.87rem;color:rgba(248,243,236,.55);margin-bottom:.75rem}
+  .discover-card-desc{font-size:.88rem;color:rgba(248,243,236,.55);line-height:1.6;
+    margin-bottom:.85rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .discover-save-btn{background:#B8874A;color:#1A1612;border:none;padding:.5rem 1.1rem;
+    border-radius:2rem;font-family:'Outfit',sans-serif;font-size:.88rem;font-weight:600;
+    cursor:pointer;transition:all .2s}
+  .discover-save-btn:hover{background:#D4A46A}
+  .discover-save-btn.saved{background:rgba(143,168,137,.2);color:#8FA889;cursor:default}
+
   @media(max-width:600px){
-    .vault-hd,.vault-controls{padding-left:1.25rem;padding-right:1.25rem}
+    .vault-hd,.vault-controls,.vault-tabs{padding-left:1.25rem;padding-right:1.25rem}
     .vault-grid{grid-template-columns:1fr;padding:0 1.25rem 4rem}
   }
 `
@@ -113,6 +136,14 @@ export default function VaultPage() {
   const [userId, setUserId] = useState(null)
   const [recipeCount, setRecipeCount] = useState(0)
   const [mounted, setMounted] = useState(false)
+  const [activeTab, setActiveTab] = useState('mine')
+  const [discoverRecipes, setDiscoverRecipes] = useState([])
+  const [discoverLoading, setDiscoverLoading] = useState(false)
+  const [discoverSearch, setDiscoverSearch] = useState('')
+  const [discoverFilter, setDiscoverFilter] = useState('all')
+  const [savedToVault, setSavedToVault] = useState({})
+  const [discoverPage, setDiscoverPage] = useState(0)
+  const DISCOVER_PAGE_SIZE = 12
 
   useEffect(() => {
     setMounted(true)
@@ -123,6 +154,13 @@ export default function VaultPage() {
       loadRecipes(session.user.id)
     })
   }, [router])
+
+  useEffect(() => {
+    if (activeTab === 'discover') {
+      setDiscoverPage(0)
+      loadDiscover(discoverSearch, discoverFilter, 0)
+    }
+  }, [activeTab, discoverSearch, discoverFilter])
 
   const loadRecipes = useCallback(async (uid) => {
     setLoading(true)
@@ -139,6 +177,65 @@ export default function VaultPage() {
     }
     setLoading(false)
   }, [])
+
+  const loadDiscover = async (search, filter, page) => {
+    setDiscoverLoading(true)
+    const sb = getClient()
+    let query = sb
+      .from('system_recipes')
+      .select('id, title, description, cuisine, total_time_mins, tags, dietary_flags, base_servings')
+      .order('times_served', { ascending: true })
+      .range(page * DISCOVER_PAGE_SIZE, (page + 1) * DISCOVER_PAGE_SIZE - 1)
+
+    if (search) {
+      query = query.or('title.ilike.%' + search + '%,cuisine.ilike.%' + search + '%')
+    }
+    if (filter && filter !== 'all') {
+      query = query.contains('tags', [filter])
+    }
+
+    const { data } = await query
+    if (page === 0) {
+      setDiscoverRecipes(data || [])
+    } else {
+      setDiscoverRecipes(prev => [...prev, ...(data || [])])
+    }
+    setDiscoverLoading(false)
+  }
+
+  const saveToVault = async (recipe) => {
+    if (savedToVault[recipe.id]) return
+    setSavedToVault(prev => ({ ...prev, [recipe.id]: 'saving' }))
+    const sb = getClient()
+    const { data: full } = await sb
+      .from('system_recipes')
+      .select('*')
+      .eq('id', recipe.id)
+      .single()
+
+    const { error } = await sb.from('recipes').insert({
+      profile_id: userId,
+      title: recipe.title,
+      description: recipe.description || null,
+      cuisine: recipe.cuisine || null,
+      meal_type: 'dinner',
+      total_time_mins: recipe.total_time_mins || null,
+      tags: recipe.tags || [],
+      dietary_flags: recipe.dietary_flags || [],
+      source_type: 'dot',
+      ai_processed: true,
+      base_servings: recipe.base_servings || 4,
+      ingredients: full?.ingredients || [],
+      instructions: full?.instructions || [],
+    })
+
+    if (!error) {
+      setSavedToVault(prev => ({ ...prev, [recipe.id]: 'saved' }))
+      setRecipeCount(c => c + 1)
+    } else {
+      setSavedToVault(prev => ({ ...prev, [recipe.id]: null }))
+    }
+  }
 
   const toggleFavorite = async (e, recipeId, current) => {
     e.stopPropagation()
