@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 const getClient = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-) 
+)
 
 function AppRedirect() {
   const router = useRouter()
@@ -97,7 +97,6 @@ export default function RootPage() {
 }
 
 const LANDING_CSS = `
-<style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Outfit:wght@300;400;500;600&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -150,7 +149,6 @@ h1 em{font-style:italic;color:var(--clay)}
 .demo-phone{width:280px;background:#111;border-radius:2.8rem;padding:.5rem;box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 40px 100px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.04)}
 .demo-body{background:#1A1612;border-radius:2.4rem;overflow:hidden}
 .demo-island{width:5.5rem;height:1.4rem;background:#000;border-radius:2rem;margin:.7rem auto .4rem;position:relative;z-index:2}
-.demo-screen{min-height:598px;position:relative}
 
 
 /* Screen 1 - Tonight */
@@ -464,7 +462,6 @@ section{padding:8rem 5%;position:relative}
   .demo-phone{width:240px}
   .footer-bottom{margin-left:-5%;margin-right:-5%;padding:1.5rem 5%}
 }
-</style>
 `
 
 const LANDING_HTML = `
