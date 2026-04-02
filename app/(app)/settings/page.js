@@ -54,12 +54,7 @@ const css = `
   .s-range{display:flex;align-items:center;gap:1rem}
   .s-range input[type=range]{flex:1;accent-color:#B8874A;height:4px}
   .s-range-val{font-size:1rem;color:#B8874A;font-weight:500;min-width:60px;text-align:right}
-  .s-save-bar{position:sticky;bottom:0;background:linear-gradient(to top,#1A1612 80%,transparent);padding:1.5rem 0 0;margin-top:1.5rem}
-  @media(max-width:768px){
-    .s-save-bar{position:fixed;bottom:80px;left:0;right:0;padding:1rem 1.5rem;
-      background:linear-gradient(to top,#1A1612 60%,transparent);z-index:50}
-    .s-wrap{padding-bottom:9rem}
-  }
+  .s-save-bar{padding:1.5rem 0 2rem;margin-top:1.5rem}
   .s-save-btn{width:100%;background:#B8874A;color:#1A1612;border:none;padding:1rem;border-radius:2rem;font-family:'Outfit',sans-serif;font-size:1rem;font-weight:600;cursor:pointer;transition:all .2s}
   .s-save-btn:hover:not(:disabled){background:#D4A46A}
   .s-save-btn:disabled{opacity:.5;cursor:not-allowed}
