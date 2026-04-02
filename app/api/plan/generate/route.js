@@ -252,6 +252,8 @@ export async function POST(request) {
     ])
 
     var promptStr = promptLines.join('\n')
+    console.log('[plan/generate] season=' + season + ' family=' + familyNote)
+    console.log('[plan/generate] prompt length=' + promptStr.length)
 
     var response = await callWithRetry(function() {
       return anthropic.messages.create({
