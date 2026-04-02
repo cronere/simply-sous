@@ -36,7 +36,6 @@ function AppRedirect() {
 
 function LandingPage() {
   useEffect(() => {
-    // FAQ accordion
     document.querySelectorAll('.faq-item').forEach(item => {
       item.querySelector('.faq-q')?.addEventListener('click', () => {
         const was = item.classList.contains('open')
@@ -44,60 +43,23 @@ function LandingPage() {
         if (!was) item.classList.add('open')
       })
     })
-
-    // Scroll reveal
     const obs = new IntersectionObserver(entries => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('vis'); obs.unobserve(e.target) } })
     }, { threshold: 0.06, rootMargin: '0px 0px -20px 0px' })
     document.querySelectorAll('.reveal').forEach(el => obs.observe(el))
-
-    // Nav scroll
     const nav = document.getElementById('nav')
     const onScroll = () => nav?.classList.toggle('scrolled', window.scrollY > 50)
     window.addEventListener('scroll', onScroll)
-
-    // Smooth scroll
     document.querySelectorAll('a[href^="#"]').forEach(a => {
       a.addEventListener('click', e => {
         const t = document.querySelector(a.getAttribute('href'))
         if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
       })
     })
-
-    // Mobile nav
     window.openMob = () => { document.getElementById('mobNav')?.classList.add('open'); document.getElementById('overlay')?.classList.add('open') }
     window.closeMob = () => { document.getElementById('mobNav')?.classList.remove('open'); document.getElementById('overlay')?.classList.remove('open') }
-
-    // Phone demo slider — runs after DOM is ready
-    let cur = 0
-    const total = 3
-
-    function showSlide(n) {
-      for (let i = 0; i < total; i++) {
-        const el = document.getElementById('slide' + i)
-        const counter = document.getElementById('demoCounter')
-        if (el) el.style.display = 'none'
-        if (counter) counter.textContent = (cur + 1) + ' / ' + total
-      }
-      cur = ((n % total) + total) % total
-      const active = document.getElementById('slide' + cur)
-      if (active) active.style.display = 'block'
-      const counter = document.getElementById('demoCounter')
-      if (counter) counter.textContent = (cur + 1) + ' / ' + total
-    }
-
-    // Initialize — show first slide
-    showSlide(0)
-
-    // Attach arrow handlers
-    const nextBtn = document.getElementById('demoNext')
-    const prevBtn = document.getElementById('demoPrev')
-    if (nextBtn) nextBtn.addEventListener('click', () => showSlide(cur + 1))
-    if (prevBtn) prevBtn.addEventListener('click', () => showSlide(cur - 1))
-
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
-
   return (
     <>
       <style>{LANDING_CSS}</style>
@@ -166,13 +128,16 @@ h1 em{font-style:italic;color:var(--clay)}
 .btn-s:hover .arr{border-color:rgba(248,243,236,.5);transform:translateX(3px)}
 .hero-trial{font-size:.85rem;color:rgba(248,243,236,.35);margin-top:.85rem;letter-spacing:.05em;opacity:0;animation:up .9s cubic-bezier(.16,1,.3,1) 1s forwards}
 
-/* PHONE MOCKUP */
+/* DEMO / PHONE MOCKUP */
 .hero-demo{position:relative;z-index:1;opacity:0;animation:up 1s cubic-bezier(.16,1,.3,1) .6s forwards}
-.demo-phone{width:322px;margin:0 auto;background:#111;border-radius:2.8rem;padding:.5rem;box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 40px 100px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.04)}
-.demo-body{background:#1A1612;border-radius:2.4rem;overflow:hidden}
-.demo-island{width:5.5rem;height:1.4rem;background:#000;border-radius:2rem;margin:.7rem auto .4rem;position:relative;z-index:2}
-.demo-screen{min-height:598px}
-.demo-slide{display:none}
+.phones-wrap{display:flex;gap:1.5rem;align-items:flex-start;justify-content:center}
+.phone-unit{display:flex;flex-direction:column;align-items:center;gap:.75rem}
+.phone-label{font-size:.68rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:rgba(184,135,74,.6)}
+.demo-phone{width:195px;background:#111;border-radius:2rem;padding:.4rem;box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 30px 70px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.04)}
+.demo-body{background:#1A1612;border-radius:1.65rem;overflow:hidden}
+.demo-island{width:3.5rem;height:.9rem;background:#000;border-radius:2rem;margin:.5rem auto .3rem;position:relative;z-index:2}
+.demo-screen{min-height:598px;position:relative}
+
 
 /* Screen 1 - Tonight */
 .ds-hd{background:linear-gradient(135deg,rgba(184,135,74,.15),rgba(192,92,48,.06));padding:1rem 1.1rem .8rem;border-bottom:1px solid rgba(255,255,255,.05)}
@@ -213,11 +178,11 @@ h1 em{font-style:italic;color:var(--clay)}
 .ds-msg.a{background:rgba(255,255,255,.06);color:rgba(248,243,236,.75);align-self:flex-start;border-bottom-left-radius:.25rem}
 .ds-msg.a strong{color:var(--clay);font-weight:500}
 
-/* Nav arrows */
-.demo-nav{display:flex;align-items:center;justify-content:center;gap:1rem;margin-top:1rem}
-.demo-arrow{width:2.2rem;height:2.2rem;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(248,243,236,.7);font-size:.85rem;transition:all .2s;user-select:none}
+/* Slide dots */
+.demo-nav{display:flex;align-items:center;justify-content:center;gap:.75rem;margin-top:.65rem}
+.demo-arrow{width:1.8rem;height:1.8rem;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(248,243,236,.7);font-size:.75rem;transition:all .2s;-webkit-tap-highlight-color:transparent;user-select:none}
 .demo-arrow:hover{background:rgba(184,135,74,.2);border-color:rgba(184,135,74,.4);color:#B8874A}
-.demo-counter{font-size:.75rem;color:rgba(248,243,236,.3);letter-spacing:.08em;min-width:2.5rem;text-align:center}
+.demo-counter{font-size:.68rem;color:rgba(248,243,236,.3);letter-spacing:.06em;min-width:2rem;text-align:center}
 .iphone-home{width:3.5rem;height:.3rem;background:rgba(255,255,255,.18);border-radius:1rem;margin:.55rem auto}
 
 /* TRUST BAR */
@@ -260,8 +225,6 @@ section{padding:8rem 5%;position:relative}
 
 /* FEATURES BENTO */
 .features{background:var(--ink)}
-.features-hd{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1.5rem;margin-bottom:0}
-.features-hd-sub{font-size:1rem;color:rgba(248,243,236,.32);max-width:260px;text-align:right;line-height:1.85}
 .bento{display:grid;grid-template-columns:repeat(12,1fr);gap:1rem;margin-top:3.5rem}
 .bc{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:1.5rem;padding:2.25rem;transition:background .3s,border-color .3s,transform .3s;overflow:hidden}
 .bc:hover{background:rgba(255,255,255,.065);border-color:rgba(184,135,74,.18);transform:translateY(-3px)}
@@ -277,6 +240,8 @@ section{padding:8rem 5%;position:relative}
 .bpill{font-size:.72rem;padding:.25rem .7rem;border-radius:2rem;border:1px solid rgba(255,255,255,.08);color:rgba(248,243,236,.3)}
 .bpill.on{background:rgba(184,135,74,.1);border-color:rgba(184,135,74,.25);color:var(--clay)}
 .bcode{background:rgba(0,0,0,.25);border-radius:.65rem;padding:.9rem 1.1rem;margin-top:1.1rem;font-size:.88rem;color:rgba(248,243,236,.35);line-height:1.75}
+.features-hd{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1.5rem;margin-bottom:0}
+.features-hd-sub{font-size:1rem;color:rgba(248,243,236,.32);max-width:260px;text-align:right;line-height:1.85}
 
 /* SHARING */
 .sharing{background:var(--ink2)}
@@ -287,6 +252,7 @@ section{padding:8rem 5%;position:relative}
 .share-t{font-family:'Cormorant Garamond',serif;font-size:1.45rem;color:var(--parchment);margin-bottom:.65rem;line-height:1.2}
 .share-d{font-size:1rem;color:rgba(248,243,236,.68);line-height:1.85}
 .share-tag{display:inline-block;margin-top:1rem;font-size:.68rem;color:var(--sage-l);background:rgba(143,168,137,.08);border:1px solid rgba(143,168,137,.2);padding:.28rem .75rem;border-radius:2rem;letter-spacing:.06em}
+.share-coming{display:inline-block;margin-top:.75rem;font-size:.68rem;color:rgba(248,243,236,.3);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);padding:.28rem .75rem;border-radius:2rem;letter-spacing:.06em}
 
 /* ONBOARDING */
 .onboard{background:var(--warm)}
@@ -318,6 +284,22 @@ section{padding:8rem 5%;position:relative}
 .dot-feat-ico{width:2.25rem;height:2.25rem;border-radius:.65rem;background:rgba(184,135,74,.1);border:1px solid rgba(184,135,74,.18);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;margin-top:.1rem}
 .dot-feat-n{font-weight:500;font-size:1rem;color:var(--parchment);margin-bottom:.25rem}
 .dot-feat-d{font-size:.97rem;color:rgba(248,243,236,.65);line-height:1.75}
+
+/* FAMILY INTELLIGENCE */
+.family-sec{background:var(--warm)}
+.family-grid{display:grid;grid-template-columns:1fr 1fr;gap:6rem;align-items:center}
+.family-features{display:flex;flex-direction:column;gap:1.75rem;margin-top:2.5rem}
+.ff{display:flex;gap:1rem;align-items:flex-start}
+.ff-ico{width:2.2rem;height:2.2rem;border-radius:50%;background:rgba(192,92,48,.08);border:1px solid rgba(192,92,48,.15);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;margin-top:.1rem}
+.ff-n{font-weight:500;font-size:1.05rem;color:var(--ink);margin-bottom:.2rem}
+.ff-d{font-size:.97rem;color:var(--mid);line-height:1.7}
+.family-card{background:var(--ink);border-radius:1.5rem;padding:2rem;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+.fcard-hd{font-size:.68rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--clay);margin-bottom:1.25rem}
+.fcard-member{display:flex;align-items:center;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.fcard-member:last-child{border-bottom:none}
+.fcard-name{font-size:.97rem;color:var(--parchment)}
+.fcard-age{font-size:.82rem;color:rgba(248,243,236,.4)}
+.fcard-tag{font-size:.7rem;padding:.2rem .65rem;border-radius:2rem;background:rgba(143,168,137,.1);border:1px solid rgba(143,168,137,.2);color:var(--sage-l)}
 
 /* PRICING */
 .pricing{background:var(--ink2)}
@@ -371,12 +353,13 @@ section{padding:8rem 5%;position:relative}
 .story-attr span{color:var(--ember)}
 
 /* FOOTER CTA */
-.footer-cta{background:var(--ink);padding:9rem 5% 0;position:relative;overflow:hidden}
+.footer-cta{background:var(--ink);padding:9rem 5% 4rem;position:relative;overflow:hidden}
+.footer-cta::before{display:none}
 .footer-cta-inner{position:relative;z-index:1;text-align:center}
 .footer-cta-t{font-family:'Cormorant Garamond',serif;font-size:clamp(3rem,8vw,6rem);font-weight:300;color:var(--parchment);line-height:.9;margin:1.5rem 0 1.25rem;letter-spacing:-.02em}
 .footer-cta-t em{font-style:italic;color:var(--clay)}
 .footer-cta-sub{font-size:1.1rem;color:rgba(248,243,236,.38);margin-bottom:2.75rem;line-height:1.7}
-.footer-bottom{margin-top:5rem;background:rgba(0,0,0,.3);margin-left:-5%;margin-right:-5%;padding:1.5rem 5%;border-top:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem}
+.footer-bottom{margin-top:7rem;background:rgba(0,0,0,.25);margin-left:-5%;margin-right:-5%;padding:1.75rem 5%;border-top:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem}
 .f-logo{font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:600;color:var(--parchment)}
 .f-logo span{color:var(--clay);font-style:italic}
 .f-tag{font-size:.78rem;color:rgba(248,243,236,.28);letter-spacing:.04em}
@@ -400,7 +383,16 @@ section{padding:8rem 5%;position:relative}
 .overlay.open{opacity:1;pointer-events:all}
 .mob-close{position:absolute;top:1.5rem;right:1.5rem;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(248,243,236,.4);font-size:1.2rem}
 
+/* Demo */
+.demo-screen{position:relative;overflow:hidden}
+.demo-slide{display:none}
+.demo-slide.active{display:block}
+
 /* RESPONSIVE */
+@media(max-width:1100px){
+  .demo-phone{width:160px}
+  .phones-wrap{gap:1rem}
+}
 @media(max-width:1024px){
   .bento{grid-template-columns:1fr 1fr}
   .c7,.c5,.c4,.c8,.c6,.c12{grid-column:span 1}
@@ -410,7 +402,7 @@ section{padding:8rem 5%;position:relative}
   .pricing-cards{grid-template-columns:1fr}
   .share-grid{grid-template-columns:1fr}
   .ob-steps{grid-template-columns:1fr 1fr;gap:1px}
-  .dot-grid{grid-template-columns:1fr}
+  .dot-grid,.family-grid{grid-template-columns:1fr}
 }
 @media(max-width:768px){
   nav{padding:1.25rem 1.25rem}
@@ -422,33 +414,47 @@ section{padding:8rem 5%;position:relative}
   .hero-btns{justify-content:center}
   .hero-sub{margin:1.75rem auto 0}
   section{padding:5rem 5%}
-  .problem-grid{grid-template-columns:1fr;gap:3rem}
-  .stat{border-left:none;padding-left:0;border-top:1px solid rgba(184,135,74,.15);padding-top:1.5rem}
+  .problem-grid{grid-template-columns:1fr;gap:3.5rem}
   .steps{grid-template-columns:1fr}
   .bento{grid-template-columns:1fr}
   .bc.feat{grid-column:span 1}
   .ob-steps{grid-template-columns:1fr}
+  .features-hd{flex-direction:column;align-items:center;text-align:center}
+  .features-hd-sub{max-width:100%;text-align:center}
+  .dot-feat,.ff{flex-direction:column;align-items:center;text-align:center}
+  .dot-feat-ico,.ff-ico{margin-top:0;margin-bottom:.5rem}
+  .dot-feats,.family-features{align-items:center}
+  .fi{flex-direction:column;align-items:center;text-align:center}
+  .fi-dot{margin-top:0;margin-bottom:.35rem}
   h1{font-size:clamp(3rem,13vw,5.5rem)}
   .pricing-cards{grid-template-columns:1fr;max-width:380px;margin-left:auto;margin-right:auto}
   .share-grid{grid-template-columns:1fr}
-  .footer-bottom{flex-direction:column;align-items:center;text-align:center;gap:.75rem}
+  .footer-bottom{flex-direction:column;align-items:center;text-align:center}
   .f-links{justify-content:center}
-  .trust{gap:1rem;padding:1.2rem 5%}
-  .trust-item{font-size:.85rem}
+  .trust{gap:1.25rem}
   .ov,.ov-d{justify-content:center !important}
   .sh,.sh-d{text-align:center !important}
   .sp,.sp-d{text-align:center !important}
   .section-inner{text-align:center !important}
   .section-inner p{text-align:center !important}
   .section-inner h2{text-align:center !important}
-  .features-hd{flex-direction:column;align-items:center;text-align:center}
-  .features-hd-sub{max-width:100%;text-align:center}
-  .dot-feat,.ff{flex-direction:column;align-items:center;text-align:center}
-  .dot-feat-ico,.ff-ico{margin-top:0;margin-bottom:.5rem}
+  .section-inner .reveal{text-align:center !important}
+  .section-inner .reveal > div{text-align:center !important}
+  .footer-bottom{flex-direction:column;align-items:center;text-align:center;gap:.75rem}
+  .f-links{justify-content:center}
+  .trust{gap:1rem;padding:1.2rem 5%}
+  .trust-item{font-size:.85rem}
+  .problem-grid{grid-template-columns:1fr}
+  .stat{border-left:none;padding-left:0;border-top:1px solid rgba(184,135,74,.15);padding-top:1.5rem}
+  .stat-col{gap:2rem}
 }
 @media(max-width:480px){
   .hero-btns{flex-direction:column;align-items:center}
-  .demo-phone{width:260px}
+  .demo-phone{width:220px}
+  .phones-wrap{gap:.75rem}
+  .phones-wrap .phone-unit:nth-child(2){margin-top:2rem}
+  .phones-wrap .phone-unit:nth-child(3){display:none}
+  .footer-bottom{margin-left:-5%;margin-right:-5%;padding:1.5rem 5%}
 }
 </style>
 `
@@ -495,76 +501,89 @@ const LANDING_HTML = `
       </div>
       <p class="hero-trial">14 days free · No credit card · Cancel anytime</p>
     </div>
-    <div class="hero-demo">
-      <div class="demo-phone">
-        <div class="demo-body">
-          <div class="demo-island"></div>
-          <div class="demo-screen">
 
-            <div class="demo-slide" id="slide0">
-              <div class="ds-hd">
-                <div class="ds-eyebrow">Tonight</div>
-                <div class="ds-title">Wednesday, April 9</div>
-              </div>
-              <div class="ds-card">
-                <div class="ds-card-top">
-                  <div class="ds-label">Tonight's dinner</div>
-                  <div class="ds-meal">Thai Green Curry with Jasmine Rice</div>
-                  <div class="ds-meta"><span>🌍 Thai</span><span>⏱ 35 min</span><span>👥 Serves 5</span></div>
-                </div>
-                <div class="ds-timer">
-                  <div><div class="ds-tl">Start by</div><div class="ds-tv">5:25 PM</div></div>
-                  <div style="text-align:right"><div class="ds-tl">Ready at</div><div class="ds-tv">6:00 PM</div></div>
-                </div>
-              </div>
-              <div class="ds-steps">
-                <div class="ds-step"><div class="ds-sn">01</div><div class="ds-st">Pull chicken from fridge. Rinse jasmine rice.</div></div>
-                <div class="ds-step"><div class="ds-sn">02</div><div class="ds-st">Heat coconut oil. Sauté curry paste 1 min.</div></div>
-                <div class="ds-step"><div class="ds-sn">03</div><div class="ds-st">Add coconut milk, chicken. Simmer 20 min.</div></div>
-                <div class="ds-step"><div class="ds-sn">04</div><div class="ds-st">Serve over rice. Garnish with basil.</div></div>
-              </div>
-              <div class="iphone-home"></div>
+  <!-- 3 Phone demos with real screenshots -->
+  <div class="hero-demo">
+    <div class="phones-wrap">
+
+      <!-- Phone 1: Today + Plan -->
+      <div class="phone-unit">
+        <div class="phone-label">Daily view</div>
+        <div class="demo-phone">
+          <div class="demo-body">
+            <div class="demo-island"></div>
+            <div class="demo-screen">
+              <img src="/screenshots/01_-_Today.jpg" class="demo-slide active" id="p1s0" style="width:100%;display:block"/>
+              <img src="/screenshots/03_-_Plan.jpg" class="demo-slide" id="p1s1" style="width:100%;display:none"/>
             </div>
-
-            <div class="demo-slide" id="slide1">
-              <div class="ds-plan-hd">
-                <div class="ds-plan-week">This week · Apr 7–13</div>
-                <div class="ds-plan-title">Weekly <em style="color:#B8874A;font-style:italic">Plan</em></div>
-              </div>
-              <div class="ds-day tonight"><div class="ds-day-name">MON</div><div class="ds-day-recipe">Honey Garlic Chicken Thighs</div><div class="ds-day-time">5:40</div></div>
-              <div class="ds-day"><div class="ds-day-name">TUE</div><div class="ds-day-recipe">Shrimp Scampi with Linguine</div><div class="ds-day-time">5:30</div></div>
-              <div class="ds-day"><div class="ds-day-name">WED</div><div class="ds-day-recipe">Thai Green Curry</div><div class="ds-day-time">5:25</div></div>
-              <div class="ds-day"><div class="ds-day-name">THU</div><div class="ds-day-recipe">Sheet Pan Salmon</div><div class="ds-day-time">5:45</div></div>
-              <div class="ds-day"><div class="ds-day-name">FRI</div><div class="ds-day-recipe" style="color:rgba(248,243,236,.3);font-style:italic">night off</div></div>
-              <div class="ds-day"><div class="ds-day-name">SAT</div><div class="ds-day-recipe">Beef Bulgogi Bowls</div><div class="ds-day-time">6:00</div></div>
-              <div class="iphone-home"></div>
-            </div>
-
-            <div class="demo-slide" id="slide2">
-              <div class="ds-dot-hd">
-                <div class="ds-dot-av">👵</div>
-                <div><div class="ds-dot-n">Dot</div><div class="ds-dot-s">Your kitchen assistant</div></div>
-              </div>
-              <div class="ds-msgs">
-                <div class="ds-msg u">Something quick tonight — the kids are starving</div>
-                <div class="ds-msg a">I've got you! <strong>Honey Garlic Chicken</strong> from your vault is 27 minutes — and it's a family favorite. Or <strong>Shrimp Fried Rice</strong> using your leftover rice. Which one?</div>
-                <div class="ds-msg u">Add shrimp fried rice to tonight</div>
-                <div class="ds-msg a">Done! Tonight is <strong>Shrimp Fried Rice</strong>. You have everything except the shrimp — added to your grocery list.</div>
-              </div>
-              <div class="iphone-home"></div>
-            </div>
-
           </div>
         </div>
+        <div class="demo-nav">
+          <div class="demo-arrow" onclick="ph(1,-1)">&#8592;</div>
+          <div class="demo-counter" id="p1c">1 / 2</div>
+          <div class="demo-arrow" onclick="ph(1,1)">&#8594;</div>
+        </div>
       </div>
-      <div class="demo-nav">
-        <div class="demo-arrow" id="demoPrev">&#8592;</div>
-        <div class="demo-counter" id="demoCounter">1 / 3</div>
-        <div class="demo-arrow" id="demoNext">&#8594;</div>
+
+      <!-- Phone 2: Vault + Grocery -->
+      <div class="phone-unit" style="margin-top:3rem">
+        <div class="phone-label">Recipe &amp; shopping</div>
+        <div class="demo-phone">
+          <div class="demo-body">
+            <div class="demo-island"></div>
+            <div class="demo-screen">
+              <img src="/screenshots/02_-_Vault_-_1.jpg" class="demo-slide active" id="p2s0" style="width:100%;display:block"/>
+              <img src="/screenshots/02_-_Vault_-_2.jpg" class="demo-slide" id="p2s1" style="width:100%;display:none"/>
+              <img src="/screenshots/04_-_Grocery.jpg" class="demo-slide" id="p2s2" style="width:100%;display:none"/>
+            </div>
+          </div>
+        </div>
+        <div class="demo-nav">
+          <div class="demo-arrow" onclick="ph(2,-1)">&#8592;</div>
+          <div class="demo-counter" id="p2c">1 / 3</div>
+          <div class="demo-arrow" onclick="ph(2,1)">&#8594;</div>
+        </div>
       </div>
+
+      <!-- Phone 3: Dot + Settings -->
+      <div class="phone-unit">
+        <div class="phone-label">AI + personalization</div>
+        <div class="demo-phone">
+          <div class="demo-body">
+            <div class="demo-island"></div>
+            <div class="demo-screen">
+              <img src="/screenshots/05_-_Dot.jpg" class="demo-slide active" id="p3s0" style="width:100%;display:block"/>
+              <img src="/screenshots/06_-_Setting_-_1.jpg" class="demo-slide" id="p3s1" style="width:100%;display:none"/>
+              <img src="/screenshots/06_-_Setting_-_7.jpg" class="demo-slide" id="p3s2" style="width:100%;display:none"/>
+            </div>
+          </div>
+        </div>
+        <div class="demo-nav">
+          <div class="demo-arrow" onclick="ph(3,-1)">&#8592;</div>
+          <div class="demo-counter" id="p3c">1 / 3</div>
+          <div class="demo-arrow" onclick="ph(3,1)">&#8594;</div>
+        </div>
+      </div>
+
     </div>
   </div>
+  </div>
 </section>
+
+<script>
+(function() {
+  var state = {1:{cur:0,n:2}, 2:{cur:0,n:3}, 3:{cur:0,n:3}};
+  window.ph = function(phone, dir) {
+    var s = state[phone];
+    var prev = s.cur;
+    s.cur = ((s.cur + dir) % s.n + s.n) % s.n;
+    var prefix = 'p' + phone + 's';
+    document.getElementById(prefix + prev).style.display = 'none';
+    document.getElementById(prefix + s.cur).style.display = 'block';
+    document.getElementById('p' + phone + 'c').textContent = (s.cur + 1) + ' / ' + s.n;
+  };
+})();
+</script>
 
 <!-- TRUST BAR -->
 <div class="trust">
@@ -692,7 +711,7 @@ const LANDING_HTML = `
       <div class="bc c6 reveal">
         <span class="bico">👶</span>
         <div class="bt">Family intelligence</div>
-        <div class="bd">Add child profiles with ages. Simply Sous adjusts meal suggestions based on toddlers vs. teenagers — and scales portions to your real family size automatically.</div>
+        <div class="bd">Add child profiles with ages. Simply Sous adjusts meal suggestions based on picky toddlers vs. teenagers — and scales portions to your real family size automatically.</div>
       </div>
       <div class="bc c6 reveal d1">
         <span class="bico">⭐</span>
@@ -702,12 +721,12 @@ const LANDING_HTML = `
       <div class="bc c5 reveal d2">
         <span class="bico">🔄</span>
         <div class="bt">Swap in seconds</div>
-        <div class="bd">Plans changed? One tap serves suggestions filtered to under 30 minutes — your vault recipes and Dot's picks, ready to go.</div>
+        <div class="bd">Plans changed? Not feeling it tonight? One tap serves 6 suggestions — your vault recipes and Dot's picks — filtered to under 30 minutes by default.</div>
       </div>
       <div class="bc c7 reveal">
         <span class="bico">🍂</span>
         <div class="bt">Seasonal menus, automatically</div>
-        <div class="bd">Simply Sous knows what season it is and adjusts recommendations — lighter grilled meals in summer, warming soups and braises in winter. No configuration needed.</div>
+        <div class="bd">Simply Sous knows what season it is and adjusts recommendations accordingly — lighter grilled meals in summer, warming soups and braises in winter. No configuration needed.</div>
       </div>
     </div>
   </div>
@@ -801,7 +820,7 @@ const LANDING_HTML = `
           </div>
           <div class="dot-feat">
             <div class="dot-feat-ico">🥗</div>
-            <div><div class="dot-feat-n">Seasonal &amp; family-aware</div><div class="dot-feat-d">Dot knows the season, your children's ages, your allergens, and your preferences — every suggestion is genuinely tailored to you.</div></div>
+            <div><div class="dot-feat-n">Seasonal & family-aware</div><div class="dot-feat-d">Dot knows the season, your children's ages, your allergens, and your preferences — every suggestion is genuinely tailored to you.</div></div>
           </div>
           <div class="dot-feat">
             <div class="dot-feat-ico">🔄</div>
@@ -818,8 +837,8 @@ const LANDING_HTML = `
           <div class="dot-msgs">
             <div class="msg u">What can I make with the rotisserie chicken in my fridge?</div>
             <div class="msg a">You've got <strong>Creamy Tuscan Pasta</strong> in your vault — shredded rotisserie saves 15 minutes. Or I can suggest something fresh. Want to see it?</div>
-            <div class="msg u">Yes, and something under 20 minutes.</div>
-            <div class="msg a">Here are two great options — both gluten-free for your family. <strong>Tuscan Pasta</strong> from your vault, or <strong>Chicken Lettuce Wraps</strong> in 15 min. Tap either to view the full recipe.</div>
+            <div class="msg u">Yes, show me. And something under 20 minutes.</div>
+            <div class="msg a">Here are two great options — both gluten-free and peanut-free for your family. <strong>Tuscan Pasta</strong> is 25 min from your vault, or <strong>Chicken Lettuce Wraps</strong> in 15. Tap either to view the full recipe and save it.</div>
           </div>
           <div class="dot-input">
             <div class="dot-field">Ask Dot anything...</div>
@@ -884,7 +903,7 @@ const LANDING_HTML = `
           <div class="pcf">Everything in Flexible</div>
           <div class="pcf">Seasonal menu shifting</div>
           <div class="pcf">Recipe sharing + collections</div>
-          <div class="pcf">Pattern recognition &amp; ratings</div>
+          <div class="pcf">Pattern recognition & ratings</div>
           <div class="pcf">Priority new features</div>
           <div class="pcf">Child profiles</div>
         </div>
@@ -933,19 +952,19 @@ const LANDING_HTML = `
       </div>
       <div class="faq-item">
         <div class="faq-q"><div class="faq-question">Can my whole family use it?</div><div class="faq-tog">+</div></div>
-        <div class="faq-ans">Yes. Simply Sous is built for the whole household. Add child profiles with ages and the AI adjusts meal suggestions accordingly. You can also share recipe collections with family members — even if they're not Simply Sous users yet.</div>
+        <div class="faq-ans">Yes. Simply Sous is built for the whole household. Add child profiles with ages and the AI adjusts meal suggestions accordingly. You can also share recipe collections with family members — sisters, parents, close friends — even if they're not Simply Sous users yet.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q"><div class="faq-question">What if we always eat out on certain nights?</div><div class="faq-tog">+</div></div>
-        <div class="faq-ans">Set blackout days during onboarding — or update them anytime in settings. Simply Sous skips those nights completely and only plans the evenings you actually cook.</div>
+        <div class="faq-ans">Set blackout days during onboarding — or update them anytime in settings. Simply Sous skips those nights completely and only plans the evenings you actually cook. Friday pizza night stays sacred.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q"><div class="faq-question">Is my recipe data private?</div><div class="faq-tog">+</div></div>
-        <div class="faq-ans">Completely private. Your recipe vault, meal plans, and family information belong entirely to you. We never share your data. Child profiles are stored with no names required — just ages — for your family's privacy.</div>
+        <div class="faq-ans">Completely private. Your recipe vault, meal plans, and family information belong entirely to you. We never share your data with anyone. Child profiles are stored with no names required — just ages — for your family's privacy.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q"><div class="faq-question">What's the difference between Annual and Lifetime?</div><div class="faq-tog">+</div></div>
-        <div class="faq-ans">Annual renews each year at $79.99. Lifetime is a single payment of $119.99 — you own it forever, including every feature we add in the future. If you use Simply Sous for more than 15 months, Lifetime pays for itself.</div>
+        <div class="faq-ans">Annual renews each year at $79.99. Lifetime is a single payment of $119.99 — you own it forever, including every feature we add in the future. If you use Simply Sous for more than 15 months, Lifetime pays for itself. Most families who love it choose Lifetime.</div>
       </div>
     </div>
   </div>
