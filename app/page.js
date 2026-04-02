@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 const getClient = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+) 
 
 function AppRedirect() {
   const router = useRouter()
