@@ -173,6 +173,8 @@ export default function VaultPage() {
       setSavedToVault(prev => ({ ...prev, [recipe.id]: 'saved' }))
       setRecipeCount(c => c + 1)
     } else {
+      console.error('saveToVault error:', JSON.stringify(error))
+      console.error('uid:', uid, 'recipe.id:', recipe.id)
       setSavedToVault(prev => ({ ...prev, [recipe.id]: null }))
     }
   }
