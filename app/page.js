@@ -651,7 +651,7 @@ slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
       </div>
       <div class="bc c4 reveal d1">
         <span class="bico">✨</span>
-        <div class="bt">Discover 230+ recipes</div>
+        <div class="bt">Discover 1,000+ recipes</div>
         <div class="bd">Browse Dot's curated recipe database — filtered by dietary needs, cuisine, cook time, and your taste profile. Save any to your vault with one tap.</div>
         <div class="bpills">
           <div class="bpill on">Gluten-free</div>
@@ -752,7 +752,7 @@ slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
       <div class="ob-step" data-n="04">
         <span class="ob-ico">📸</span>
         <div class="ob-t">Add your recipes</div>
-        <div class="ob-d">Paste URLs, upload screenshots, or photos. AI extracts everything. Or skip — 230+ curated recipes are ready from day one.</div>
+        <div class="ob-d">Paste URLs, upload screenshots, or photos. AI extracts everything. Or skip — 1,000+ curated recipes are ready from day one.</div>
       </div>
       <div class="ob-step" data-n="05">
         <span class="ob-ico">✨</span>
@@ -817,7 +817,7 @@ slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
   <div class="section-inner center reveal" style="max-width:760px;margin:0 auto">
     <div class="ov ov-d" style="justify-content:center">Why we built this</div>
     <blockquote class="story-q">"I watched my wife answer the dinner question <em>every single night</em> — and realized it wasn't about the cooking. It was about the deciding. So I built her a sous chef."</blockquote>
-    <div class="story-attr">— The founder &nbsp;·&nbsp; <span>Built for family, open to yours</span></div>
+    <div class="story-attr">— Jacob Merkley, Founder &nbsp;·&nbsp; <span>Built for family, open to yours</span></div>
   </div>
 </section>
 
@@ -849,7 +849,7 @@ slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
           <div class="pcf">Multi-week grocery lists</div>
           <div class="pcf">Today view + cook mode</div>
           <div class="pcf">Dot AI assistant</div>
-          <div class="pcf">230+ recipe database</div>
+          <div class="pcf">1,000+ recipe database</div>
           <div class="pcf">Family intelligence</div>
         </div>
         <a href="https://app.simplysous.com/signup" class="pc-cta">Start free trial</a>
@@ -906,7 +906,7 @@ slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
       </div>
       <div class="faq-item">
         <div class="faq-q"><div class="faq-question">What does the 14-day free trial include?</div><div class="faq-tog">+</div></div>
-        <div class="faq-ans">Everything. Full access to the recipe vault, AI meal planning, grocery lists, Dot the AI assistant, the 230+ recipe database, family intelligence, and seasonal planning. No credit card, no commitment. Cancel with one click if Simply Sous doesn't change your evenings.</div>
+        <div class="faq-ans">Everything. Full access to the recipe vault, AI meal planning, grocery lists, Dot the AI assistant, the 1,000+ recipe database, family intelligence, and seasonal planning. No credit card, no commitment. Cancel with one click if Simply Sous doesn't change your evenings.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q"><div class="faq-question">How does the AI recipe capture work?</div><div class="faq-tog">+</div></div>
@@ -944,11 +944,17 @@ slideTimer = setInterval(function(){ goSlide((currentSlide + 1) % 3); }, 4000);
     </div>
   </div>
   <div class="footer-bottom">
-    <div class="f-logo">Simply <span>Sous</span></div>
-    <div class="f-tag">Dinner, decided. · Built with love for the family table.</div>
-    <div class="f-links">
-      <a href="/privacy">Privacy</a>
-      <a href="/terms">Terms</a>
+    <div style="display:flex;align-items:center;gap:1rem">
+      <div class="f-logo">Simply <span>Sous</span></div>
+      <div style="width:1px;height:1rem;background:rgba(255,255,255,.12)"></div>
+      <div class="f-tag">© 2026 Inboxx Digital, LLC</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:2rem">
+      <div class="f-tag">Dinner, decided.</div>
+      <div class="f-links">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </div>
     </div>
   </div>
 `
