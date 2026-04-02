@@ -62,6 +62,18 @@ const css = `
   .s-danger-btn:hover{background:rgba(239,68,68,.06);color:#EF4444}
   .s-success{font-size:.88rem;color:#8FA889;text-align:center;margin-top:.75rem;height:1.2rem;transition:opacity .3s}
   @keyframes spin{to{transform:rotate(360deg)}}
+  @media(max-width:768px){
+    .s-save-bar{bottom:80px}
+    .s-wrap{padding-bottom:10rem}
+  }
+  @media(max-width:600px){
+    .s-wrap{padding:1.5rem 1rem 10rem}
+    .s-chips{gap:.35rem}
+    .s-chip{font-size:.82rem;padding:.3rem .75rem}
+    .s-range{gap:.5rem}
+    .s-section-body{padding:1rem}
+    .s-save-btn{border-radius:1.5rem}
+  }
 `
 
 export default function SettingsPage() {
