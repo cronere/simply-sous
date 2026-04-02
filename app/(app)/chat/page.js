@@ -74,6 +74,14 @@ const css = `
   .recipe-preview-footer{padding:1rem 1.5rem;border-top:1px solid rgba(255,255,255,.07);display:flex;gap:.75rem;position:sticky;bottom:0;background:#2C2420}
 `
 
+function getSeason() {
+  const m = new Date().getMonth() + 1
+  if (m >= 3 && m <= 5) return 'spring'
+  if (m >= 6 && m <= 8) return 'summer'
+  if (m >= 9 && m <= 11) return 'fall'
+  return 'winter'
+}
+
 const SUGGESTIONS = [
   "What can I make with chicken tonight?",
   "Quick dinners under 20 minutes",
@@ -142,14 +150,18 @@ export default function DotPage() {
     } catch(e) {}
   }, [messages])
 
+  const [familyMembers, setFamilyMembers] = useState([])
+
   const loadContext = async () => {
     const sb = getClient()
-    const [prefsRes, recipesRes] = await Promise.all([
+    const [prefsRes, recipesRes, membersRes] = await Promise.all([
       sb.from('user_preferences').select('*').eq('profile_id', userId).maybeSingle(),
       sb.from('recipes').select('title, cuisine, tags, total_time_mins').eq('profile_id', userId),
+      sb.from('family_members').select('name, birth_month, birth_year').eq('profile_id', userId),
     ])
     if (prefsRes.data) setPrefs(prefsRes.data)
     if (recipesRes.data) setVaultTitles(recipesRes.data.map(r => r.title))
+    if (membersRes.data) setFamilyMembers(membersRes.data)
   }
 
   const sendMessage = async (text) => {
@@ -185,7 +197,27 @@ export default function DotPage() {
         content: m.content
       }))
 
+      const season = getSeason()
+      const seasonNote = season === 'summer' ? 'It is summer — lean toward lighter, fresher meals.'
+        : season === 'winter' ? 'It is winter — heartier, warming meals are welcome.'
+        : season === 'fall' ? 'It is fall — comforting meals with seasonal produce are ideal.'
+        : 'It is spring — fresh, lighter meals are in season.'
+
+      const getAge = (month, year) => {
+        const now = new Date()
+        let age = now.getFullYear() - year
+        if (now.getMonth() + 1 < month) age--
+        return Math.max(0, age)
+      }
+      const childAges = familyMembers.map(m => getAge(m.birth_month, m.birth_year))
+      const familyNote = childAges.length > 0
+        ? 'Family has children aged ' + childAges.join(', ') + '. Consider kid-friendliness.'
+        : ''
+
       const systemPrompt = `You are Dot, a kitchen assistant for Simply Sous with a warm, gently grandmotherly tone — practical, brief, and genuinely helpful. Never fussy or over-explaining.
+
+CURRENT SEASON: ${season}. ${seasonNote}
+${familyNote}
 
 USER PREFERENCES:
 - Dietary: ${dietary.length ? dietary.join(', ') : 'none'}
