@@ -43,7 +43,7 @@ const css = `
   .s-chip.danger.active{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#EF4444}
   .s-chip.day.active{background:rgba(143,168,137,.12);border-color:rgba(143,168,137,.3);color:#8FA889}
   .s-tags-input{display:flex;gap:.5rem;margin-bottom:.65rem}
-  .s-tags-input input{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:.75rem;padding:.6rem .9rem;color:#F8F3EC;font-family:'Outfit',sans-serif;font-size:.95rem;outline:none}
+  .s-tags-input input{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:.75rem;padding:.6rem .9rem;color:#F8F3EC;font-family:'Outfit',sans-serif;font-size:1rem;outline:none}
   .s-tags-input input:focus{border-color:rgba(184,135,74,.4)}
   .s-tags-input input::placeholder{color:rgba(248,243,236,.25)}
   .s-add-btn{background:rgba(184,135,74,.15);border:1px solid rgba(184,135,74,.3);color:#B8874A;border-radius:.75rem;padding:.6rem 1rem;font-family:'Outfit',sans-serif;font-size:.9rem;cursor:pointer;white-space:nowrap;transition:all .2s}
@@ -54,7 +54,7 @@ const css = `
   .s-range{display:flex;align-items:center;gap:1rem}
   .s-range input[type=range]{flex:1;accent-color:#B8874A;height:4px}
   .s-range-val{font-size:1rem;color:#B8874A;font-weight:500;min-width:60px;text-align:right}
-  .s-save-bar{position:sticky;bottom:0;background:linear-gradient(to top,#1A1612 70%,transparent);padding:1.5rem 0 0;margin-top:1.5rem}
+  .s-save-bar{position:sticky;bottom:0;background:linear-gradient(to top,#1A1612 80%,transparent);padding:1.5rem 0 0;margin-top:1.5rem}
   .s-save-btn{width:100%;background:#B8874A;color:#1A1612;border:none;padding:1rem;border-radius:2rem;font-family:'Outfit',sans-serif;font-size:1rem;font-weight:600;cursor:pointer;transition:all .2s}
   .s-save-btn:hover:not(:disabled){background:#D4A46A}
   .s-save-btn:disabled{opacity:.5;cursor:not-allowed}
