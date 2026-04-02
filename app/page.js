@@ -407,6 +407,11 @@ section{padding:8rem 5%;position:relative}
   .ob-steps{grid-template-columns:1fr}
   .features-hd{flex-direction:column;align-items:center;text-align:center}
   .features-hd-sub{max-width:100%;text-align:center}
+  .dot-feat,.ff{flex-direction:column;align-items:center;text-align:center}
+  .dot-feat-ico,.ff-ico{margin-top:0;margin-bottom:.5rem}
+  .dot-feats,.family-features{align-items:center}
+  .fi{flex-direction:column;align-items:center;text-align:center}
+  .fi-dot{margin-top:0;margin-bottom:.35rem}
   h1{font-size:clamp(3rem,13vw,5.5rem)}
   .pricing-cards{grid-template-columns:1fr;max-width:380px;margin-left:auto;margin-right:auto}
   .share-grid{grid-template-columns:1fr}
