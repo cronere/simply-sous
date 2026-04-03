@@ -1,21 +1,26 @@
-import { put } from '@vercel/blob'
-
-export const maxDuration = 60
+import { handleUpload } from '@vercel/blob/server'
 
 export async function POST(request) {
+  const body = await request.json()
+
   try {
-    const filename = request.headers.get('x-filename') || 'recipe-upload.pdf'
-    const contentType = request.headers.get('content-type') || 'application/pdf'
-
-    // Stream the file directly to Vercel Blob — no 4.5MB limit here
-    const blob = await put(`pdf-imports/${Date.now()}-${filename}`, request.body, {
-      access: 'public',
-      contentType,
+    const jsonResponse = await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async (pathname) => {
+        // Allow PDF uploads only
+        return {
+          allowedContentTypes: ['application/pdf'],
+          maximumSizeInBytes: 100 * 1024 * 1024, // 100MB
+        }
+      },
+      onUploadCompleted: async ({ blob }) => {
+        console.log('PDF uploaded to blob:', blob.url)
+      },
     })
-
-    return Response.json({ url: blob.url })
+    return Response.json(jsonResponse)
   } catch (err) {
-    console.error('PDF upload error:', err)
-    return Response.json({ error: err.message || 'Upload failed' }, { status: 500 })
+    console.error('Blob upload handler error:', err)
+    return Response.json({ error: err.message }, { status: 400 })
   }
 }
