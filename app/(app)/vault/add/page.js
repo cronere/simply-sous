@@ -371,7 +371,7 @@ export default function AddRecipePage() {
             </div>
             <div className="loading-sub">
               {method === 'pdf'
-                ? "She's going through every page, identifying each recipe, and organizing them for your vault. This may take 30–60 seconds for longer documents."
+                ? "She's going through every page, identifying each recipe, and organizing them for your vault. This may take up to 5 minutes for larger documents — please keep this page open."
                 : <>She&apos;s reading your {method === 'url' ? 'recipe page' : method === 'image' ? 'image' : 'text'}, pulling out every ingredient and step, and tagging it all for your vault. Takes about 10–15 seconds.</>
               }
             </div>
