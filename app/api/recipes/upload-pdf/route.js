@@ -9,12 +9,18 @@ export async function POST(request) {
       request,
       onBeforeGenerateToken: async (pathname) => {
         return {
-          allowedContentTypes: ['application/pdf'],
+          // Accept any PDF-like content type — browsers send different MIME types
+          allowedContentTypes: [
+            'application/pdf',
+            'application/x-pdf',
+            'application/octet-stream',
+          ],
           addRandomSuffix: true,
+          maximumSizeInBytes: 200 * 1024 * 1024, // 200MB
         }
       },
       onUploadCompleted: async ({ blob }) => {
-        console.log('PDF uploaded:', blob.url)
+        console.log('PDF uploaded to blob:', blob.url)
       },
     })
     return Response.json(jsonResponse)
