@@ -435,7 +435,7 @@ export default function AddRecipePage() {
                     <>
                       <span className="img-upload-ico">📄</span>
                       <div className="img-upload-title">Drop PDF or tap to browse</div>
-                      <div className="img-upload-sub">Family recipe books · Cookbook exports · Any PDF with recipes<br/>PDF files only · Max 20MB</div>
+                      <div className="img-upload-sub">Family recipe books · Cookbook exports · Any PDF with recipes<br/>PDF files only</div>
                     </>
                   )}
                 </div>
