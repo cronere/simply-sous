@@ -1,5 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
 
+// Increase body size limit for PDF uploads
+export const maxDuration = 300
+export const dynamic = 'force-dynamic'
+
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
