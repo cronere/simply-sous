@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import { upload } from '@vercel/blob/client'
 
 let _client = null
 const getClient = () => {
@@ -207,25 +208,17 @@ export default function AddRecipePage() {
     if (!pdfFile) { setError('Please select a PDF file.'); return }
     setError(''); setLoading(true); setPdfRecipes([])
     try {
-      // Step 1: Upload PDF directly to Vercel Blob (bypasses 4.5MB Vercel function limit)
-      const blobRes = await fetch('/api/recipes/upload-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': pdfFile.type || 'application/pdf', 'x-filename': pdfFile.name },
-        body: pdfFile,
+      // Step 1: Upload directly from browser to Vercel Blob — bypasses ALL Vercel function limits
+      const blob = await upload(pdfFile.name, pdfFile, {
+        access: 'public',
+        handleUploadUrl: '/api/recipes/upload-pdf',
       })
-      if (!blobRes.ok) {
-        const err = await blobRes.json()
-        setError(err.error || 'Failed to upload PDF.')
-        setLoading(false)
-        return
-      }
-      const { url: blobUrl } = await blobRes.json()
 
-      // Step 2: Send the Blob URL to extract API — tiny payload, no size issues
+      // Step 2: Send the Blob URL to extract API — tiny JSON payload, no size issues
       const res = await fetch('/api/recipes/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'pdf', pdfUrl: blobUrl, familySize }),
+        body: JSON.stringify({ type: 'pdf', pdfUrl: blob.url, familySize }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
