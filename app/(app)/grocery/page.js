@@ -89,6 +89,8 @@ const css = `
   .week-tab.active{background:rgba(184,135,74,.12);border-color:rgba(184,135,74,.35);color:#D4A46A}
   .week-tab.current{border-color:rgba(143,168,137,.3)}
   .week-tab.current.active{background:rgba(143,168,137,.08);border-color:#8FA889;color:#8FA889}
+  .week-tab.past{opacity:.65;border-style:dashed}
+  .week-tab.past.active{opacity:1;background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.2);border-style:dashed;color:rgba(248,243,236,.6)}
   .meal-card{background:#2C2420;border:1px solid rgba(255,255,255,.07);border-radius:1.25rem;margin-bottom:.85rem;overflow:hidden}
   .meal-card-hd{padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;cursor:pointer;transition:background .15s}
   .meal-card-hd:hover{background:rgba(255,255,255,.03)}
@@ -198,12 +200,18 @@ export default function GroceryPage() {
         return m
       })
       const saved = stateMap[plan.id]
+      const weekEndDate = new Date(plan.week_start_date + 'T12:00:00')
+      weekEndDate.setDate(weekEndDate.getDate() + 6)
+      const isPast = weekEndDate < now && plan.week_start_date !== currentWeekStart
+      const isFuture = plan.week_start_date > currentWeekStart
       return {
         planId: plan.id, stateId: saved?.id || null,
         weekStart: plan.week_start_date,
         isCurrent: plan.week_start_date === currentWeekStart,
+        isPast,
+        isFuture,
         meals,
-        phase: saved?.phase || 'review',
+        phase: saved?.phase || (isPast ? 'confirmed' : 'review'),
         mealServings: saved?.meal_servings || {},
         checkedItems: saved?.checked_items || {},
       }
@@ -314,10 +322,14 @@ export default function GroceryPage() {
               <div className="week-tabs">
                 {weeks.map(w => (
                   <button key={w.weekStart}
-                    className={'week-tab' + (w.weekStart === activeWeek ? ' active' : '') + (w.isCurrent ? ' current' : '')}
+                    className={'week-tab' + (w.weekStart === activeWeek ? ' active' : '') + (w.isCurrent ? ' current' : '') + (w.isPast ? ' past' : '')}
                     onClick={() => setActiveWeek(w.weekStart)}>
-                    {w.isCurrent ? 'This week' : formatWeekRange(w.weekStart)}
-                    {w.phase === 'confirmed' && <span style={{marginLeft:'.4rem',color:'#8FA889'}}>✓</span>}
+                    <span style={{display:'block',fontSize:'.75rem',letterSpacing:'.06em',textTransform:'uppercase',marginBottom:'.15rem',opacity:.6}}>
+                      {w.isCurrent ? 'This week' : w.isPast ? 'Archived' : 'Upcoming'}
+                    </span>
+                    <span>{formatWeekRange(w.weekStart)}</span>
+                    {w.phase === 'confirmed' && !w.isPast && <span style={{marginLeft:'.4rem',color:'#8FA889',fontSize:'.8rem'}}>✓</span>}
+                    {w.isPast && <span style={{marginLeft:'.4rem',fontSize:'.75rem',opacity:.5}}>📦</span>}
                   </button>
                 ))}
               </div>
@@ -419,7 +431,12 @@ export default function GroceryPage() {
 
                   return (
                     <>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'.75rem',flexWrap:'wrap',gap:'.5rem'}}>
+                      {activeWeekData.isPast && (
+                    <div style={{background:'rgba(255,255,255,.04)',border:'1px dashed rgba(255,255,255,.1)',borderRadius:'.75rem',padding:'.65rem 1rem',marginBottom:'1rem',fontSize:'.85rem',color:'rgba(248,243,236,.4)',display:'flex',alignItems:'center',gap:'.5rem'}}>
+                      <span>📦</span> Archived week — viewing past grocery list for reference.
+                    </div>
+                  )}
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'.75rem',flexWrap:'wrap',gap:'.5rem'}}>
                         <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.45)'}}>
                           {checkedCount} of {toBuy.length} items checked
                         </div>
