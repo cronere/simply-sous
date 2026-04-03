@@ -36,7 +36,7 @@ Always return valid JSON matching this exact structure:
   "description": "1-2 sentence description",
   "source_url": "original URL if provided, else null",
   "cuisine": "e.g. Italian, Mexican, American, Thai, etc.",
-  "meal_type": "breakfast | lunch | dinner | snack | dessert",
+  "meal_type": "breakfast | lunch | dinner | snack | dessert | sauce | drink | bread | side",
   "difficulty": 1-5 (1=easy, 5=hard),
   "prep_time_mins": number or null,
   "cook_time_mins": number or null,
@@ -139,111 +139,90 @@ export async function POST(request) {
     else if (type === 'pdf') {
       if (!body.pdfUrl) return Response.json({ error: 'Missing PDF URL' }, { status: 400 })
 
-      const scaleNote = familySize ? 'Scale all recipe ingredients for ' + familySize + ' servings.' : ''
-
-      // Fetch PDF from Vercel Blob and convert to base64 for Claude
+      // Fetch PDF from Supabase Storage and convert to base64 for Claude
       const pdfResponse = await fetch(body.pdfUrl)
-      if (!pdfResponse.ok) return Response.json({ error: 'Could not fetch PDF' }, { status: 500 })
+      if (!pdfResponse.ok) return Response.json({ error: 'Could not fetch PDF: ' + pdfResponse.status }, { status: 500 })
       const pdfBuffer = await pdfResponse.arrayBuffer()
       const pdfBytes = new Uint8Array(pdfBuffer)
       let binary = ''
       pdfBytes.forEach(b => binary += String.fromCharCode(b))
       const pdfData = btoa(binary)
 
-      // First pass: extract all recipes from full PDF
-      // Claude will do its best within token limits; we capture partial results gracefully
+      const scaleNote = familySize ? 'Scale ingredients for ' + familySize + ' servings.' : ''
+
+      const PDF_SYSTEM = 'You are a recipe extraction expert. Extract recipes from PDFs and return a JSON array ONLY — no markdown, no backticks, no explanation. Each recipe: {"title":"","cuisine":"","meal_type":"dinner","difficulty":2,"prep_time_mins":null,"cook_time_mins":null,"base_servings":4,"ingredients":[{"name":"","amount":1,"unit":"","notes":null}],"instructions":[{"step":1,"text":""}],"tags":[],"dietary_flags":[]}. meal_type options: breakfast, lunch, dinner, snack, dessert, sauce, drink, bread, side. Keep instructions brief. Start response with [ and end with ].'
+
       const allRecipes = []
       const seenTitles = new Set()
 
-      const PDF_SYSTEM = `You are a recipe extraction expert. Extract ALL recipes from the provided PDF and return them as a JSON array.
-Each recipe must follow this exact structure:
-{"title":"string","description":"string","cuisine":"string","meal_type":"dinner","difficulty":2,"prep_time_mins":null,"cook_time_mins":null,"base_servings":4,"ingredients":[{"name":"string","amount":1,"unit":"cup","notes":null}],"instructions":[{"step":1,"text":"string"}],"tags":["tag1"],"dietary_flags":[]}
-Return ONLY a valid JSON array starting with [ and ending with ]. No markdown, no explanation, no preamble. If only one recipe exists return a single-element array.`
+      const parseRaw = (raw, hitLimit) => {
+        // Strip any markdown fences
+        let s = raw.replace(/^```[\w]*\s*/i, '').replace(/\s*```\s*$/i, '').trim()
 
-      const extractPass = async (startHint, endHint) => {
-        const rangeNote = startHint ? 'Focus on pages ' + startHint + ' through ' + endHint + ' of this PDF.' : ''
-        const resp = await callWithRetry(function() {
-          return anthropic.messages.create({
-            model: 'claude-opus-4-6',
-            max_tokens: 8192,
-            system: PDF_SYSTEM,
-            messages: [{
-              role: 'user',
-              content: [
-                {
-                  type: 'document',
-                  source: { type: 'base64', media_type: 'application/pdf', data: pdfData },
-                },
-                {
-                  type: 'text',
-                  text: rangeNote + '\n\nExtract ALL recipes you find and return them as a JSON array. ' + scaleNote + '\n\nBe concise — for each recipe include: title, cuisine, cook_time_mins, base_servings, ingredients (name/amount/unit), instructions (step text only), tags, dietary_flags. Skip lengthy descriptions to fit more recipes.\n\nReturn ONLY a valid JSON array. No markdown, no explanation.',
-                },
-              ],
-            }],
-          })
-        })
-
-        const raw = resp.content[0]?.text?.trim() || ''
-        console.log('PDF extract raw response (first 500 chars):', raw.slice(0, 500))
-        console.log('Stop reason:', resp.stop_reason)
-        if (!raw) return
-
-        // Check if Claude hit the token limit (response cut off)
-        const hitLimit = resp.stop_reason === 'max_tokens'
+        // If truncated, salvage complete objects up to last closing brace
+        if (hitLimit || (!s.endsWith(']') && s.includes('}'))) {
+          const last = s.lastIndexOf('}')
+          if (last > 0) {
+            s = s.substring(0, last + 1)
+            if (!s.startsWith('[')) s = '[' + s
+            s = s + ']'
+          }
+        }
 
         try {
-          // Handle truncated JSON gracefully - try to salvage complete objects
-          // Strip markdown code fences — Claude sometimes wraps JSON in ```json ... ```
-          let cleaned = raw
-            .replace(/^```json\s*/i, '')
-            .replace(/^```\s*/i, '')
-            .replace(/\s*```$/, '')
-            .trim()
-
-          // If truncated, try to close the JSON array
-          if (hitLimit && !cleaned.endsWith(']')) {
-            // Find last complete recipe object
-            const lastComplete = cleaned.lastIndexOf('},')
-            if (lastComplete > 0) {
-              cleaned = cleaned.substring(0, lastComplete + 1) + ']'
-            } else {
-              cleaned = cleaned + ']'
-            }
-          }
-
-          const parsed = JSON.parse(cleaned)
-          const arr = Array.isArray(parsed) ? parsed : [parsed]
-          for (const r of arr) {
-            if (r.title && !seenTitles.has(r.title.toLowerCase())) {
-              seenTitles.add(r.title.toLowerCase())
-              allRecipes.push(r)
-            }
-          }
-          return hitLimit // return true if we hit the limit and need another pass
+          const parsed = JSON.parse(s)
+          return Array.isArray(parsed) ? parsed : [parsed]
         } catch {
-          // Try salvaging individual recipes from malformed JSON
-          const matches = raw.match(/\{[^{}]*"title"[^{}]*\}/g) || []
-          for (const m of matches) {
-            try {
-              const r = JSON.parse(m)
-              if (r.title && !seenTitles.has(r.title.toLowerCase())) {
-                seenTitles.add(r.title.toLowerCase())
-                allRecipes.push(r)
-              }
-            } catch { /* skip malformed */ }
+          // Extract individual objects as fallback
+          const out = []
+          const re = /\{"title"[\s\S]*?\}(?=\s*[,\]]|\s*$)/g
+          let m
+          while ((m = re.exec(s)) !== null) {
+            try { const r = JSON.parse(m[0]); if (r.title) out.push(r) } catch {}
           }
+          return out
         }
       }
 
-      // First pass - full document
-      const needsMore = await extractPass(null, null)
+      const doPass = async (instruction) => {
+        const resp = await callWithRetry(() => anthropic.messages.create({
+          model: 'claude-opus-4-6',
+          max_tokens: 8192,
+          system: PDF_SYSTEM,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfData } },
+              { type: 'text', text: instruction + ' ' + scaleNote }
+            ]
+          }]
+        }))
 
-      // If we hit the token limit, do additional passes with page range hints
-      // This helps Claude focus on later pages it may have missed
-      if (needsMore && allRecipes.length > 0) {
-        // Estimate pages per recipe to figure out where we left off
-        // We'll try a second pass asking Claude to start from where recipes seem to end
-        await extractPass(Math.floor(allRecipes.length * 2), 999)
+        const raw = resp.content[0]?.text?.trim() || ''
+        const hitLimit = resp.stop_reason === 'max_tokens'
+        console.log('[pdf] stop:', resp.stop_reason, 'len:', raw.length, 'preview:', raw.slice(0, 100))
+
+        const recipes = parseRaw(raw, hitLimit)
+        let added = 0
+        for (const r of recipes) {
+          const key = (r.title || '').toLowerCase().trim()
+          if (key && !seenTitles.has(key)) {
+            seenTitles.add(key)
+            allRecipes.push(r)
+            added++
+          }
+        }
+        console.log('[pdf] pass added:', added, 'total:', allRecipes.length, 'truncated:', hitLimit)
+        return hitLimit
+      }
+
+      // Pass 1: full document
+      const truncated = await doPass('Extract ALL recipes from this PDF.')
+
+      // Pass 2: if truncated, get remaining recipes
+      if (truncated && allRecipes.length > 0) {
+        const lastTitle = allRecipes[allRecipes.length - 1]?.title || ''
+        await doPass('Extract all recipes AFTER "' + lastTitle + '". Skip already extracted recipes.')
       }
 
       if (allRecipes.length === 0) {
