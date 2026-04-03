@@ -1,4 +1,4 @@
-import { handleUpload } from '@vercel/blob/server'
+import { handleUpload } from '@vercel/blob/client'
 
 export async function POST(request) {
   const body = await request.json()
@@ -8,14 +8,13 @@ export async function POST(request) {
       body,
       request,
       onBeforeGenerateToken: async (pathname) => {
-        // Allow PDF uploads only
         return {
           allowedContentTypes: ['application/pdf'],
-          maximumSizeInBytes: 100 * 1024 * 1024, // 100MB
+          addRandomSuffix: true,
         }
       },
       onUploadCompleted: async ({ blob }) => {
-        console.log('PDF uploaded to blob:', blob.url)
+        console.log('PDF uploaded:', blob.url)
       },
     })
     return Response.json(jsonResponse)
