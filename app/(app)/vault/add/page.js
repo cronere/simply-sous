@@ -252,32 +252,60 @@ export default function AddRecipePage() {
       setPdfChecked(checked1)
       setLoading(false)
 
-      // ── PASS 2 (background if truncated) ─────────────────────
+      // ── PASSES 2+ (background if truncated) ──────────────────
       if (data1.truncated && pass1.length > 0) {
         setPdfWorking(true)
-        setPdfStatus(`Found ${pass1.length} recipes so far — Dot is still reading...`)
-        try {
-          const lastTitle = pass1[pass1.length - 1]?.title || ''
-          const res2 = await fetch('/api/recipes/extract', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'pdf', pdfUrl, lastTitle }),
-          })
-          const data2 = await res2.json()
-          if (res2.ok && data2.recipes?.length > 0) {
-            const existingTitles = new Set(pass1.map(r => r.title.toLowerCase().trim()))
-            const newRecipes = data2.recipes.filter(r => !existingTitles.has((r.title||'').toLowerCase().trim()))
-            const pass2 = await filterDuplicates(newRecipes)
+
+        let currentRecipes = pass1
+        let passNum = 2
+        let stillTruncated = true
+
+        while (stillTruncated && passNum <= 20) {
+          const lastTitle = currentRecipes[currentRecipes.length - 1]?.title || ''
+          setPdfStatus(`Found ${currentRecipes.length} recipes so far — Dot is still reading (pass ${passNum})...`)
+
+          try {
+            const res = await fetch('/api/recipes/extract', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'pdf', pdfUrl, lastTitle }),
+            })
+            const data = await res.json()
+
+            if (!res.ok || !data.recipes?.length) {
+              stillTruncated = false
+              break
+            }
+
+            const existingTitles = new Set(currentRecipes.map(r => r.title.toLowerCase().trim()))
+            const newRecipes = data.recipes.filter(r => !existingTitles.has((r.title||'').toLowerCase().trim()))
+
+            if (newRecipes.length === 0) {
+              // No new recipes found — we're done
+              stillTruncated = false
+              break
+            }
+
+            const newWithDups = await filterDuplicates(newRecipes)
             setPdfRecipes(prev => {
-              const combined = [...prev, ...pass2]
+              const combined = [...prev, ...newWithDups]
               setPdfChecked(prev2 => {
                 const merged = { ...prev2 }
-                pass2.forEach((r, j) => { merged[prev.length + j] = !r._isDuplicate })
+                newWithDups.forEach((r, j) => { merged[prev.length + j] = !r._isDuplicate })
                 return merged
               })
               return combined
             })
+
+            currentRecipes = [...currentRecipes, ...newRecipes]
+            stillTruncated = data.truncated === true
+            passNum++
+
+          } catch (e) {
+            console.error('Pass ' + passNum + ' error:', e)
+            stillTruncated = false
           }
-        } catch (e) { console.error('Pass 2 error:', e) }
+        }
+
         setPdfWorking(false)
         setPdfStatus('')
       }
