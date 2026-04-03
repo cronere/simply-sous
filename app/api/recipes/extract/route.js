@@ -193,7 +193,12 @@ Return ONLY a valid JSON array starting with [ and ending with ]. No markdown, n
 
         try {
           // Handle truncated JSON gracefully - try to salvage complete objects
-          let cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+          // Strip markdown code fences — Claude sometimes wraps JSON in ```json ... ```
+          let cleaned = raw
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/\s*```$/, '')
+            .trim()
 
           // If truncated, try to close the JSON array
           if (hitLimit && !cleaned.endsWith(']')) {
