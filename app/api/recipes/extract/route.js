@@ -65,33 +65,8 @@ Return ONLY the JSON object, no markdown, no explanation, no preamble.`
 
 export async function POST(request) {
   try {
-    const contentType = request.headers.get('content-type') || ''
-    let body, type, url, imageBase64, imageType, text, familySize
-
-    if (contentType.includes('multipart/form-data')) {
-      // PDF upload via FormData — bypasses JSON body size limit
-      const formData = await request.formData()
-      type = formData.get('type')
-      familySize = parseInt(formData.get('familySize') || '4')
-      const pdfFile = formData.get('pdf')
-      if (pdfFile) {
-        const arrayBuffer = await pdfFile.arrayBuffer()
-        const bytes = new Uint8Array(arrayBuffer)
-        let binary = ''
-        bytes.forEach(b => binary += String.fromCharCode(b))
-        body = { pdfBase64: btoa(binary) }
-      } else {
-        body = {}
-      }
-    } else {
-      body = await request.json()
-      type = body.type
-      url = body.url
-      imageBase64 = body.imageBase64
-      imageType = body.imageType
-      text = body.text
-      familySize = body.familySize
-    }
+    const body = await request.json()
+    const { type, url, imageBase64, imageType, text, familySize } = body
 
     if (!type) {
       return Response.json({ error: 'Missing type' }, { status: 400 })
@@ -162,14 +137,18 @@ export async function POST(request) {
     }
 
     else if (type === 'pdf') {
-      if (!body.pdfBase64) return Response.json({ error: 'Missing PDF data' }, { status: 400 })
+      if (!body.pdfUrl) return Response.json({ error: 'Missing PDF URL' }, { status: 400 })
 
       const scaleNote = familySize ? 'Scale all recipe ingredients for ' + familySize + ' servings.' : ''
 
-      // Claude max output is 8192 tokens — not enough for large cookbooks in one pass.
-      // Strategy: send the full PDF but ask Claude to extract in passes using page ranges.
-      // For very large PDFs we make multiple calls with page range hints.
-      const pdfData = body.pdfBase64
+      // Fetch PDF from Vercel Blob and convert to base64 for Claude
+      const pdfResponse = await fetch(body.pdfUrl)
+      if (!pdfResponse.ok) return Response.json({ error: 'Could not fetch PDF' }, { status: 500 })
+      const pdfBuffer = await pdfResponse.arrayBuffer()
+      const pdfBytes = new Uint8Array(pdfBuffer)
+      let binary = ''
+      pdfBytes.forEach(b => binary += String.fromCharCode(b))
+      const pdfData = btoa(binary)
 
       // First pass: extract all recipes from full PDF
       // Claude will do its best within token limits; we capture partial results gracefully
