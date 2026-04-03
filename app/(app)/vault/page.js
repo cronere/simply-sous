@@ -101,6 +101,8 @@ export default function VaultPage() {
   const [discoverFilter, setDiscoverFilter] = useState('all')
   const [savedToVault, setSavedToVault] = useState({})
   const [discoverPage, setDiscoverPage] = useState(0)
+  const [mealTypeFilter, setMealTypeFilter] = useState('all')
+  const [userPrefs, setUserPrefs] = useState({ dietary_flags: [], cuisine_loves: [] })
 
   useEffect(() => {
     setMounted(true)
@@ -109,6 +111,7 @@ export default function VaultPage() {
       if (!session) { router.replace('/login'); return }
       setUserId(session.user.id)
       loadRecipes(session.user.id)
+      loadUserPrefs(session.user.id)
     })
   }, [router])
 
@@ -130,6 +133,17 @@ export default function VaultPage() {
     if (!error && data) { setRecipes(data); setRecipeCount(data.length) }
     setLoading(false)
   }, [])
+
+  const loadUserPrefs = async (uid) => {
+    const sb = getClient()
+    const { data } = await sb.from('user_preferences')
+      .select('dietary_flags, cuisine_loves')
+      .eq('profile_id', uid).maybeSingle()
+    if (data) setUserPrefs({
+      dietary_flags: data.dietary_flags || [],
+      cuisine_loves: data.cuisine_loves || [],
+    })
+  }
 
   const loadDiscover = async (search, filter, page) => {
     setDiscoverLoading(true)
@@ -198,16 +212,64 @@ export default function VaultPage() {
     setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, is_favorite: !current } : r))
   }
 
-  const dynamicFilters = (() => {
-    const tagCount = {}
-    recipes.forEach(r => {
-      ;[...(r.tags || []), ...(r.dietary_flags || [])].forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1 })
-    })
-    return Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 8)
-      .map(([tag]) => ({ id: tag, label: tag.charAt(0).toUpperCase() + tag.slice(1).replace(/-/g, ' ') }))
+  const MEAL_TYPE_LABELS = {
+    all: 'All', breakfast: '🌅 Breakfast', lunch: '🥗 Lunch', dinner: '🍽 Dinner',
+    dessert: '🍰 Dessert', snack: '🍎 Snack', drink: '🥤 Drinks',
+    sauce: '🫙 Sauces', bread: '🍞 Bread', side: '🥦 Sides',
+  }
+
+  // Meal types that actually exist in vault
+  const availableMealTypes = (() => {
+    const types = new Set(recipes.map(r => r.meal_type).filter(Boolean))
+    return ['all', ...Object.keys(MEAL_TYPE_LABELS).filter(t => t !== 'all' && types.has(t))]
   })()
 
-  const filtered = recipes.filter(r => {
+  // Recipes filtered by meal type first
+  const mealTypeFiltered = recipes.filter(r =>
+    mealTypeFilter === 'all' || r.meal_type === mealTypeFilter
+  )
+
+  // Smart tag filters — built from:
+  // 1. User's dietary flags (only if recipes match)
+  // 2. User's cuisine loves (only if recipes match)
+  // 3. Most common tags in current meal type filtered recipes
+  const smartTags = (() => {
+    const tagCount = {}
+    mealTypeFiltered.forEach(r => {
+      ;[...(r.tags || []), ...(r.dietary_flags || [])].forEach(t => {
+        tagCount[t] = (tagCount[t] || 0) + 1
+      })
+    })
+
+    const relevantTags = new Set()
+
+    // Add user's dietary flags that appear in recipes
+    ;(userPrefs.dietary_flags || []).forEach(f => {
+      const key = f.toLowerCase().replace(/\s+/g, '-')
+      if (tagCount[key] || tagCount[f.toLowerCase()]) relevantTags.add(key || f.toLowerCase())
+    })
+
+    // Add user's loved cuisines that appear in recipes
+    ;(userPrefs.cuisine_loves || []).forEach(c => {
+      const key = c.toLowerCase()
+      if (tagCount[key]) relevantTags.add(key)
+    })
+
+    // Fill with most common tags from vault (excluding meal types and cuisine dupes)
+    const mealTypes = new Set(['breakfast','lunch','dinner','snack','dessert','sauce','drink','bread','side'])
+    Object.entries(tagCount)
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([tag]) => {
+        if (!mealTypes.has(tag) && relevantTags.size < 10) relevantTags.add(tag)
+      })
+
+    return [...relevantTags].map(tag => ({
+      id: tag,
+      label: tag.charAt(0).toUpperCase() + tag.slice(1).replace(/-/g, ' ')
+    }))
+  })()
+
+  const filtered = mealTypeFiltered.filter(r => {
     const q = search.toLowerCase()
     const matchSearch = !q || r.title?.toLowerCase().includes(q) || r.cuisine?.toLowerCase().includes(q) ||
       r.tags?.some(t => t.toLowerCase().includes(q)) || r.dietary_flags?.some(f => f.toLowerCase().includes(q))
@@ -260,11 +322,33 @@ export default function VaultPage() {
         </div>
         {activeTab === 'mine' ? (
           <>
-            <button className={'filter-btn' + (filter === 'all' ? ' active' : '')} onClick={() => setFilter('all')}>All</button>
-            <button className={'filter-btn' + (filter === 'favorites' ? ' active' : '')} onClick={() => setFilter('favorites')}>❤️ Favorites</button>
-            {dynamicFilters.map(f => (
-              <button key={f.id} className={'filter-btn' + (filter === f.id ? ' active' : '')} onClick={() => setFilter(f.id)}>{f.label}</button>
-            ))}
+            {/* Tier 1: Meal type — prominent */}
+            {availableMealTypes.length > 1 && (
+              <div style={{display:'flex',gap:'.4rem',overflowX:'auto',paddingBottom:'.1rem',marginBottom:'.5rem',scrollbarWidth:'none'}}>
+                {availableMealTypes.map(type => (
+                  <button key={type}
+                    className={'filter-btn' + (mealTypeFilter === type ? ' active' : '')}
+                    style={{fontSize:'.95rem',padding:'.5rem 1.1rem',whiteSpace:'nowrap',flexShrink:0}}
+                    onClick={() => { setMealTypeFilter(type); setFilter('all') }}>
+                    {MEAL_TYPE_LABELS[type] || type}
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Tier 2: Smart tags — secondary */}
+            {smartTags.length > 0 && (
+              <div style={{display:'flex',gap:'.35rem',overflowX:'auto',scrollbarWidth:'none',paddingBottom:'.1rem'}}>
+                <button className={'filter-btn' + (filter === 'favorites' ? ' active' : '')}
+                  style={{fontSize:'.82rem',padding:'.35rem .8rem',flexShrink:0}}
+                  onClick={() => setFilter(filter === 'favorites' ? 'all' : 'favorites')}>❤️ Favorites</button>
+                {smartTags.map(f => (
+                  <button key={f.id}
+                    className={'filter-btn' + (filter === f.id ? ' active' : '')}
+                    style={{fontSize:'.82rem',padding:'.35rem .8rem',flexShrink:0}}
+                    onClick={() => setFilter(filter === f.id ? 'all' : f.id)}>{f.label}</button>
+                ))}
+              </div>
+            )}
           </>
         ) : (
           DISCOVER_FILTERS.map(f => (
@@ -296,7 +380,7 @@ export default function VaultPage() {
               <span className="empty-ico">🔍</span>
               <div className="empty-title">No recipes found</div>
               <div className="empty-sub">Try a different search or filter.</div>
-              <button className="empty-btn" onClick={() => { setSearch(''); setFilter('all') }}>Clear filters</button>
+              <button className="empty-btn" onClick={() => { setSearch(''); setFilter('all'); setMealTypeFilter('all') }}>Clear filters</button>
             </div>
           )}
           {!loading && filtered.length > 0 && (
@@ -322,7 +406,12 @@ export default function VaultPage() {
                   </div>
                   <div className="recipe-card-footer">
                     <span style={{fontSize:'.82rem',color:'rgba(248,243,236,.45)'}}>
-                      {recipe.total_time_mins ? recipe.total_time_mins + ' min' : recipe.meal_type || ''}
+                      {recipe.total_time_mins ? recipe.total_time_mins + ' min' : ''}
+                      {recipe.meal_type && recipe.meal_type !== 'dinner' && (
+                        <span style={{marginLeft:recipe.total_time_mins?'.5rem':'0',fontSize:'.75rem',background:'rgba(184,135,74,.08)',color:'rgba(184,135,74,.6)',padding:'.1rem .5rem',borderRadius:'2rem',border:'1px solid rgba(184,135,74,.15)'}}>
+                          {recipe.meal_type}
+                        </span>
+                      )}
                     </span>
                     <button className="heart-btn" onClick={e => toggleFavorite(e, recipe.id, recipe.is_favorite)}>
                       {recipe.is_favorite ? '❤️' : '🤍'}
