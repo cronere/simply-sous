@@ -209,7 +209,9 @@ export default function AddRecipePage() {
     setError(''); setLoading(true); setPdfRecipes([])
     try {
       // Step 1: Upload directly from browser to Vercel Blob — bypasses ALL Vercel function limits
-      const blob = await upload(pdfFile.name, pdfFile, {
+      // Sanitize filename — special chars like & break the Blob URL
+      const safeName = pdfFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const blob = await upload(safeName, pdfFile, {
         access: 'public',
         handleUploadUrl: '/api/recipes/upload-pdf',
         contentType: 'application/pdf',
