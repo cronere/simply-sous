@@ -136,41 +136,101 @@ export async function POST(request) {
       if (!body.pdfBase64) return Response.json({ error: 'Missing PDF data' }, { status: 400 })
 
       const scaleNote = familySize ? 'Scale all recipe ingredients for ' + familySize + ' servings.' : ''
-      messages = [{
-        role: 'user',
-        content: [
-          {
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: body.pdfBase64 },
-          },
-          {
-            type: 'text',
-            text: 'This PDF contains one or more recipes. Extract ALL recipes you find and return them as a JSON array.\n\n' + scaleNote + '\n\nReturn ONLY a JSON array of recipe objects, each matching the schema. No markdown, no explanation.\n\nIf there is only one recipe, still return it as a single-element array: [{ ...recipe }]',
-          },
-        ],
-      }]
 
-      // PDF extraction needs more tokens
-      const response = await callWithRetry(function() {
-        return anthropic.messages.create({
-          model: 'claude-opus-4-6',
-          max_tokens: 8000,
-          system: SYSTEM,
-          messages,
+      // Claude max output is 8192 tokens — not enough for large cookbooks in one pass.
+      // Strategy: send the full PDF but ask Claude to extract in passes using page ranges.
+      // For very large PDFs we make multiple calls with page range hints.
+      const pdfData = body.pdfBase64
+
+      // First pass: extract all recipes from full PDF
+      // Claude will do its best within token limits; we capture partial results gracefully
+      const allRecipes = []
+      const seenTitles = new Set()
+
+      const extractPass = async (startHint, endHint) => {
+        const rangeNote = startHint ? 'Focus on pages ' + startHint + ' through ' + endHint + ' of this PDF.' : ''
+        const resp = await callWithRetry(function() {
+          return anthropic.messages.create({
+            model: 'claude-opus-4-6',
+            max_tokens: 8192,
+            system: SYSTEM,
+            messages: [{
+              role: 'user',
+              content: [
+                {
+                  type: 'document',
+                  source: { type: 'base64', media_type: 'application/pdf', data: pdfData },
+                },
+                {
+                  type: 'text',
+                  text: rangeNote + '\n\nExtract ALL recipes you find and return them as a JSON array. ' + scaleNote + '\n\nBe concise — for each recipe include: title, cuisine, cook_time_mins, base_servings, ingredients (name/amount/unit), instructions (step text only), tags, dietary_flags. Skip lengthy descriptions to fit more recipes.\n\nReturn ONLY a valid JSON array. No markdown, no explanation.',
+                },
+              ],
+            }],
+          })
         })
-      })
 
-      const rawText = response.content[0]?.text?.trim() || ''
-      if (!rawText) return Response.json({ error: 'No recipes found in PDF.' }, { status: 500 })
+        const raw = resp.content[0]?.text?.trim() || ''
+        if (!raw) return
 
-      try {
-        const cleaned = rawText.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-        const recipes = JSON.parse(cleaned)
-        const arr = Array.isArray(recipes) ? recipes : [recipes]
-        return Response.json({ recipes: arr })
-      } catch {
-        return Response.json({ error: 'Could not parse recipes from PDF. Please try again.' }, { status: 500 })
+        // Check if Claude hit the token limit (response cut off)
+        const hitLimit = resp.stop_reason === 'max_tokens'
+
+        try {
+          // Handle truncated JSON gracefully - try to salvage complete objects
+          let cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+
+          // If truncated, try to close the JSON array
+          if (hitLimit && !cleaned.endsWith(']')) {
+            // Find last complete recipe object
+            const lastComplete = cleaned.lastIndexOf('},')
+            if (lastComplete > 0) {
+              cleaned = cleaned.substring(0, lastComplete + 1) + ']'
+            } else {
+              cleaned = cleaned + ']'
+            }
+          }
+
+          const parsed = JSON.parse(cleaned)
+          const arr = Array.isArray(parsed) ? parsed : [parsed]
+          for (const r of arr) {
+            if (r.title && !seenTitles.has(r.title.toLowerCase())) {
+              seenTitles.add(r.title.toLowerCase())
+              allRecipes.push(r)
+            }
+          }
+          return hitLimit // return true if we hit the limit and need another pass
+        } catch {
+          // Try salvaging individual recipes from malformed JSON
+          const matches = raw.match(/\{[^{}]*"title"[^{}]*\}/g) || []
+          for (const m of matches) {
+            try {
+              const r = JSON.parse(m)
+              if (r.title && !seenTitles.has(r.title.toLowerCase())) {
+                seenTitles.add(r.title.toLowerCase())
+                allRecipes.push(r)
+              }
+            } catch { /* skip malformed */ }
+          }
+        }
       }
+
+      // First pass - full document
+      const needsMore = await extractPass(null, null)
+
+      // If we hit the token limit, do additional passes with page range hints
+      // This helps Claude focus on later pages it may have missed
+      if (needsMore && allRecipes.length > 0) {
+        // Estimate pages per recipe to figure out where we left off
+        // We'll try a second pass asking Claude to start from where recipes seem to end
+        await extractPass(Math.floor(allRecipes.length * 2), 999)
+      }
+
+      if (allRecipes.length === 0) {
+        return Response.json({ error: 'No recipes found in this PDF. Make sure it contains recipe content.' }, { status: 422 })
+      }
+
+      return Response.json({ recipes: allRecipes })
     }
 
     else {
