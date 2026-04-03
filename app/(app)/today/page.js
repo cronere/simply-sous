@@ -25,7 +25,6 @@ function getWeekStart() {
 
 function calcStartTime(dinnerHour, cookMins) {
   if (!dinnerHour || !cookMins) return null
-  // dinnerHour is like "17:00:00"
   const parts = dinnerHour.split(':')
   const dinnerMins = parseInt(parts[0]) * 60 + parseInt(parts[1])
   const startMins = dinnerMins - cookMins
@@ -34,6 +33,27 @@ function calcStartTime(dinnerHour, cookMins) {
   const ampm = h >= 12 ? 'PM' : 'AM'
   const h12 = h > 12 ? h - 12 : (h === 0 ? 12 : h)
   return h12 + ':' + String(m).padStart(2,'0') + ' ' + ampm
+}
+
+// Scale a numeric amount by (servings / baseServings), round sensibly
+function scaleAmount(amount, baseServings, servings) {
+  if (amount === null || amount === undefined) return null
+  if (!baseServings || baseServings === servings) return amount
+  const scaled = amount * (servings / baseServings)
+  // Round to at most 2 decimal places, prefer clean fractions for small numbers
+  if (scaled < 0.1) return Math.round(scaled * 100) / 100
+  if (scaled < 1) return Math.round(scaled * 8) / 8 // nearest 1/8
+  if (scaled < 10) return Math.round(scaled * 4) / 4  // nearest 1/4
+  return Math.round(scaled * 2) / 2                   // nearest 1/2
+}
+
+function formatScaledAmt(ing, baseServings, servings) {
+  const scaled = scaleAmount(ing.amount, baseServings, servings)
+  if (scaled === null && !ing.unit) {
+    return ing.notes || ''
+  }
+  const parts = [scaled !== null ? String(scaled) : '', ing.unit || ''].filter(Boolean)
+  return parts.join(' ')
 }
 
 const css = `
@@ -95,6 +115,19 @@ const css = `
   .ingr-item:last-child{border-bottom:none}
   .ingr-name{color:rgba(248,243,236,.85)}
   .ingr-amt{color:#B8874A;text-align:right}
+
+  /* Serving slider */
+  .serving-slider-card{background:rgba(184,135,74,.06);border:1px solid rgba(184,135,74,.18);border-radius:1.25rem;padding:1.25rem 1.5rem;margin-bottom:1.25rem}
+  .serving-slider-label{font-size:.7rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:rgba(248,243,236,.45);margin-bottom:.6rem}
+  .serving-slider-question{font-family:'Cormorant Garamond',serif;font-size:1.15rem;color:#F8F3EC;margin-bottom:1rem}
+  .serving-slider-row{display:flex;align-items:center;gap:1rem}
+  .serving-slider-track{flex:1;position:relative}
+  .serving-slider-input{width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:rgba(255,255,255,.12);outline:none;cursor:pointer}
+  .serving-slider-input::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#B8874A;cursor:pointer;border:2px solid #1A1612;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+  .serving-slider-input::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#B8874A;cursor:pointer;border:2px solid #1A1612}
+  .serving-slider-val{font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:#B8874A;min-width:2.5rem;text-align:center;font-weight:400}
+  .serving-slider-note{font-size:.82rem;color:rgba(248,243,236,.35);margin-top:.5rem}
+
   .rate-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;display:flex;align-items:flex-end;justify-content:center}
   .rate-sheet{background:#2C2420;border-radius:1.5rem 1.5rem 0 0;width:100%;max-width:640px;padding:2rem}
   .rate-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:#F8F3EC;margin-bottom:.5rem}
@@ -104,7 +137,6 @@ const css = `
   .rate-btn:hover{background:rgba(255,255,255,.06)}
   .rate-btn .rate-emoji{font-size:1.75rem}
   .rate-btn .rate-label{font-size:.82rem;color:rgba(248,243,236,.6)}
-  .skip-tonight-sheet{background:#2C2420;border-radius:1.5rem 1.5rem 0 0;width:100%;max-width:640px;padding:2rem}
   .skip-option{display:flex;align-items:center;gap:1rem;padding:1rem;border-radius:1rem;cursor:pointer;transition:background .15s;margin-bottom:.5rem}
   .skip-option:hover{background:rgba(255,255,255,.05)}
   .skip-option-icon{font-size:1.5rem;width:2.5rem;text-align:center;flex-shrink:0}
@@ -118,6 +150,8 @@ const css = `
     .action-btn{width:100%;justify-content:center}
     .start-time-box{flex-direction:column;gap:.5rem;text-align:center}
     .cook-mode{padding:1.5rem 1rem 6rem}
+    .rate-btns{gap:.4rem}
+    .serving-slider-row{gap:.75rem}
   }
 `
 
@@ -129,6 +163,7 @@ export default function TodayPage() {
   const [tonightMeal, setTonightMeal] = useState(null)
   const [dinnerHour, setDinnerHour] = useState(null)
   const [cookMins, setCookMins] = useState(30)
+  const [familySize, setFamilySize] = useState(4)
   const [planId, setPlanId] = useState(null)
   const [mealId, setMealId] = useState(null)
   const [cookMode, setCookMode] = useState(false)
@@ -141,6 +176,9 @@ export default function TodayPage() {
   const [swapSuggestions, setSwapSuggestions] = useState([])
   const [loadingSwap, setLoadingSwap] = useState(false)
   const [swapShowAll, setSwapShowAll] = useState(false)
+
+  // Serving slider — starts at familySize once loaded
+  const [cookServings, setCookServings] = useState(null) // null until familySize loads
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -164,16 +202,18 @@ export default function TodayPage() {
     const today = getLocalDateStr()
     const weekStart = getWeekStart()
 
-    // Get profile for dinner hour
     const { data: profile } = await sb
       .from('profiles')
       .select('dinner_hour, family_size')
       .eq('id', userId)
       .single()
 
-    if (profile) setDinnerHour(profile.dinner_hour)
+    if (profile) {
+      setDinnerHour(profile.dinner_hour)
+      setFamilySize(profile.family_size || 4)
+      setCookServings(profile.family_size || 4)
+    }
 
-    // Get user prefs for max cook time
     const { data: prefs } = await sb
       .from('user_preferences')
       .select('max_weeknight_mins')
@@ -182,7 +222,6 @@ export default function TodayPage() {
 
     if (prefs && prefs.max_weeknight_mins) setCookMins(prefs.max_weeknight_mins)
 
-    // Get this week's confirmed plan
     const { data: plans } = await sb
       .from('weekly_plans')
       .select('id, status')
@@ -199,10 +238,9 @@ export default function TodayPage() {
 
     setPlanId(plan.id)
 
-    // Get tonight's meal
     const { data: meal } = await sb
       .from('planned_meals')
-      .select('id, recipe_snapshot, recipes(id, title, cuisine, total_time_mins, ingredients, instructions, tags, description)')
+      .select('id, recipe_snapshot, recipes(id, title, cuisine, total_time_mins, ingredients, instructions, tags, description, base_servings)')
       .eq('weekly_plan_id', plan.id)
       .eq('meal_date', today)
       .eq('is_skipped', false)
@@ -212,10 +250,8 @@ export default function TodayPage() {
 
     setMealId(meal.id)
 
-    // Use vault recipe or snapshot
     const recipe = meal.recipes || meal.recipe_snapshot
 
-    // If system recipe, fetch full data
     if (!meal.recipes && meal.recipe_snapshot && meal.recipe_snapshot.system_recipe_id) {
       const { data: sysRecipe } = await sb
         .from('system_recipes')
@@ -235,6 +271,8 @@ export default function TodayPage() {
 
   const startCooking = () => {
     setCookStep(0)
+    // Reset servings to family size each time cook mode opens
+    setCookServings(familySize)
     setCookMode(true)
   }
 
@@ -243,7 +281,6 @@ export default function TodayPage() {
     setShowSwap(true)
     const sb = getClient()
 
-    // Get vault recipes excluding tonight's
     const { data: vaultRecipes } = await sb
       .from('recipes')
       .select('id, title, cuisine, total_time_mins, tags, description, ingredients')
@@ -252,14 +289,12 @@ export default function TodayPage() {
       .order('is_favorite', { ascending: false })
       .limit(20)
 
-    // Get system recipes
     const { data: sysRecipes } = await sb
       .from('system_recipes')
       .select('id, title, cuisine, total_time_mins, tags, description')
       .order('times_served', { ascending: true })
       .limit(20)
 
-    // Pick 3 vault + 3 system, varied cuisines
     const pickDiverse = (recipes, count) => {
       const picked = []
       const usedCuisines = []
@@ -270,7 +305,6 @@ export default function TodayPage() {
           usedCuisines.push(r.cuisine)
         }
       }
-      // Fill remainder if not enough diverse
       for (const r of (recipes || [])) {
         if (picked.length >= count) break
         if (!picked.find(p => p.id === r.id)) picked.push(r)
@@ -287,10 +321,8 @@ export default function TodayPage() {
 
   const applySwap = async (recipe) => {
     const sb = getClient()
-    const today = getLocalDateStr()
 
     if (recipe.isSystem) {
-      // Update planned meal with system recipe snapshot
       const { data: full } = await sb
         .from('system_recipes')
         .select('*')
@@ -309,11 +341,11 @@ export default function TodayPage() {
           ingredients: full?.ingredients || [],
           instructions: full?.instructions || [],
           description: recipe.description || null,
+          base_servings: full?.base_servings || 4,
         }
       }).eq('id', mealId)
       setTonightMeal(full || recipe)
     } else {
-      // Update with vault recipe
       await sb.from('planned_meals').update({
         recipe_id: recipe.id,
         notes: recipe.title,
@@ -325,6 +357,7 @@ export default function TodayPage() {
           tags: recipe.tags || [],
           ingredients: recipe.ingredients || [],
           description: recipe.description || null,
+          base_servings: recipe.base_servings || 4,
         }
       }).eq('id', mealId)
       setTonightMeal(recipe)
@@ -337,14 +370,12 @@ export default function TodayPage() {
     setShowRate(false)
     setRated(true)
 
-    // Update was_made and rating on planned meal
     if (mealId) {
       await sb.from('planned_meals')
         .update({ was_made: true, made_at: new Date().toISOString() })
         .eq('id', mealId)
     }
 
-    // Update recipe average rating
     if (tonightMeal && tonightMeal.id) {
       const { data: recipe } = await sb
         .from('recipes')
@@ -369,18 +400,14 @@ export default function TodayPage() {
 
     if (type === 'swap') {
       loadSwapSuggestions()
-
     } else if (type === 'never') {
-      // Remove from rotation — stop suggesting this recipe
       if (tonightMeal && tonightMeal.id) {
         await sb.from('recipes')
           .update({ in_rotation: false, rotation_frequency: null })
           .eq('id', tonightMeal.id)
       }
       router.push('/plan')
-
     } else if (type === 'tomorrow') {
-      // Mark tonight's meal as skipped — plans changed
       if (mealId) {
         await sb.from('planned_meals')
           .update({ is_skipped: true, skip_reason: 'plans changed' })
@@ -391,7 +418,7 @@ export default function TodayPage() {
   }
 
   const formatAmt = (ing) => {
-    if (!ing.amount && !ing.unit) return ''
+    if (!ing.amount && !ing.unit) return ing.notes || ''
     const amt = typeof ing.amount === 'number'
       ? (Number.isInteger(ing.amount) ? ing.amount : +ing.amount.toFixed(2))
       : ing.amount
@@ -406,6 +433,8 @@ export default function TodayPage() {
   const startTime = tonightMeal ? calcStartTime(dinnerHour, tonightMeal.total_time_mins || cookMins) : null
   const instructions = (tonightMeal && tonightMeal.instructions) || []
   const ingredients = (tonightMeal && tonightMeal.ingredients) || []
+  const baseServings = tonightMeal?.base_servings || familySize
+  const effectiveServings = cookServings || familySize
 
   if (!mounted || loading) return (
     <div style={{minHeight:'100vh',background:'#1A1612',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -436,17 +465,63 @@ export default function TodayPage() {
               ))}
             </div>
 
-            {/* Ingredients on step 0 */}
-            {cookStep === 0 && ingredients.length > 0 && (
-              <div className="ingr-list">
-                <div className="ingr-title">Ingredients</div>
-                {ingredients.map((ing, i) => (
-                  <div key={i} className="ingr-item">
-                    <span className="ingr-name">{ing.name}</span>
-                    <span className="ingr-amt">{formatAmt(ing)}</span>
+            {/* Serving slider + ingredients on step 0 */}
+            {cookStep === 0 && (
+              <>
+                {/* Serving size picker */}
+                <div className="serving-slider-card">
+                  <div className="serving-slider-label">Serving size</div>
+                  <div className="serving-slider-question">How many are we cooking for tonight?</div>
+                  <div className="serving-slider-row">
+                    <input
+                      type="range"
+                      min={1}
+                      max={30}
+                      value={effectiveServings}
+                      onChange={e => setCookServings(Number(e.target.value))}
+                      className="serving-slider-input serving-slider-track"
+                    />
+                    <div className="serving-slider-val">{effectiveServings}</div>
                   </div>
-                ))}
-              </div>
+                  {effectiveServings !== familySize && (
+                    <div className="serving-slider-note">
+                      Recipe is for {baseServings} · scaled to {effectiveServings}
+                      {' · '}
+                      <button
+                        onClick={() => setCookServings(familySize)}
+                        style={{background:'none',border:'none',color:'rgba(184,135,74,.7)',cursor:'pointer',fontFamily:"'Outfit',sans-serif",fontSize:'.82rem',padding:0,textDecoration:'underline'}}>
+                        reset to family size
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {ingredients.length > 0 && (
+                  <div className="ingr-list">
+                    <div className="ingr-title">
+                      Ingredients
+                      {effectiveServings !== baseServings && (
+                        <span style={{marginLeft:'.5rem',color:'rgba(184,135,74,.6)',fontWeight:400,textTransform:'none',letterSpacing:0}}>
+                          · scaled for {effectiveServings}
+                        </span>
+                      )}
+                    </div>
+                    {ingredients.map((ing, i) => (
+                      <div key={i} className="ingr-item">
+                        <span className="ingr-name">
+                          {ing.name}
+                          {ing.notes && !ing.amount && !ing.unit && (
+                            <span style={{color:'rgba(248,243,236,.4)',fontSize:'.85rem',marginLeft:'.35rem'}}>({ing.notes})</span>
+                          )}
+                        </span>
+                        <span className="ingr-amt">
+                          {formatScaledAmt(ing, baseServings, effectiveServings)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             {/* Current step */}
@@ -502,7 +577,6 @@ export default function TodayPage() {
           </div>
         ) : (
           <>
-            {/* Tonight's recipe card */}
             <div className="tonight-card">
               <div className="tonight-label">
                 <div className="tonight-dot"/>
@@ -531,7 +605,6 @@ export default function TodayPage() {
                 </p>
               )}
 
-              {/* Start time */}
               {startTime && (
                 <div className="start-time-box">
                   <div>
@@ -542,7 +615,6 @@ export default function TodayPage() {
                 </div>
               )}
 
-              {/* Actions */}
               <div className="tonight-actions">
                 {!rated ? (
                   <>
@@ -568,7 +640,6 @@ export default function TodayPage() {
               </div>
             </div>
 
-            {/* Quick ingredients preview */}
             {ingredients.length > 0 && (
               <div style={{background:'#2C2420',border:'1px solid rgba(255,255,255,.06)',borderRadius:'1.25rem',padding:'1.5rem',marginBottom:'1rem'}}>
                 <div style={{fontSize:'.7rem',fontWeight:500,letterSpacing:'.15em',textTransform:'uppercase',color:'rgba(248,243,236,.4)',marginBottom:'1rem'}}>
@@ -582,7 +653,7 @@ export default function TodayPage() {
                 ))}
                 {ingredients.length > 6 && (
                   <div style={{fontSize:'.85rem',color:'rgba(248,243,236,.35)',marginTop:'.75rem',textAlign:'center'}}>
-                    +{ingredients.length - 6} more ingredients
+                    +{ingredients.length - 6} more · open cook mode to see all
                   </div>
                 )}
               </div>
@@ -600,7 +671,6 @@ export default function TodayPage() {
             maxWidth:'520px',maxHeight:'88vh',overflow:'auto'}}
             onClick={e => e.stopPropagation()}>
 
-            {/* Header */}
             <div style={{padding:'1.5rem 1.5rem 1rem',borderBottom:'1px solid rgba(255,255,255,.07)'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'.25rem'}}>
                 <div style={{fontSize:'.7rem',fontWeight:500,letterSpacing:'.15em',
@@ -632,7 +702,6 @@ export default function TodayPage() {
               </div>
             </div>
 
-            {/* Suggestions */}
             <div style={{padding:'1rem 1.25rem'}}>
               {loadingSwap ? (
                 <div style={{textAlign:'center',padding:'2rem',color:'rgba(248,243,236,.45)'}}>
@@ -643,75 +712,70 @@ export default function TodayPage() {
                 </div>
               ) : (
                 <>
-                  {/* Vault recipes */}
                   {(() => {
                     const vaultItems = swapSuggestions.filter(r => !r.isSystem && (swapShowAll || (r.total_time_mins && r.total_time_mins <= 30)))
                     if (vaultItems.length === 0) return null
                     return (
-                    <>
-                      <div style={{fontSize:'.68rem',fontWeight:500,letterSpacing:'.14em',
-                        textTransform:'uppercase',color:'rgba(248,243,236,.4)',margin:'.5rem 0 .75rem'}}>
-                        From your vault
-                      </div>
-                      {vaultItems.map(r => (
-                        <div key={r.id}
-                          onClick={() => applySwap(r)}
-                          style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-                            padding:'.9rem 1rem',borderRadius:'1rem',cursor:'pointer',
-                            marginBottom:'.5rem',background:'rgba(255,255,255,.03)',
-                            border:'1px solid rgba(255,255,255,.06)',transition:'all .15s'}}
-                          onMouseOver={e => e.currentTarget.style.background='rgba(184,135,74,.08)'}
-                          onMouseOut={e => e.currentTarget.style.background='rgba(255,255,255,.03)'}>
-                          <div>
-                            <div style={{fontSize:'1rem',color:'#F8F3EC',marginBottom:'.25rem'}}>{r.title}</div>
-                            <div style={{display:'flex',gap:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.5)'}}>
-                              {r.cuisine && <span>🌍 {r.cuisine}</span>}
-                              {r.total_time_mins && <span>⏱ {r.total_time_mins} min</span>}
-                            </div>
-                          </div>
-                          <div style={{color:'#B8874A',fontSize:'.85rem',flexShrink:0,marginLeft:'1rem'}}>
-                            Tonight →
-                          </div>
+                      <>
+                        <div style={{fontSize:'.68rem',fontWeight:500,letterSpacing:'.14em',
+                          textTransform:'uppercase',color:'rgba(248,243,236,.4)',margin:'.5rem 0 .75rem'}}>
+                          From your vault
                         </div>
-                      ))}
-                    </>
-                  )})()}
+                        {vaultItems.map(r => (
+                          <div key={r.id}
+                            onClick={() => applySwap(r)}
+                            style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                              padding:'.9rem 1rem',borderRadius:'1rem',cursor:'pointer',
+                              marginBottom:'.5rem',background:'rgba(255,255,255,.03)',
+                              border:'1px solid rgba(255,255,255,.06)',transition:'all .15s'}}
+                            onMouseOver={e => e.currentTarget.style.background='rgba(184,135,74,.08)'}
+                            onMouseOut={e => e.currentTarget.style.background='rgba(255,255,255,.03)'}>
+                            <div>
+                              <div style={{fontSize:'1rem',color:'#F8F3EC',marginBottom:'.25rem'}}>{r.title}</div>
+                              <div style={{display:'flex',gap:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.5)'}}>
+                                {r.cuisine && <span>🌍 {r.cuisine}</span>}
+                                {r.total_time_mins && <span>⏱ {r.total_time_mins} min</span>}
+                              </div>
+                            </div>
+                            <div style={{color:'#B8874A',fontSize:'.85rem',flexShrink:0,marginLeft:'1rem'}}>Tonight →</div>
+                          </div>
+                        ))}
+                      </>
+                    )
+                  })()}
 
-                  {/* System recipes */}
                   {(() => {
                     const sysItems = swapSuggestions.filter(r => r.isSystem && (swapShowAll || (r.total_time_mins && r.total_time_mins <= 30)))
                     if (sysItems.length === 0) return null
                     return (
-                    <>
-                      <div style={{fontSize:'.68rem',fontWeight:500,letterSpacing:'.14em',
-                        textTransform:'uppercase',color:'rgba(248,243,236,.4)',margin:'1rem 0 .75rem'}}>
-                        ✨ From Dot
-                      </div>
-                      {sysItems.map(r => (
-                        <div key={r.id}
-                          onClick={() => applySwap(r)}
-                          style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-                            padding:'.9rem 1rem',borderRadius:'1rem',cursor:'pointer',
-                            marginBottom:'.5rem',background:'rgba(255,255,255,.03)',
-                            border:'1px solid rgba(255,255,255,.06)',transition:'all .15s'}}
-                          onMouseOver={e => e.currentTarget.style.background='rgba(184,135,74,.08)'}
-                          onMouseOut={e => e.currentTarget.style.background='rgba(255,255,255,.03)'}>
-                          <div>
-                            <div style={{fontSize:'1rem',color:'#F8F3EC',marginBottom:'.25rem'}}>{r.title}</div>
-                            <div style={{display:'flex',gap:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.5)'}}>
-                              {r.cuisine && <span>🌍 {r.cuisine}</span>}
-                              {r.total_time_mins && <span>⏱ {r.total_time_mins} min</span>}
-                            </div>
-                          </div>
-                          <div style={{color:'#B8874A',fontSize:'.85rem',flexShrink:0,marginLeft:'1rem'}}>
-                            Tonight →
-                          </div>
+                      <>
+                        <div style={{fontSize:'.68rem',fontWeight:500,letterSpacing:'.14em',
+                          textTransform:'uppercase',color:'rgba(248,243,236,.4)',margin:'1rem 0 .75rem'}}>
+                          ✨ From Dot
                         </div>
-                      ))}
-                    </>
-                  )})()}
+                        {sysItems.map(r => (
+                          <div key={r.id}
+                            onClick={() => applySwap(r)}
+                            style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                              padding:'.9rem 1rem',borderRadius:'1rem',cursor:'pointer',
+                              marginBottom:'.5rem',background:'rgba(255,255,255,.03)',
+                              border:'1px solid rgba(255,255,255,.06)',transition:'all .15s'}}
+                            onMouseOver={e => e.currentTarget.style.background='rgba(184,135,74,.08)'}
+                            onMouseOut={e => e.currentTarget.style.background='rgba(255,255,255,.03)'}>
+                            <div>
+                              <div style={{fontSize:'1rem',color:'#F8F3EC',marginBottom:'.25rem'}}>{r.title}</div>
+                              <div style={{display:'flex',gap:'.75rem',fontSize:'.82rem',color:'rgba(248,243,236,.5)'}}>
+                                {r.cuisine && <span>🌍 {r.cuisine}</span>}
+                                {r.total_time_mins && <span>⏱ {r.total_time_mins} min</span>}
+                              </div>
+                            </div>
+                            <div style={{color:'#B8874A',fontSize:'.85rem',flexShrink:0,marginLeft:'1rem'}}>Tonight →</div>
+                          </div>
+                        ))}
+                      </>
+                    )
+                  })()}
 
-                  {/* Nothing quick message */}
                   {!swapShowAll && swapSuggestions.filter(r => r.total_time_mins && r.total_time_mins <= 30).length === 0 && (
                     <div style={{textAlign:'center',padding:'1.5rem 0',color:'rgba(248,243,236,.45)',fontSize:'.95rem'}}>
                       No recipes under 30 min found.
@@ -723,7 +787,6 @@ export default function TodayPage() {
                     </div>
                   )}
 
-                  {/* Search vault CTA */}
                   <div style={{marginTop:'1.25rem',paddingTop:'1.25rem',
                     borderTop:'1px solid rgba(255,255,255,.07)',textAlign:'center'}}>
                     <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.45)',marginBottom:'.75rem'}}>
