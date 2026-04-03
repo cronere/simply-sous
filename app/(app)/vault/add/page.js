@@ -207,15 +207,14 @@ export default function AddRecipePage() {
     if (!pdfFile) { setError('Please select a PDF file.'); return }
     setError(''); setLoading(true); setPdfRecipes([])
     try {
-      const pdfBase64 = await toBase64(pdfFile)
+      // Use FormData to bypass Next.js JSON body size limit for large PDFs
+      const formData = new FormData()
+      formData.append('type', 'pdf')
+      formData.append('familySize', String(familySize))
+      formData.append('pdf', pdfFile)
       const res = await fetch('/api/recipes/extract', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'pdf',
-          pdfBase64,
-          familySize,
-        }),
+        body: formData, // no Content-Type header — browser sets multipart boundary automatically
       })
       const data = await res.json()
       if (!res.ok || data.error) {
