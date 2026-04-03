@@ -65,8 +65,33 @@ Return ONLY the JSON object, no markdown, no explanation, no preamble.`
 
 export async function POST(request) {
   try {
-    const body = await request.json()
-    const { type, url, imageBase64, imageType, text, familySize } = body
+    const contentType = request.headers.get('content-type') || ''
+    let body, type, url, imageBase64, imageType, text, familySize
+
+    if (contentType.includes('multipart/form-data')) {
+      // PDF upload via FormData — bypasses JSON body size limit
+      const formData = await request.formData()
+      type = formData.get('type')
+      familySize = parseInt(formData.get('familySize') || '4')
+      const pdfFile = formData.get('pdf')
+      if (pdfFile) {
+        const arrayBuffer = await pdfFile.arrayBuffer()
+        const bytes = new Uint8Array(arrayBuffer)
+        let binary = ''
+        bytes.forEach(b => binary += String.fromCharCode(b))
+        body = { pdfBase64: btoa(binary) }
+      } else {
+        body = {}
+      }
+    } else {
+      body = await request.json()
+      type = body.type
+      url = body.url
+      imageBase64 = body.imageBase64
+      imageType = body.imageType
+      text = body.text
+      familySize = body.familySize
+    }
 
     if (!type) {
       return Response.json({ error: 'Missing type' }, { status: 400 })
