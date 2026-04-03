@@ -132,8 +132,49 @@ export async function POST(request) {
       }]
     }
 
+    else if (type === 'pdf') {
+      if (!body.pdfBase64) return Response.json({ error: 'Missing PDF data' }, { status: 400 })
+
+      const scaleNote = familySize ? 'Scale all recipe ingredients for ' + familySize + ' servings.' : ''
+      messages = [{
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: body.pdfBase64 },
+          },
+          {
+            type: 'text',
+            text: 'This PDF contains one or more recipes. Extract ALL recipes you find and return them as a JSON array.\n\n' + scaleNote + '\n\nReturn ONLY a JSON array of recipe objects, each matching the schema. No markdown, no explanation.\n\nIf there is only one recipe, still return it as a single-element array: [{ ...recipe }]',
+          },
+        ],
+      }]
+
+      // PDF extraction needs more tokens
+      const response = await callWithRetry(function() {
+        return anthropic.messages.create({
+          model: 'claude-opus-4-6',
+          max_tokens: 8000,
+          system: SYSTEM,
+          messages,
+        })
+      })
+
+      const rawText = response.content[0]?.text?.trim() || ''
+      if (!rawText) return Response.json({ error: 'No recipes found in PDF.' }, { status: 500 })
+
+      try {
+        const cleaned = rawText.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+        const recipes = JSON.parse(cleaned)
+        const arr = Array.isArray(recipes) ? recipes : [recipes]
+        return Response.json({ recipes: arr })
+      } catch {
+        return Response.json({ error: 'Could not parse recipes from PDF. Please try again.' }, { status: 500 })
+      }
+    }
+
     else {
-      return Response.json({ error: 'Invalid type. Use url, image, or manual.' }, { status: 400 })
+      return Response.json({ error: 'Invalid type. Use url, image, manual, or pdf.' }, { status: 400 })
     }
 
     const response = await callWithRetry(function() {
