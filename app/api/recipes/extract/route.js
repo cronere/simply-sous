@@ -273,6 +273,6 @@ export async function POST(request) {
 
   } catch (err) {
     console.error('Recipe extract error:', err)
-    return Response.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
+    return Response.json({ error: err.message || 'Something went wrong. Please try again.' }, { status: 500 })
   }
 }
