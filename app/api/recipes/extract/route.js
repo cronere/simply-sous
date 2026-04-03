@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-// Increase body size limit for PDF uploads
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
@@ -27,8 +26,14 @@ async function callWithRetry(fn, maxRetries) {
   }
 }
 
+// Single-recipe extraction system prompt — NO scaling, literal copy
 const SYSTEM = `You are a recipe extraction expert for Simply Sous, a family meal planning app.
-Your job is to extract recipe information from URLs, images, or text and return it as clean structured JSON.
+Your job is to extract recipe information EXACTLY as written — never alter quantities, never scale, never interpret vague measurements.
+
+CRITICAL RULES:
+- Copy ingredient amounts VERBATIM. If the recipe says "a squeeze of lemon", use amount: null, unit: null, notes: "a squeeze". If it says "light sprinkle", use amount: null, unit: null, notes: "light sprinkle". Never convert vague amounts to numbers.
+- base_servings must be exactly what the recipe states. If it says "Serves 1", use 1. If it says "Makes 4 portions", use 4. If unstated, use 4 as default. NEVER use the user's family size.
+- Do not multiply or divide any quantities. Extract exactly what is written.
 
 Always return valid JSON matching this exact structure:
 {
@@ -40,12 +45,12 @@ Always return valid JSON matching this exact structure:
   "difficulty": 1-5 (1=easy, 5=hard),
   "prep_time_mins": number or null,
   "cook_time_mins": number or null,
-  "base_servings": number (default 4 if unknown),
+  "base_servings": number (exactly as stated in recipe, default 4 if not stated),
   "ingredients": [
-    { "name": "ingredient name", "amount": number or null, "unit": "cup/tsp/lbs/etc or null", "notes": "optional prep note or null" }
+    { "name": "ingredient name", "amount": number or null, "unit": "cup/tsp/lbs/etc or null", "notes": "prep note, or vague quantity like 'a squeeze' or 'light sprinkle', or null" }
   ],
   "instructions": [
-    { "step": 1, "text": "instruction text", "timer_minutes": number or null }
+    { "step": 1, "text": "instruction text copied faithfully", "timer_minutes": number or null }
   ],
   "tags": ["tag1", "tag2"],
   "dietary_flags": ["gluten-free", "dairy-free", "vegan", "vegetarian", "nut-free", "low-carb", "keto", "paleo"]
@@ -60,13 +65,68 @@ Tag guidelines — include relevant tags from these categories:
 - Flavor: spicy, savory, sweet, smoky, tangy, creamy, light, comforting
 
 Only include dietary_flags that genuinely apply based on the ingredients.
-Be precise with ingredient amounts. If a range is given (e.g. "1-2 cups"), use the middle value.
 Return ONLY the JSON object, no markdown, no explanation, no preamble.`
+
+// PDF extraction system prompt — NO scaling, literal copy
+const PDF_SYSTEM = `You are a recipe extraction expert. Extract recipes from PDFs and return a JSON array ONLY — no markdown, no backticks, no explanation.
+
+CRITICAL RULES:
+- Copy ingredient amounts VERBATIM from the source. Never scale, never interpret, never convert vague amounts.
+- If a recipe says "a squeeze of lemon", use: {"name":"lemon juice","amount":null,"unit":null,"notes":"a squeeze"}
+- If it says "light sprinkle of cloves", use: {"name":"cloves","amount":null,"unit":null,"notes":"light sprinkle"}
+- base_servings must be exactly what the recipe states (e.g. "Serves 1" → 1, "Makes 4" → 4). Default 4 only if truly unstated.
+- Do NOT multiply by any family size. Extract as written.
+
+Each recipe object:
+{
+  "title": "",
+  "description": "1-2 sentence description or null",
+  "cuisine": "",
+  "meal_type": "breakfast|lunch|dinner|snack|dessert|sauce|drink|bread|side",
+  "difficulty": 2,
+  "prep_time_mins": null,
+  "cook_time_mins": null,
+  "base_servings": 4,
+  "ingredients": [{"name":"","amount":null,"unit":null,"notes":null}],
+  "instructions": [{"step":1,"text":""}],
+  "tags": [],
+  "dietary_flags": []
+}
+
+meal_type options: breakfast, lunch, dinner, snack, dessert, sauce, drink, bread, side.
+Start response with [ and end with ].`
+
+const parseRaw = (raw, hitLimit) => {
+  let s = raw.replace(/^```[\w]*\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+
+  if (hitLimit || (!s.endsWith(']') && s.includes('}'))) {
+    const last = s.lastIndexOf('}')
+    if (last > 0) {
+      s = s.substring(0, last + 1)
+      if (!s.startsWith('[')) s = '[' + s
+      s = s + ']'
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(s)
+    return Array.isArray(parsed) ? parsed : [parsed]
+  } catch {
+    const out = []
+    const re = /\{"title"[\s\S]*?\}(?=\s*[,\]]|\s*$)/g
+    let m
+    while ((m = re.exec(s)) !== null) {
+      try { const r = JSON.parse(m[0]); if (r.title) out.push(r) } catch {}
+    }
+    return out
+  }
+}
 
 export async function POST(request) {
   try {
     const body = await request.json()
-    const { type, url, imageBase64, imageType, text, familySize } = body
+    const { type, url, imageBase64, imageType, text } = body
+    // NOTE: familySize intentionally not used — extraction is always literal/1:1
 
     if (!type) {
       return Response.json({ error: 'Missing type' }, { status: 400 })
@@ -98,10 +158,9 @@ export async function POST(request) {
         )
       }
 
-      const scaleNote = familySize ? 'Scale ingredients for ' + familySize + ' servings (base_servings should be ' + familySize + ').' : ''
       messages = [{
         role: 'user',
-        content: 'Extract the recipe from this webpage content. The original URL was: ' + url + '\n\nWebpage content:\n' + pageContent + '\n\n' + scaleNote + '\n\nReturn the recipe as JSON.'
+        content: 'Extract the recipe from this webpage content exactly as written. The original URL was: ' + url + '\n\nWebpage content:\n' + pageContent + '\n\nReturn the recipe as JSON. Copy all quantities verbatim — do not scale or alter amounts.'
       }]
     }
 
@@ -110,7 +169,6 @@ export async function POST(request) {
         return Response.json({ error: 'Missing image data' }, { status: 400 })
       }
 
-      const scaleNote = familySize ? 'Scale ingredients for ' + familySize + ' servings (base_servings should be ' + familySize + ').' : ''
       messages = [{
         role: 'user',
         content: [
@@ -120,7 +178,7 @@ export async function POST(request) {
           },
           {
             type: 'text',
-            text: 'Extract the recipe from this image. This could be a screenshot from social media, a photo of a cookbook page, or a recipe card.\n\n' + scaleNote + '\n\nReturn the recipe as JSON.',
+            text: 'Extract the recipe from this image exactly as written. Copy all quantities verbatim — do not scale or alter amounts.\n\nReturn the recipe as JSON.',
           },
         ],
       }]
@@ -129,10 +187,9 @@ export async function POST(request) {
     else if (type === 'manual') {
       if (!text) return Response.json({ error: 'Missing text' }, { status: 400 })
 
-      const scaleNote = familySize ? 'Scale ingredients for ' + familySize + ' servings (base_servings should be ' + familySize + ').' : ''
       messages = [{
         role: 'user',
-        content: 'Extract and structure this recipe:\n\n' + text + '\n\n' + scaleNote + '\n\nReturn the recipe as JSON.'
+        content: 'Extract and structure this recipe exactly as written. Copy all quantities verbatim — do not scale or alter amounts.\n\n' + text + '\n\nReturn the recipe as JSON.'
       }]
     }
 
@@ -148,94 +205,57 @@ export async function POST(request) {
       pdfBytes.forEach(b => binary += String.fromCharCode(b))
       const pdfData = btoa(binary)
 
-      const scaleNote = familySize ? 'Scale ingredients for ' + familySize + ' servings.' : ''
+      // continueAfter is passed for Pass 2 — extract only recipes after this title
+      const continueAfter = body.continueAfter || null
+      const seenTitles = new Set((body.seenTitles || []).map(t => t.toLowerCase().trim()))
 
-      const PDF_SYSTEM = 'You are a recipe extraction expert. Extract recipes from PDFs and return a JSON array ONLY — no markdown, no backticks, no explanation. Each recipe: {"title":"","cuisine":"","meal_type":"dinner","difficulty":2,"prep_time_mins":null,"cook_time_mins":null,"base_servings":4,"ingredients":[{"name":"","amount":1,"unit":"","notes":null}],"instructions":[{"step":1,"text":""}],"tags":[],"dietary_flags":[]}. meal_type options: breakfast, lunch, dinner, snack, dessert, sauce, drink, bread, side. Keep instructions brief. Start response with [ and end with ].'
+      const instruction = continueAfter
+        ? `Extract all recipes AFTER "${continueAfter}" in this PDF. Do not re-extract any recipes before or including that title. Start from the next recipe after it.`
+        : 'Extract ALL recipes from this PDF from the very beginning.'
 
-      const allRecipes = []
-      const seenTitles = new Set()
+      const resp = await callWithRetry(() => anthropic.messages.create({
+        model: 'claude-opus-4-6',
+        max_tokens: 8192,
+        system: PDF_SYSTEM,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfData } },
+            { type: 'text', text: instruction }
+          ]
+        }]
+      }))
 
-      const parseRaw = (raw, hitLimit) => {
-        // Strip any markdown fences
-        let s = raw.replace(/^```[\w]*\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+      const raw = resp.content[0]?.text?.trim() || ''
+      const hitLimit = resp.stop_reason === 'max_tokens'
+      console.log('[pdf] stop:', resp.stop_reason, 'len:', raw.length, 'continueAfter:', continueAfter)
 
-        // If truncated, salvage complete objects up to last closing brace
-        if (hitLimit || (!s.endsWith(']') && s.includes('}'))) {
-          const last = s.lastIndexOf('}')
-          if (last > 0) {
-            s = s.substring(0, last + 1)
-            if (!s.startsWith('[')) s = '[' + s
-            s = s + ']'
-          }
+      const parsed = parseRaw(raw, hitLimit)
+      const recipes = []
+      for (const r of parsed) {
+        const key = (r.title || '').toLowerCase().trim()
+        if (key && !seenTitles.has(key)) {
+          seenTitles.add(key)
+          recipes.push(r)
         }
-
-        try {
-          const parsed = JSON.parse(s)
-          return Array.isArray(parsed) ? parsed : [parsed]
-        } catch {
-          // Extract individual objects as fallback
-          const out = []
-          const re = /\{"title"[\s\S]*?\}(?=\s*[,\]]|\s*$)/g
-          let m
-          while ((m = re.exec(s)) !== null) {
-            try { const r = JSON.parse(m[0]); if (r.title) out.push(r) } catch {}
-          }
-          return out
-        }
       }
 
-      const doPass = async (instruction) => {
-        const resp = await callWithRetry(() => anthropic.messages.create({
-          model: 'claude-opus-4-6',
-          max_tokens: 8192,
-          system: PDF_SYSTEM,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfData } },
-              { type: 'text', text: instruction + ' ' + scaleNote }
-            ]
-          }]
-        }))
+      const lastTitle = recipes.length > 0 ? recipes[recipes.length - 1]?.title : null
+      console.log('[pdf] extracted:', recipes.length, 'truncated:', hitLimit, 'lastTitle:', lastTitle)
 
-        const raw = resp.content[0]?.text?.trim() || ''
-        const hitLimit = resp.stop_reason === 'max_tokens'
-        console.log('[pdf] stop:', resp.stop_reason, 'len:', raw.length, 'preview:', raw.slice(0, 100))
-
-        const recipes = parseRaw(raw, hitLimit)
-        let added = 0
-        for (const r of recipes) {
-          const key = (r.title || '').toLowerCase().trim()
-          if (key && !seenTitles.has(key)) {
-            seenTitles.add(key)
-            allRecipes.push(r)
-            added++
-          }
-        }
-        console.log('[pdf] pass added:', added, 'total:', allRecipes.length, 'truncated:', hitLimit)
-        return hitLimit
-      }
-
-      // Pass 1: full document
-      const truncated = await doPass('Extract ALL recipes from this PDF.')
-
-      // Pass 2: if truncated, get remaining recipes
-      if (truncated && allRecipes.length > 0) {
-        const lastTitle = allRecipes[allRecipes.length - 1]?.title || ''
-        await doPass('Extract all recipes AFTER "' + lastTitle + '". Skip already extracted recipes.')
-      }
-
-      if (allRecipes.length === 0) {
-        return Response.json({ error: 'No recipes found in this PDF. Make sure it contains recipe content.' }, { status: 422 })
-      }
-
-      return Response.json({ recipes: allRecipes })
+      // hasMore = true means frontend should call again with continueAfter=lastTitle
+      return Response.json({
+        recipes,
+        hasMore: hitLimit && recipes.length > 0,
+        continueAfter: hitLimit ? lastTitle : null,
+      })
     }
 
     else {
       return Response.json({ error: 'Invalid type. Use url, image, manual, or pdf.' }, { status: 400 })
     }
 
+    // Single recipe extraction (url / image / manual)
     const response = await callWithRetry(function() {
       return anthropic.messages.create({
         model: 'claude-opus-4-6',
@@ -245,7 +265,7 @@ export async function POST(request) {
       })
     })
 
-    const rawText = response.content[0] && response.content[0].text ? response.content[0].text.trim() : ''
+    const rawText = response.content[0]?.text?.trim() || ''
     if (!rawText) {
       return Response.json({ error: 'Claude returned empty response' }, { status: 500 })
     }
