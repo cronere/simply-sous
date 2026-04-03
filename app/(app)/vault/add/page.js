@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { upload } from '@vercel/blob/client'
 
 let _client = null
 const getClient = () => {
@@ -208,20 +207,40 @@ export default function AddRecipePage() {
     if (!pdfFile) { setError('Please select a PDF file.'); return }
     setError(''); setLoading(true); setPdfRecipes([])
     try {
-      // Step 1: Upload directly from browser to Vercel Blob — bypasses ALL Vercel function limits
-      // Sanitize filename — special chars like & break the Blob URL
-      const safeName = pdfFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const blob = await upload(safeName, pdfFile, {
-        access: 'public',
-        handleUploadUrl: '/api/recipes/upload-pdf',
-        contentType: 'application/pdf',
-      })
+      // Step 1: Upload PDF to Supabase Storage (no size limits, already configured)
+      const sb = getClient()
+      const { data: { session } } = await sb.auth.getSession()
+      if (!session) { router.replace('/login'); return }
 
-      // Step 2: Send the Blob URL to extract API — tiny JSON payload, no size issues
+      const safeName = pdfFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const filePath = `pdf-imports/${session.user.id}/${Date.now()}-${safeName}`
+
+      const { error: uploadError } = await sb.storage
+        .from('pdf-imports')
+        .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: true })
+
+      if (uploadError) {
+        setError('Upload failed: ' + uploadError.message)
+        setLoading(false)
+        return
+      }
+
+      // Step 2: Get a signed URL valid for 10 minutes
+      const { data: signedData, error: signedError } = await sb.storage
+        .from('pdf-imports')
+        .createSignedUrl(filePath, 600)
+
+      if (signedError || !signedData?.signedUrl) {
+        setError('Could not access uploaded file.')
+        setLoading(false)
+        return
+      }
+
+      // Step 3: Send the signed URL to extract API — tiny JSON payload
       const res = await fetch('/api/recipes/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'pdf', pdfUrl: blob.url, familySize }),
+        body: JSON.stringify({ type: 'pdf', pdfUrl: signedData.signedUrl, familySize }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
