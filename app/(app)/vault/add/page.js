@@ -207,14 +207,25 @@ export default function AddRecipePage() {
     if (!pdfFile) { setError('Please select a PDF file.'); return }
     setError(''); setLoading(true); setPdfRecipes([])
     try {
-      // Use FormData to bypass Next.js JSON body size limit for large PDFs
-      const formData = new FormData()
-      formData.append('type', 'pdf')
-      formData.append('familySize', String(familySize))
-      formData.append('pdf', pdfFile)
+      // Step 1: Upload PDF directly to Vercel Blob (bypasses 4.5MB Vercel function limit)
+      const blobRes = await fetch('/api/recipes/upload-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': pdfFile.type || 'application/pdf', 'x-filename': pdfFile.name },
+        body: pdfFile,
+      })
+      if (!blobRes.ok) {
+        const err = await blobRes.json()
+        setError(err.error || 'Failed to upload PDF.')
+        setLoading(false)
+        return
+      }
+      const { url: blobUrl } = await blobRes.json()
+
+      // Step 2: Send the Blob URL to extract API — tiny payload, no size issues
       const res = await fetch('/api/recipes/extract', {
         method: 'POST',
-        body: formData, // no Content-Type header — browser sets multipart boundary automatically
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'pdf', pdfUrl: blobUrl, familySize }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
