@@ -155,13 +155,18 @@ export async function POST(request) {
       const allRecipes = []
       const seenTitles = new Set()
 
+      const PDF_SYSTEM = `You are a recipe extraction expert. Extract ALL recipes from the provided PDF and return them as a JSON array.
+Each recipe must follow this exact structure:
+{"title":"string","description":"string","cuisine":"string","meal_type":"dinner","difficulty":2,"prep_time_mins":null,"cook_time_mins":null,"base_servings":4,"ingredients":[{"name":"string","amount":1,"unit":"cup","notes":null}],"instructions":[{"step":1,"text":"string"}],"tags":["tag1"],"dietary_flags":[]}
+Return ONLY a valid JSON array starting with [ and ending with ]. No markdown, no explanation, no preamble. If only one recipe exists return a single-element array.`
+
       const extractPass = async (startHint, endHint) => {
         const rangeNote = startHint ? 'Focus on pages ' + startHint + ' through ' + endHint + ' of this PDF.' : ''
         const resp = await callWithRetry(function() {
           return anthropic.messages.create({
             model: 'claude-opus-4-6',
             max_tokens: 8192,
-            system: SYSTEM,
+            system: PDF_SYSTEM,
             messages: [{
               role: 'user',
               content: [
@@ -179,6 +184,8 @@ export async function POST(request) {
         })
 
         const raw = resp.content[0]?.text?.trim() || ''
+        console.log('PDF extract raw response (first 500 chars):', raw.slice(0, 500))
+        console.log('Stop reason:', resp.stop_reason)
         if (!raw) return
 
         // Check if Claude hit the token limit (response cut off)
