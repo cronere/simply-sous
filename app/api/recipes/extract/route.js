@@ -96,30 +96,68 @@ Each recipe object:
 meal_type options: breakfast, lunch, dinner, snack, dessert, sauce, drink, bread, side.
 Start response with [ and end with ].`
 
+// Extract complete JSON objects by counting braces — handles nested arrays/objects correctly
+const extractJsonObjects = (s) => {
+  const out = []
+  let i = 0
+  while (i < s.length) {
+    const start = s.indexOf('{"title"', i)
+    if (start === -1) break
+    let depth = 0
+    let j = start
+    let inStr = false
+    let escape = false
+    while (j < s.length) {
+      const ch = s[j]
+      if (escape) { escape = false; j++; continue }
+      if (ch === '\\' && inStr) { escape = true; j++; continue }
+      if (ch === '"') { inStr = !inStr; j++; continue }
+      if (inStr) { j++; continue }
+      if (ch === '{') depth++
+      else if (ch === '}') {
+        depth--
+        if (depth === 0) {
+          try {
+            const candidate = s.substring(start, j + 1)
+            const r = JSON.parse(candidate)
+            if (r.title) out.push(r)
+          } catch {}
+          i = j + 1
+          break
+        }
+      }
+      j++
+    }
+    if (depth !== 0) break // truncated object, stop
+  }
+  return out
+}
+
 const parseRaw = (raw, hitLimit) => {
   let s = raw.replace(/^```[\w]*\s*/i, '').replace(/\s*```\s*$/i, '').trim()
 
-  if (hitLimit || (!s.endsWith(']') && s.includes('}'))) {
-    const last = s.lastIndexOf('}')
-    if (last > 0) {
-      s = s.substring(0, last + 1)
-      if (!s.startsWith('[')) s = '[' + s
-      s = s + ']'
-    }
-  }
-
+  // Try clean parse first
   try {
     const parsed = JSON.parse(s)
     return Array.isArray(parsed) ? parsed : [parsed]
-  } catch {
-    const out = []
-    const re = /\{"title"[\s\S]*?\}(?=\s*[,\]]|\s*$)/g
-    let m
-    while ((m = re.exec(s)) !== null) {
-      try { const r = JSON.parse(m[0]); if (r.title) out.push(r) } catch {}
+  } catch {}
+
+  // If truncated or malformed, salvage complete objects up to last valid closing brace
+  if (hitLimit || s.includes('{"title"')) {
+    const last = s.lastIndexOf('}')
+    if (last > 0) {
+      let salvaged = s.substring(0, last + 1)
+      if (!salvaged.startsWith('[')) salvaged = '[' + salvaged
+      salvaged = salvaged + ']'
+      try {
+        const parsed = JSON.parse(salvaged)
+        return Array.isArray(parsed) ? parsed : [parsed]
+      } catch {}
     }
-    return out
   }
+
+  // Last resort: extract each recipe object individually using brace counting
+  return extractJsonObjects(s)
 }
 
 export async function POST(request) {
