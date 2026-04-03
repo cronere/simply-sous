@@ -212,6 +212,7 @@ export default function AddRecipePage() {
       const blob = await upload(pdfFile.name, pdfFile, {
         access: 'public',
         handleUploadUrl: '/api/recipes/upload-pdf',
+        contentType: 'application/pdf',
       })
 
       // Step 2: Send the Blob URL to extract API — tiny JSON payload, no size issues
