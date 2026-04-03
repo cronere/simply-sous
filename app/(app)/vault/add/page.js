@@ -596,12 +596,20 @@ export default function AddRecipePage() {
 
             {!pdfWorking && (
               <div style={{marginBottom:'1rem'}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'#F8F3EC',marginBottom:'.25rem'}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'#F8F3EC',marginBottom:'.5rem'}}>
                   Found {pdfRecipes.length} recipe{pdfRecipes.length !== 1 ? 's' : ''}
                 </div>
-                <div style={{fontSize:'.88rem',color:'rgba(248,243,236,.4)'}}>
-                  {newCount} new · {dupCount > 0 ? dupCount + ' already in your vault (dimmed)' : 'none already saved'}
+                <div style={{fontSize:'.9rem',color:'rgba(248,243,236,.55)',lineHeight:1.6}}>
+                  {newCount} new recipe{newCount !== 1 ? 's' : ''} ready to save — all selected by default.
                 </div>
+                {dupCount > 0 && (
+                  <div style={{display:'flex',gap:'.65rem',alignItems:'flex-start',marginTop:'.75rem',background:'rgba(184,135,74,.07)',border:'1px solid rgba(184,135,74,.18)',borderRadius:'.75rem',padding:'.75rem 1rem'}}>
+                    <span style={{fontSize:'1.1rem',flexShrink:0}}>👵</span>
+                    <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.65)',lineHeight:1.6}}>
+                      I found <strong style={{color:'#D4A46A'}}>{dupCount} recipe{dupCount !== 1 ? 's' : ''}</strong> you&apos;ve already saved to your vault. {dupCount !== 1 ? "They're" : "It's"} shown dimmed below and won&apos;t be selected — no duplicates!
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
