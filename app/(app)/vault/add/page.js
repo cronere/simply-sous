@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
@@ -57,6 +57,7 @@ const css = `
   .loading-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:#F8F3EC;margin-bottom:.5rem}
   .loading-sub{font-size:1rem;color:rgba(248,243,236,.72);line-height:1.7}
   .add-err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;color:#EF4444;font-size:.97rem;padding:12px 16px;margin-bottom:1rem;line-height:1.6}
+  .add-warn{background:rgba(184,135,74,.08);border:1px solid rgba(184,135,74,.2);border-radius:10px;color:#D4A46A;font-size:.9rem;padding:10px 14px;margin-bottom:.5rem;line-height:1.6}
   .preview{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:1.5rem;overflow:hidden;margin-top:1.5rem}
   .preview-header{padding:2rem 2rem 1.5rem;border-bottom:1px solid rgba(255,255,255,.06)}
   .preview-tag{display:inline-flex;align-items:center;gap:.4rem;font-size:.80rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#B8874A;background:rgba(184,135,74,.1);border:1px solid rgba(184,135,74,.2);padding:.28rem .7rem;border-radius:2rem;margin-bottom:1rem}
@@ -79,6 +80,7 @@ const css = `
   .save-row{display:flex;gap:.75rem;padding:1.5rem 2rem;border-top:1px solid rgba(255,255,255,.06)}
   .save-btn{flex:1;background:#B8874A;color:#1A1612;border:none;padding:14px;border-radius:12px;font-family:'Outfit',sans-serif;font-size:.95rem;font-weight:600;cursor:pointer;transition:all .2s}
   .save-btn:hover{background:#D4A46A;transform:translateY(-1px)}
+  .save-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
   .retry-btn{background:rgba(255,255,255,.06);color:rgba(248,243,236,.88);border:1px solid rgba(255,255,255,.1);padding:14px 20px;border-radius:12px;font-family:'Outfit',sans-serif;font-size:1rem;cursor:pointer;transition:all .2s;white-space:nowrap}
   .retry-btn:hover{background:rgba(255,255,255,.1);color:#F8F3EC}
   .add-label{display:block;font-size:.84rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:rgba(248,243,236,.65);margin-bottom:.6rem}
@@ -91,16 +93,34 @@ const css = `
   .pdf-recipe-row{display:flex;align-items:center;gap:1rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:1rem;padding:1rem 1.25rem;cursor:pointer;transition:all .2s}
   .pdf-recipe-row:hover{background:rgba(255,255,255,.07);border-color:rgba(184,135,74,.2)}
   .pdf-recipe-row.checked{background:rgba(184,135,74,.08);border-color:rgba(184,135,74,.3)}
+  .pdf-recipe-row.duplicate{opacity:.5;border-style:dashed}
   .pdf-checkbox{width:1.25rem;height:1.25rem;border-radius:.35rem;border:2px solid rgba(255,255,255,.2);background:none;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s}
   .pdf-recipe-row.checked .pdf-checkbox{background:#B8874A;border-color:#B8874A}
   .pdf-recipe-info{flex:1;min-width:0}
   .pdf-recipe-title{font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:#F8F3EC;line-height:1.2;margin-bottom:.2rem}
   .pdf-recipe-meta{font-size:.82rem;color:rgba(248,243,236,.45)}
+  .pdf-recipe-peek{background:none;border:none;color:rgba(184,135,74,.7);font-family:'Outfit',sans-serif;font-size:.8rem;cursor:pointer;padding:.2rem .6rem;border-radius:1rem;border:1px solid rgba(184,135,74,.2);transition:all .2s;white-space:nowrap;flex-shrink:0}
+  .pdf-recipe-peek:hover{color:#D4A46A;border-color:rgba(184,135,74,.4);background:rgba(184,135,74,.06)}
   .pdf-batch-actions{display:flex;gap:.75rem;margin-bottom:1.25rem;align-items:center;flex-wrap:wrap}
   .pdf-select-all{background:none;border:1px solid rgba(255,255,255,.12);color:rgba(248,243,236,.6);border-radius:2rem;padding:.4rem 1rem;font-family:'Outfit',sans-serif;font-size:.85rem;cursor:pointer;transition:all .2s}
   .pdf-select-all:hover{border-color:rgba(184,135,74,.3);color:#B8874A}
   .pdf-count{font-size:.88rem;color:rgba(248,243,236,.4);margin-left:auto}
   .pdf-save-bar{position:sticky;bottom:0;background:linear-gradient(to top,#1A1612 70%,transparent);padding:1.5rem 0 0;margin-top:.5rem}
+
+  /* Progress banner */
+  .pdf-progress-banner{display:flex;align-items:center;gap:.75rem;background:rgba(184,135,74,.06);border:1px solid rgba(184,135,74,.18);border-radius:.85rem;padding:.75rem 1.1rem;margin-bottom:1.25rem;font-size:.9rem;color:rgba(248,243,236,.75)}
+  .pdf-progress-dot{width:8px;height:8px;border-radius:50%;background:#B8874A;animation:pulse 1.4s ease infinite;flex-shrink:0}
+
+  /* Recipe detail modal */
+  .recipe-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:flex;align-items:flex-end;justify-content:center}
+  @media(min-width:600px){.recipe-modal-overlay{align-items:center}}
+  .recipe-modal{background:#231E1B;border-radius:1.5rem 1.5rem 0 0;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;position:relative}
+  @media(min-width:600px){.recipe-modal{border-radius:1.5rem;max-height:85vh}}
+  .recipe-modal-hd{position:sticky;top:0;background:#231E1B;border-bottom:1px solid rgba(255,255,255,.07);padding:1.25rem 1.5rem;display:flex;align-items:center;gap:1rem;z-index:1}
+  .recipe-modal-back{background:none;border:none;color:rgba(248,243,236,.6);font-family:'Outfit',sans-serif;font-size:.95rem;cursor:pointer;padding:0;display:flex;align-items:center;gap:.35rem}
+  .recipe-modal-back:hover{color:#F8F3EC}
+  .recipe-modal-title{font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:#F8F3EC;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .recipe-modal-body{padding:1.5rem}
 
   @media(max-width:600px){
     .add-tabs{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
@@ -124,15 +144,23 @@ export default function AddRecipePage() {
   const [recipe, setRecipe] = useState(null)
   const [saving, setSaving] = useState(false)
   const [userId, setUserId] = useState(null)
-  const [familySize, setFamilySize] = useState(4)
   const [mounted, setMounted] = useState(false)
 
   // PDF state
   const [pdfFile, setPdfFile] = useState(null)
-  const [pdfRecipes, setPdfRecipes] = useState([]) // extracted recipes
-  const [pdfChecked, setPdfChecked] = useState({}) // {index: bool}
+  const [pdfRecipes, setPdfRecipes] = useState([])
+  const [pdfChecked, setPdfChecked] = useState({})
   const [pdfSaving, setPdfSaving] = useState(false)
   const [pdfSaved, setPdfSaved] = useState(0)
+  const [pdfSaveErrors, setPdfSaveErrors] = useState([]) // titles that failed
+  const [pdfStillWorking, setPdfStillWorking] = useState(false) // pass 2 in progress
+  const [pdfExtracting, setPdfExtracting] = useState(false) // pass 1 in progress
+  const [pdfDuplicates, setPdfDuplicates] = useState(new Set()) // titles already in vault
+
+  // Recipe preview modal
+  const [previewRecipe, setPreviewRecipe] = useState(null)
+
+  const extractingRef = useRef(false)
 
   useEffect(() => {
     setMounted(true)
@@ -141,9 +169,6 @@ export default function AddRecipePage() {
       const { data: { session } } = await sb.auth.getSession()
       if (!session) { router.replace('/login'); return }
       setUserId(session.user.id)
-      const { data: profile } = await sb
-        .from('profiles').select('family_size').eq('id', session.user.id).maybeSingle()
-      if (profile?.family_size) setFamilySize(profile.family_size)
     }
     init()
   }, [router])
@@ -177,17 +202,17 @@ export default function AddRecipePage() {
   const extract = async () => {
     setError(''); setRecipe(null); setLoading(true)
     try {
-      let body = { familySize }
+      let body = {}
       if (method === 'url') {
         if (!url.trim()) { setError('Please enter a URL.'); setLoading(false); return }
-        body = { ...body, type: 'url', url: url.trim() }
+        body = { type: 'url', url: url.trim() }
       } else if (method === 'image') {
         if (!imageFile) { setError('Please select an image.'); setLoading(false); return }
         const imageBase64 = await toBase64(imageFile)
-        body = { ...body, type: 'image', imageBase64, imageType: imageFile.type }
+        body = { type: 'image', imageBase64, imageType: imageFile.type }
       } else if (method === 'manual') {
         if (!manualText.trim()) { setError('Please enter the recipe text.'); setLoading(false); return }
-        body = { ...body, type: 'manual', text: manualText.trim() }
+        body = { type: 'manual', text: manualText.trim() }
       }
       const res = await fetch('/api/recipes/extract', {
         method: 'POST',
@@ -203,71 +228,148 @@ export default function AddRecipePage() {
     setLoading(false)
   }
 
+  // Check vault for duplicate titles
+  const checkDuplicates = async (recipes) => {
+    const sb = getClient()
+    const { data: { session } } = await sb.auth.getSession()
+    if (!session) return new Set()
+    const titles = recipes.map(r => r.title?.toLowerCase().trim()).filter(Boolean)
+    if (!titles.length) return new Set()
+    const { data: existing } = await sb
+      .from('recipes')
+      .select('title')
+      .eq('profile_id', session.user.id)
+      .in('title', titles.map(t => t)) // exact match — Supabase is case-sensitive here
+    // Also do a case-insensitive check in JS
+    const existingTitles = new Set((existing || []).map(r => r.title?.toLowerCase().trim()))
+    return new Set(titles.filter(t => existingTitles.has(t)))
+  }
+
   const extractPdf = async () => {
     if (!pdfFile) { setError('Please select a PDF file.'); return }
-    setError(''); setLoading(true); setPdfRecipes([])
+    setError('')
+    setPdfRecipes([])
+    setPdfChecked({})
+    setPdfDuplicates(new Set())
+    setPdfSaved(0)
+    setPdfSaveErrors([])
+    setPdfExtracting(true)
+    setPdfStillWorking(false)
+
     try {
-      // Step 1: Upload PDF to Supabase Storage (no size limits, already configured)
       const sb = getClient()
       const { data: { session } } = await sb.auth.getSession()
       if (!session) { router.replace('/login'); return }
 
+      // Upload PDF
       const safeName = pdfFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
       const filePath = `pdf-imports/${session.user.id}/${Date.now()}-${safeName}`
-
       const { error: uploadError } = await sb.storage
         .from('pdf-imports')
         .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: true })
 
-      if (uploadError) {
-        setError('Upload failed: ' + uploadError.message)
-        setLoading(false)
-        return
-      }
+      if (uploadError) { setError('Upload failed: ' + uploadError.message); setPdfExtracting(false); return }
 
-      // Step 2: Get a signed URL valid for 10 minutes
       const { data: signedData, error: signedError } = await sb.storage
         .from('pdf-imports')
         .createSignedUrl(filePath, 600)
 
       if (signedError || !signedData?.signedUrl) {
         setError('Could not access uploaded file.')
-        setLoading(false)
+        setPdfExtracting(false)
         return
       }
 
-      // Step 3: Send the signed URL to extract API — tiny JSON payload
-      const res = await fetch('/api/recipes/extract', {
+      const pdfUrl = signedData.signedUrl
+
+      // --- Pass 1 ---
+      const res1 = await fetch('/api/recipes/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'pdf', pdfUrl: signedData.signedUrl, familySize }),
+        body: JSON.stringify({ type: 'pdf', pdfUrl, continueAfter: null, seenTitles: [] }),
       })
-      const data = await res.json()
-      if (!res.ok || data.error) {
-        setError(data.error || 'Could not extract recipes from PDF.')
-      } else if (data.recipes && data.recipes.length > 0) {
-        setPdfRecipes(data.recipes)
-        // Pre-check all recipes
-        const checked = {}
-        data.recipes.forEach((_, i) => { checked[i] = true })
-        setPdfChecked(checked)
-      } else {
-        setError('No recipes found in this PDF. Try a different file.')
+      const data1 = await res1.json()
+
+      if (!res1.ok || data1.error) {
+        setError(data1.error || 'Could not extract recipes from PDF.')
+        setPdfExtracting(false)
+        return
       }
+
+      const pass1Recipes = data1.recipes || []
+
+      if (pass1Recipes.length === 0 && !data1.hasMore) {
+        setError('No recipes found in this PDF. Try a different file.')
+        setPdfExtracting(false)
+        return
+      }
+
+      // Display Pass 1 results immediately
+      setPdfRecipes(pass1Recipes)
+      const checked1 = {}
+      pass1Recipes.forEach((_, i) => { checked1[i] = true })
+      setPdfChecked(checked1)
+      setPdfExtracting(false)
+
+      // Check for duplicates against vault
+      const dupes1 = await checkDuplicates(pass1Recipes)
+      setPdfDuplicates(dupes1)
+
+      // --- Pass 2 (if needed) ---
+      if (data1.hasMore && data1.continueAfter) {
+        setPdfStillWorking(true)
+        const seenTitles = pass1Recipes.map(r => r.title)
+
+        const res2 = await fetch('/api/recipes/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'pdf',
+            pdfUrl,
+            continueAfter: data1.continueAfter,
+            seenTitles,
+          }),
+        })
+        const data2 = await res2.json()
+        const pass2Recipes = (data2.recipes || [])
+
+        if (pass2Recipes.length > 0) {
+          setPdfRecipes(prev => {
+            const combined = [...prev, ...pass2Recipes]
+            const newChecked = {}
+            combined.forEach((_, i) => { newChecked[i] = i >= prev.length ? true : checked1[i] ?? true })
+            setPdfChecked(newChecked)
+            return combined
+          })
+          // Re-check duplicates with full list
+          const allRecipes = [...pass1Recipes, ...pass2Recipes]
+          const dupesAll = await checkDuplicates(allRecipes)
+          setPdfDuplicates(dupesAll)
+        }
+        setPdfStillWorking(false)
+      }
+
     } catch (e) {
       setError('Something went wrong. Please try again.')
+      setPdfExtracting(false)
+      setPdfStillWorking(false)
     }
-    setLoading(false)
   }
 
   const togglePdfRecipe = (i) => {
+    const r = pdfRecipes[i]
+    if (pdfDuplicates.has(r?.title?.toLowerCase().trim())) return // can't select duplicates
     setPdfChecked(prev => ({ ...prev, [i]: !prev[i] }))
   }
 
   const toggleAllPdf = () => {
-    const allChecked = pdfRecipes.every((_, i) => pdfChecked[i])
-    const newChecked = {}
-    pdfRecipes.forEach((_, i) => { newChecked[i] = !allChecked })
+    const selectableIndices = pdfRecipes
+      .map((r, i) => ({ r, i }))
+      .filter(({ r }) => !pdfDuplicates.has(r?.title?.toLowerCase().trim()))
+      .map(({ i }) => i)
+    const allChecked = selectableIndices.every(i => pdfChecked[i])
+    const newChecked = { ...pdfChecked }
+    selectableIndices.forEach(i => { newChecked[i] = !allChecked })
     setPdfChecked(newChecked)
   }
 
@@ -276,38 +378,60 @@ export default function AddRecipePage() {
     if (!toSave.length) { setError('Please select at least one recipe.'); return }
     setPdfSaving(true)
     setError('')
+    setPdfSaveErrors([])
     const sb = getClient()
     const { data: { session } } = await sb.auth.getSession()
     if (!session) { router.replace('/login'); return }
     const uid = session.user.id
     let saved = 0
-    for (const recipe of toSave) {
-      try {
-        await sb.from('recipes').insert({
-          profile_id: uid,
-          title: recipe.title,
-          description: recipe.description || null,
-          source_type: 'manual',
-          ingredients: recipe.ingredients || [],
-          instructions: recipe.instructions || [],
-          prep_time_mins: recipe.prep_time_mins || null,
-          cook_time_mins: recipe.cook_time_mins || null,
-          base_servings: recipe.base_servings || familySize,
-          cuisine: recipe.cuisine || null,
-          meal_type: recipe.meal_type || 'dinner',
-          difficulty: recipe.difficulty || 2,
-          tags: recipe.tags || [],
-          dietary_flags: recipe.dietary_flags || [],
-          ai_processed: true,
-        })
+    const errors = []
+
+    for (const r of toSave) {
+      // Final duplicate check before insert
+      const { data: existing } = await sb
+        .from('recipes')
+        .select('id')
+        .eq('profile_id', uid)
+        .ilike('title', r.title || '')
+        .maybeSingle()
+
+      if (existing) {
+        errors.push({ title: r.title, reason: 'Already in vault' })
+        continue
+      }
+
+      const { error: insertErr } = await sb.from('recipes').insert({
+        profile_id: uid,
+        title: r.title,
+        description: r.description || null,
+        source_type: 'manual',
+        ingredients: r.ingredients || [],
+        instructions: r.instructions || [],
+        prep_time_mins: r.prep_time_mins || null,
+        cook_time_mins: r.cook_time_mins || null,
+        base_servings: r.base_servings || 4,
+        cuisine: r.cuisine || null,
+        meal_type: r.meal_type || 'dinner',
+        difficulty: r.difficulty || 2,
+        tags: r.tags || [],
+        dietary_flags: r.dietary_flags || [],
+        ai_processed: true,
+      })
+
+      if (insertErr) {
+        console.error('Failed to save:', r.title, insertErr.message)
+        errors.push({ title: r.title, reason: insertErr.message })
+      } else {
         saved++
-      } catch (e) {
-        console.error('Failed to save:', recipe.title, e)
       }
     }
+
     setPdfSaved(saved)
+    setPdfSaveErrors(errors)
     setPdfSaving(false)
-    setTimeout(() => router.push('/vault'), 1500)
+    if (saved > 0) {
+      setTimeout(() => router.push('/vault'), 1800)
+    }
   }
 
   const saveRecipe = async () => {
@@ -317,6 +441,21 @@ export default function AddRecipePage() {
       const sb = getClient()
       const { data: { session } } = await sb.auth.getSession()
       if (!session) { router.replace('/login'); return }
+
+      // Duplicate check
+      const { data: existing } = await sb
+        .from('recipes')
+        .select('id')
+        .eq('profile_id', session.user.id)
+        .ilike('title', recipe.title || '')
+        .maybeSingle()
+
+      if (existing) {
+        setError(`"${recipe.title}" is already in your vault.`)
+        setSaving(false)
+        return
+      }
+
       const { error: saveErr } = await sb.from('recipes').insert({
         profile_id: session.user.id,
         title: recipe.title,
@@ -327,7 +466,7 @@ export default function AddRecipePage() {
         instructions: recipe.instructions || [],
         prep_time_mins: recipe.prep_time_mins || null,
         cook_time_mins: recipe.cook_time_mins || null,
-        base_servings: recipe.base_servings || familySize,
+        base_servings: recipe.base_servings || 4,
         cuisine: recipe.cuisine || null,
         meal_type: recipe.meal_type || 'dinner',
         difficulty: recipe.difficulty || 2,
@@ -344,11 +483,13 @@ export default function AddRecipePage() {
   }
 
   const formatAmount = (ing) => {
-    if (!ing.amount && !ing.unit) return '—'
+    if (!ing.amount && !ing.unit && !ing.notes) return '—'
+    if (!ing.amount && !ing.unit) return ing.notes || '—'
     return [ing.amount ? String(ing.amount) : '', ing.unit || ''].filter(Boolean).join(' ')
   }
 
-  const checkedCount = Object.values(pdfChecked).filter(Boolean).length
+  const checkedCount = pdfRecipes.filter((r, i) => pdfChecked[i] && !pdfDuplicates.has(r?.title?.toLowerCase().trim())).length
+  const dupCount = pdfDuplicates.size
 
   if (!mounted) return (
     <div style={{minHeight:'100vh',background:'#1A1612',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -356,6 +497,8 @@ export default function AddRecipePage() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
+
+  const isLoadingPdf = pdfExtracting
 
   return (
     <div className="add-root">
@@ -375,7 +518,7 @@ export default function AddRecipePage() {
         ].map(tab => (
           <div key={tab.id}
             className={`add-tab${method === tab.id ? ' active' : ''}`}
-            onClick={() => { setMethod(tab.id); setError(''); setRecipe(null); setPdfRecipes([]) }}>
+            onClick={() => { setMethod(tab.id); setError(''); setRecipe(null); setPdfRecipes([]); setPdfFile(null) }}>
             <span className="add-tab-ico">{tab.ico}</span>
             <div className="add-tab-label">{tab.label}</div>
           </div>
@@ -385,22 +528,30 @@ export default function AddRecipePage() {
       <div className="add-content">
         {error && <div className="add-err">{error}</div>}
 
-        {loading && (
+        {/* Non-PDF loading state */}
+        {loading && method !== 'pdf' && (
           <div className="loading-wrap">
             <span className="loading-ico">👵</span>
-            <div className="loading-title">
-              {method === 'pdf' ? 'Dot is reading your recipe book...' : 'Dot is on it...'}
-            </div>
+            <div className="loading-title">Dot is on it...</div>
             <div className="loading-sub">
-              {method === 'pdf'
-                ? "She's going through every page, identifying each recipe, and organizing them for your vault. This may take up to 5 minutes for larger documents — please keep this page open."
-                : <>She&apos;s reading your {method === 'url' ? 'recipe page' : method === 'image' ? 'image' : 'text'}, pulling out every ingredient and step, and tagging it all for your vault. Takes about 10–15 seconds.</>
-              }
+              She&apos;s reading your {method === 'url' ? 'recipe page' : method === 'image' ? 'image' : 'text'}, pulling out every ingredient and step, and tagging it all for your vault. Takes about 10–15 seconds.
             </div>
           </div>
         )}
 
-        {!loading && !recipe && pdfRecipes.length === 0 && (
+        {/* PDF pass 1 loading */}
+        {isLoadingPdf && (
+          <div className="loading-wrap">
+            <span className="loading-ico">👵</span>
+            <div className="loading-title">Dot is reading your recipe book...</div>
+            <div className="loading-sub">
+              She&apos;s going through every page, identifying each recipe, and organizing them for your vault. Recipes will appear below as she finds them — please keep this page open.
+            </div>
+          </div>
+        )}
+
+        {/* Input forms — hide during PDF loading but show PDF results if available */}
+        {!loading && !recipe && !isLoadingPdf && pdfRecipes.length === 0 && (
           <>
             {method === 'url' && (
               <div>
@@ -465,7 +616,7 @@ export default function AddRecipePage() {
                   )}
                 </div>
                 {pdfFile && (
-                  <button className="manual-btn" onClick={extractPdf} disabled={loading}>
+                  <button className="manual-btn" onClick={extractPdf} disabled={isLoadingPdf}>
                     Find all recipes →
                   </button>
                 )}
@@ -477,7 +628,7 @@ export default function AddRecipePage() {
                 <label className="add-label">Recipe text</label>
                 <p className="hint">Paste or type the recipe — ingredients, steps, whatever you have. Dot will clean it up and organize everything.</p>
                 <textarea className="manual-area"
-                  placeholder={`Paste your recipe here. For example:\n\nChicken Tikka Masala\nServes 4\n\nIngredients:\n- 2 lbs chicken breast\n- 1 cup yogurt\n...\n\nInstructions:\n1. Marinate chicken...`}
+                  placeholder={`Paste your recipe here.\n\nChicken Tikka Masala\nServes 4\n\nIngredients:\n- 2 lbs chicken breast\n- 1 cup yogurt\n...\n\nInstructions:\n1. Marinate chicken...`}
                   value={manualText}
                   onChange={e => setManualText(e.target.value)} />
                 <button className="manual-btn" onClick={extract} disabled={!manualText.trim() || loading}>
@@ -488,58 +639,107 @@ export default function AddRecipePage() {
           </>
         )}
 
-        {/* PDF batch results */}
-        {!loading && pdfRecipes.length > 0 && (
+        {/* PDF batch results — shown progressively */}
+        {pdfRecipes.length > 0 && (
           <div>
-            <div style={{marginBottom:'1.25rem'}}>
+            <div style={{marginBottom:'1rem'}}>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.5rem',color:'#F8F3EC',marginBottom:'.35rem'}}>
-                Found {pdfRecipes.length} recipe{pdfRecipes.length !== 1 ? 's' : ''}
+                {pdfRecipes.length} recipe{pdfRecipes.length !== 1 ? 's' : ''} found so far
               </div>
               <div style={{fontSize:'.92rem',color:'rgba(248,243,236,.5)'}}>
                 All selected by default — uncheck any you don&apos;t want to save.
               </div>
             </div>
 
+            {/* Still working banner */}
+            {pdfStillWorking && (
+              <div className="pdf-progress-banner">
+                <div className="pdf-progress-dot"/>
+                <span>Dot is still reading... more recipes will appear below as she finds them.</span>
+              </div>
+            )}
+
+            {/* Duplicate notice */}
+            {dupCount > 0 && (
+              <div className="add-warn">
+                {dupCount} recipe{dupCount !== 1 ? 's are' : ' is'} already in your vault and {dupCount !== 1 ? 'have been' : 'has been'} skipped.
+              </div>
+            )}
+
             <div className="pdf-batch-actions">
               <button className="pdf-select-all" onClick={toggleAllPdf}>
-                {pdfRecipes.every((_, i) => pdfChecked[i]) ? 'Deselect all' : 'Select all'}
+                {pdfRecipes
+                  .filter((r, i) => !pdfDuplicates.has(r?.title?.toLowerCase().trim()))
+                  .every((_, i) => pdfChecked[pdfRecipes.indexOf(_)])
+                  ? 'Deselect all' : 'Select all'}
               </button>
-              <div className="pdf-count">{checkedCount} of {pdfRecipes.length} selected</div>
+              <div className="pdf-count">{checkedCount} of {pdfRecipes.length - dupCount} selected</div>
             </div>
 
             <div className="pdf-recipe-list">
-              {pdfRecipes.map((r, i) => (
-                <div key={i}
-                  className={`pdf-recipe-row${pdfChecked[i] ? ' checked' : ''}`}
-                  onClick={() => togglePdfRecipe(i)}>
-                  <div className="pdf-checkbox">
-                    {pdfChecked[i] && <span style={{color:'#1A1612',fontSize:'.8rem',fontWeight:700}}>✓</span>}
-                  </div>
-                  <div className="pdf-recipe-info">
-                    <div className="pdf-recipe-title">{r.title}</div>
-                    <div className="pdf-recipe-meta">
-                      {[r.cuisine, r.cook_time_mins ? `${r.cook_time_mins} min` : null, r.base_servings ? `Serves ${r.base_servings}` : null]
-                        .filter(Boolean).join(' · ')}
+              {pdfRecipes.map((r, i) => {
+                const isDupe = pdfDuplicates.has(r?.title?.toLowerCase().trim())
+                return (
+                  <div key={i}
+                    className={`pdf-recipe-row${pdfChecked[i] && !isDupe ? ' checked' : ''}${isDupe ? ' duplicate' : ''}`}
+                    onClick={() => !isDupe && togglePdfRecipe(i)}>
+                    <div className="pdf-checkbox">
+                      {pdfChecked[i] && !isDupe && <span style={{color:'#1A1612',fontSize:'.8rem',fontWeight:700}}>✓</span>}
+                      {isDupe && <span style={{color:'rgba(248,243,236,.3)',fontSize:'.8rem'}}>—</span>}
                     </div>
+                    <div className="pdf-recipe-info">
+                      <div className="pdf-recipe-title">{r.title}</div>
+                      <div className="pdf-recipe-meta">
+                        {isDupe && <span style={{color:'rgba(184,135,74,.5)',marginRight:'.5rem'}}>Already in vault</span>}
+                        {[r.cuisine, r.cook_time_mins ? `${r.cook_time_mins} min` : null, r.base_servings ? `Serves ${r.base_servings}` : null]
+                          .filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    {!isDupe && (
+                      <button
+                        className="pdf-recipe-peek"
+                        onClick={e => { e.stopPropagation(); setPreviewRecipe(r) }}>
+                        Preview
+                      </button>
+                    )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
+
+            {/* Save errors */}
+            {pdfSaveErrors.length > 0 && (
+              <div className="add-err" style={{marginBottom:'1rem'}}>
+                {pdfSaveErrors.length} recipe{pdfSaveErrors.length !== 1 ? 's' : ''} failed to save:
+                <ul style={{marginTop:'.5rem',paddingLeft:'1.25rem'}}>
+                  {pdfSaveErrors.map((e, i) => (
+                    <li key={i} style={{fontSize:'.9rem',marginBottom:'.25rem'}}>
+                      <strong>{e.title}</strong> — {e.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="pdf-save-bar">
               {pdfSaved > 0 ? (
                 <div style={{textAlign:'center',padding:'1rem',color:'#8FA889',fontSize:'1rem'}}>
-                  ✓ Saved {pdfSaved} recipe{pdfSaved !== 1 ? 's' : ''} to your vault!
+                  ✓ Saved {pdfSaved} recipe{pdfSaved !== 1 ? 's' : ''} to your vault! Heading there now...
                 </div>
               ) : (
                 <div style={{display:'flex',gap:'.75rem'}}>
-                  <button className="retry-btn" onClick={() => { setPdfRecipes([]); setPdfFile(null) }}>
+                  <button className="retry-btn" onClick={() => { setPdfRecipes([]); setPdfFile(null); setPdfStillWorking(false) }}>
                     ← Start over
                   </button>
-                  <button className="save-btn" onClick={savePdfRecipes} disabled={pdfSaving || checkedCount === 0}>
+                  <button
+                    className="save-btn"
+                    onClick={savePdfRecipes}
+                    disabled={pdfSaving || checkedCount === 0 || pdfStillWorking}>
                     {pdfSaving
                       ? <><span className="sp"/>Saving {checkedCount} recipes...</>
-                      : `Save ${checkedCount} recipe${checkedCount !== 1 ? 's' : ''} to vault →`}
+                      : pdfStillWorking
+                        ? 'Still extracting...'
+                        : `Save ${checkedCount} recipe${checkedCount !== 1 ? 's' : ''} to vault →`}
                   </button>
                 </div>
               )}
@@ -571,12 +771,12 @@ export default function AddRecipePage() {
                   </div>
                 </div>
               )}
-              <div className="preview-section-title">Ingredients · Scaled for {recipe.base_servings} servings</div>
+              <div className="preview-section-title">Ingredients · Serves {recipe.base_servings}</div>
               <div className="preview-ingredients">
                 {recipe.ingredients?.map((ing, i) => (
                   <div key={i} className="preview-ingredient">
                     <span className="preview-amount">{formatAmount(ing)}</span>
-                    <span>{ing.name}{ing.notes ? `, ${ing.notes}` : ''}</span>
+                    <span>{ing.name}{ing.notes && ing.notes !== formatAmount(ing) ? `, ${ing.notes}` : ''}</span>
                   </div>
                 ))}
               </div>
@@ -606,6 +806,68 @@ export default function AddRecipePage() {
           </div>
         )}
       </div>
+
+      {/* Recipe preview modal */}
+      {previewRecipe && (
+        <div className="recipe-modal-overlay" onClick={() => setPreviewRecipe(null)}>
+          <div className="recipe-modal" onClick={e => e.stopPropagation()}>
+            <div className="recipe-modal-hd">
+              <button className="recipe-modal-back" onClick={() => setPreviewRecipe(null)}>
+                ← Back
+              </button>
+              <div className="recipe-modal-title">{previewRecipe.title}</div>
+            </div>
+            <div className="recipe-modal-body">
+              {previewRecipe.description && (
+                <p style={{fontSize:'.97rem',color:'rgba(248,243,236,.7)',lineHeight:1.7,marginBottom:'1.25rem'}}>
+                  {previewRecipe.description}
+                </p>
+              )}
+              <div style={{display:'flex',flexWrap:'wrap',gap:'.75rem',marginBottom:'1.5rem'}}>
+                {previewRecipe.cuisine && <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.6)'}}>🌍 {previewRecipe.cuisine}</span>}
+                {previewRecipe.prep_time_mins && <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.6)'}}>⏱ Prep {previewRecipe.prep_time_mins} min</span>}
+                {previewRecipe.cook_time_mins && <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.6)'}}>🔥 Cook {previewRecipe.cook_time_mins} min</span>}
+                {previewRecipe.base_servings && <span style={{fontSize:'.88rem',color:'rgba(248,243,236,.6)'}}>👥 Serves {previewRecipe.base_servings}</span>}
+              </div>
+
+              {previewRecipe.dietary_flags?.length > 0 && (
+                <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem',marginBottom:'1.5rem'}}>
+                  {previewRecipe.dietary_flags.map(f => (
+                    <span key={f} className="preview-pill primary">{f}</span>
+                  ))}
+                </div>
+              )}
+
+              <div className="preview-section-title">Ingredients · Serves {previewRecipe.base_servings}</div>
+              <div className="preview-ingredients" style={{marginBottom:'1.75rem'}}>
+                {previewRecipe.ingredients?.map((ing, i) => (
+                  <div key={i} className="preview-ingredient">
+                    <span className="preview-amount">{formatAmount(ing)}</span>
+                    <span>{ing.name}{ing.notes && ing.notes !== formatAmount(ing) ? `, ${ing.notes}` : ''}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="preview-section-title">Instructions</div>
+              <div className="preview-steps">
+                {previewRecipe.instructions?.map((step, i) => (
+                  <div key={i} className="preview-step">
+                    <div className="preview-step-n">{step.step || i + 1}</div>
+                    <div className="preview-step-t">
+                      {step.text}
+                      {step.timer_minutes && (
+                        <span style={{display:'inline-block',marginLeft:'.5rem',fontSize:'.75rem',color:'#B8874A',background:'rgba(184,135,74,.1)',padding:'.15rem .5rem',borderRadius:'1rem'}}>
+                          ⏱ {step.timer_minutes} min
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
