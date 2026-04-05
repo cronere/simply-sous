@@ -237,13 +237,22 @@ RESPONSE RULES:
 - Never describe the recipes in your text — the cards already show that. Just say you found some ideas.
 - Never suggest recipes containing allergens.
 - For pure cooking questions (no recipe needed), answer conversationally in 2-3 sentences.
-- CRITICAL: When suggesting recipes, you MUST wrap the JSON in <recipes> tags at the END of your message. Never output raw JSON without these tags:
+- CRITICAL RULE: When suggesting recipes you MUST follow this EXACT format — no exceptions:
+  1. Write your brief friendly text first (1-2 sentences MAX)
+  2. On a new line write ONLY: <recipes>
+  3. Then the JSON array
+  4. Then on its own line: </recipes>
+  5. NOTHING after </recipes>
+  Example:
+  Here are a few ideas that'll work well tonight!
   <recipes>
-  [{"title":"Recipe Name","cuisine":"Italian","total_time_mins":25,"description":"One sentence description","source":"new","ingredients":[{"name":"chicken breast","amount":2,"unit":"lbs"},{"name":"garlic","amount":3,"unit":"cloves"}],"instructions":[{"text":"Season chicken and heat oil in skillet."},{"text":"Cook 6-7 minutes per side until golden."}]}]
+  [{"title":"Recipe Name","cuisine":"Italian","total_time_mins":25,"description":"One sentence.","source":"new","ingredients":[{"name":"chicken breast","amount":2,"unit":"lbs"}],"instructions":[{"text":"Cook chicken 6-7 minutes per side."}]}]
   </recipes>
-- source="vault" for their saved recipes (include vault_id, no need for ingredients/instructions)
-- source="new" for suggestions — ALWAYS include full ingredients array and instructions array
-- Keep ingredients concise: {name, amount, unit}. Keep instructions concise: {text} only.`
+- NEVER output JSON outside of <recipes> tags. NEVER put text after </recipes>.
+- source="vault" for their saved recipes (include vault_id, no ingredients/instructions needed)
+- source="new" for new suggestions — ALWAYS include full ingredients and instructions arrays
+- Keep ingredients concise: {name, amount, unit}. Keep instructions concise: {text} only.
+- Maximum 4 recipes per response to stay within token limits.`
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -272,18 +281,36 @@ RESPONSE RULES:
 
       // Fallback: strip any raw JSON array that leaked into content
       if (recipes.length === 0) {
-        const fi = content.lastIndexOf('[{')
-        const li = content.lastIndexOf('}]')
-        if (fi >= 0 && li > fi) {
-          try {
-            recipes = JSON.parse(content.substring(fi, li + 2))
-            content = content.substring(0, fi).trim()
-          } catch(e) {}
+        // Try finding [ ... ] anywhere in the content
+        const fi = content.indexOf('[{')
+        if (fi >= 0) {
+          // Find matching closing bracket
+          let depth = 0, end = -1
+          for (let i = fi; i < content.length; i++) {
+            if (content[i] === '[' || content[i] === '{') depth++
+            else if (content[i] === ']' || content[i] === '}') {
+              depth--
+              if (depth === 0 && content[i] === ']') { end = i; break }
+            }
+          }
+          if (end > fi) {
+            try {
+              recipes = JSON.parse(content.substring(fi, end + 1))
+              content = content.substring(0, fi).trim()
+            } catch(e) {
+              // JSON was malformed/truncated — try salvaging complete objects
+              const objMatches = content.substring(fi).match(/\{[^{}]*"title"[^{}]*\}/g) || []
+              for (const m of objMatches) {
+                try { const r = JSON.parse(m); if (r.title) recipes.push(r) } catch {}
+              }
+              if (recipes.length > 0) content = content.substring(0, fi).trim()
+            }
+          }
         }
       }
 
-      // Also strip any leftover <recipes> or [ tags that didn't parse
-      content = content.replace(/<\/?recipes>/g, '').replace(/^\s*\[\s*$/gm, '').trim()
+      // Strip any leftover <recipes> tags, raw JSON brackets, or trailing punctuation
+      content = content.replace(/<\/?recipes>/g, '').replace(/^\s*\[\s*$/gm, '').replace(/,\s*$/, '').trim()
 
       // Enrich vault recipes with real IDs
       if (vaultRecipes && recipes.length > 0) {
