@@ -220,9 +220,11 @@ CURRENT SEASON: ${season}. ${seasonNote}
 ${familyNote}
 
 USER PREFERENCES:
-- Dietary: ${dietary.length ? dietary.join(', ') : 'none'}
-- Allergens (never suggest these): ${allergens.length ? allergens.join(', ') : 'none'}
-- Dislikes: ${disliked.length ? disliked.join(', ') : 'none'}
+- Dietary flags: ${dietary.length ? dietary.join(', ') : 'none'}
+- Allergens (NEVER suggest recipes containing these): ${allergens.length ? allergens.join(', ') : 'none'}
+- Disliked ingredients (avoid these): ${disliked.length ? disliked.join(', ') : 'none'}
+- Cuisines to avoid: ${(prefs?.cuisine_avoid || []).length ? prefs.cuisine_avoid.join(', ') : 'none'}
+- IMPORTANT — meal types to NEVER suggest: ${dietary.includes('vegan') ? '' : 'vegan'}${dietary.includes('vegetarian') ? '' : ', vegetarian (unless they ask specifically)'}. Always include meat or fish unless the user explicitly asks for vegetarian/vegan options.
 - Max weeknight cook time: ${prefs?.max_weeknight_mins || 30} minutes
 
 USER'S SAVED RECIPES (their vault):
