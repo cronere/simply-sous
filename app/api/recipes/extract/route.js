@@ -1,5 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
-import pdfParse from 'pdf-parse/lib/pdf-parse.js'
+// pdf-parse needs dynamic import to avoid Next.js build issues
+async function getPdfParse() {
+  const mod = await import('pdf-parse/lib/pdf-parse.js')
+  return mod.default || mod
+}
 
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
@@ -101,25 +105,58 @@ export function sanitizeRecipe(r) {
 }
 
 const parseRaw = (raw, hitLimit) => {
-  let s = raw.replace(/^```[\w]*\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-  if (hitLimit || (!s.endsWith(']') && s.includes('}'))) {
-    const last = s.lastIndexOf('}')
-    if (last > 0) {
-      s = s.substring(0, last + 1)
+  // Strip all markdown fences — handle ```json, ```JSON, ``` etc with any whitespace
+  let s = raw
+    .replace(/^```[\w]*[\r\n]*/i, '')  // opening fence
+    .replace(/[\r\n]*```\s*$/i, '')      // closing fence
+    .trim()
+
+  // If truncated or doesn't end cleanly, try to salvage complete objects
+  const needsSalvage = hitLimit || (!s.endsWith(']') && !s.endsWith('}'))
+
+  if (needsSalvage) {
+    // Find last complete recipe object by scanning for the last }
+    // followed by either , or end of array
+    const last = s.lastIndexOf('},')
+    const veryLast = s.lastIndexOf('}')
+    const cutAt = last > 0 ? last + 1 : veryLast
+    if (cutAt > 0) {
+      s = s.substring(0, cutAt).trim()
+      // Ensure it's wrapped in an array
       if (!s.startsWith('[')) s = '[' + s
-      s = s + ']'
+      if (!s.endsWith(']')) s = s + ']'
     }
   }
+
+  // Ensure array wrapper
+  if (s.startsWith('{')) s = '[' + s + ']'
+
   try {
     const parsed = JSON.parse(s)
-    return Array.isArray(parsed) ? parsed : [parsed]
-  } catch {
+    const arr = Array.isArray(parsed) ? parsed : [parsed]
+    console.log('[pdf] parseRaw success:', arr.length, 'recipes')
+    return arr
+  } catch (e) {
+    console.log('[pdf] parseRaw JSON.parse failed, trying salvage. Error:', e.message.substring(0, 100))
+    // Last resort: extract individual complete recipe objects
     const out = []
-    const re = /\{"title"[\s\S]*?\}(?=\s*[,\]]|\s*$)/g
-    let m
-    while ((m = re.exec(s)) !== null) {
-      try { const r = JSON.parse(m[0]); if (r.title) out.push(r) } catch {}
+    // Match objects that have at minimum title + ingredients
+    const re = /\{[^{}]*"title"[^{}]*"ingredients"[\s\S]*?(?="title"|$)/g
+    let depth = 0, start = -1
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === '{') { if (depth === 0) start = i; depth++ }
+      else if (s[i] === '}') {
+        depth--
+        if (depth === 0 && start >= 0) {
+          try {
+            const obj = JSON.parse(s.substring(start, i + 1))
+            if (obj.title && obj.ingredients) out.push(obj)
+          } catch {}
+          start = -1
+        }
+      }
     }
+    console.log('[pdf] salvage found:', out.length, 'recipes')
     return out
   }
 }
@@ -173,6 +210,7 @@ export async function POST(request) {
 
     else if (type === 'pdf') {
       if (!body.pdfUrl) return Response.json({ error: 'Missing PDF URL' }, { status: 400 })
+      console.log('[pdf] handler reached, pdfUrl length:', body.pdfUrl?.length, 'chunkIndex:', body.chunkIndex)
 
       // Fetch and extract ALL text from PDF upfront
       const pdfResponse = await fetch(body.pdfUrl)
@@ -181,6 +219,7 @@ export async function POST(request) {
 
       let pdfText = ''
       try {
+        const pdfParse = await getPdfParse()
         const parsed = await pdfParse(Buffer.from(pdfBuffer))
         pdfText = parsed.text
         console.log('[pdf] extracted', pdfText.length, 'chars from', parsed.numpages, 'pages')
@@ -197,7 +236,7 @@ export async function POST(request) {
       // Split into 40,000 char chunks (~10,000 tokens each)
       // Haiku limit is 100k tokens/min — this gives plenty of headroom
       // Each chunk processed sequentially — chunkIndex tells us which one
-      const CHUNK_SIZE = 40000
+      const CHUNK_SIZE = 25000 // ~6250 tokens in, leaves full 8192 for recipe JSON output
       const chunks = []
       for (let i = 0; i < pdfText.length; i += CHUNK_SIZE) {
         chunks.push(pdfText.substring(i, i + CHUNK_SIZE))
