@@ -184,6 +184,7 @@ export async function POST(request) {
         const parsed = await pdfParse(Buffer.from(pdfBuffer))
         pdfText = parsed.text
         console.log('[pdf] extracted', pdfText.length, 'chars from', parsed.numpages, 'pages')
+        console.log('[pdf] text preview (first 500):', pdfText.substring(0, 500))
       } catch (parseErr) {
         console.error('[pdf] text extraction failed:', parseErr.message)
         return Response.json({ error: 'Could not read this PDF. Make sure it is a digital PDF with selectable text, not a scanned image.' }, { status: 422 })
@@ -206,7 +207,8 @@ export async function POST(request) {
       const chunk = chunks[chunkIndex]
       const hasMore = chunkIndex < chunks.length - 1
 
-      console.log('[pdf] chunk', chunkIndex + 1, 'of', chunks.length, '— chars:', chunk?.length)
+      console.log('[pdf] chunk', chunkIndex + 1, 'of', chunks.length, '— chars:', chunk?.length, 'totalChunks:', chunks.length)
+      console.log('[pdf] chunk preview (first 300):', chunk?.substring(0, 300))
 
       if (!chunk || !chunk.trim()) {
         return Response.json({ recipes: [], truncated: false })
@@ -227,6 +229,7 @@ export async function POST(request) {
       // truncated = there are more chunks OR Claude hit its output limit
       const truncated = hasMore || hitTokenLimit
       console.log('[pdf] chunk', chunkIndex + 1, 'stop:', resp.stop_reason, 'recipes raw len:', raw.length, 'more chunks:', hasMore)
+      console.log('[pdf] raw response preview:', raw.substring(0, 500))
 
       const recipes = parseRaw(raw, hitTokenLimit).map(sanitizeRecipe)
       // Return nextChunkIndex so client knows what to ask for next
