@@ -13,8 +13,15 @@ async function callWithRetry(fn, maxRetries) {
     } catch (err) {
       var isOverloaded = err.status === 529 || (err.message && err.message.includes('overloaded'))
       var isRateLimit = err.status === 429
-      if ((isOverloaded || isRateLimit) && attempt < max) {
-        var delay = Math.pow(2, attempt) * 1000 + Math.random() * 500
+      if (isRateLimit && attempt < max) {
+        // Rate limit: wait 60s + jitter before retrying
+        var delay = 60000 + Math.random() * 5000
+        console.log('Rate limited, waiting ' + Math.round(delay/1000) + 's before retry (attempt ' + (attempt+1) + '/' + max + ')')
+        await new Promise(function(resolve) { setTimeout(resolve, delay) })
+        continue
+      }
+      if (isOverloaded && attempt < max) {
+        var delay = Math.pow(2, attempt) * 2000 + Math.random() * 1000
         console.log('Anthropic overloaded, retrying in ' + Math.round(delay) + 'ms')
         await new Promise(function(resolve) { setTimeout(resolve, delay) })
         continue
@@ -231,6 +238,10 @@ export async function POST(request) {
 
   } catch (err) {
     console.error('Recipe extract error:', err)
-    return Response.json({ error: err.message || 'Something went wrong.' }, { status: 500 })
+    const isRateLimit = err.status === 429 || (err.message && err.message.includes('rate limit'))
+    const msg = isRateLimit
+      ? 'Dot is busy right now — too many requests at once. Please wait 60 seconds and try again.'
+      : err.message || 'Something went wrong.'
+    return Response.json({ error: msg }, { status: isRateLimit ? 429 : 500 })
   }
 }
