@@ -186,8 +186,15 @@ export async function POST(request) {
         ? 'Extract all recipes AFTER "' + lastTitle + '". Skip any recipes before or including that one.'
         : 'Extract ALL recipes from this PDF.'
 
+      // Haiku for PDF: much higher rate limits + lower cost, quality sufficient for extraction
+      // Delay between passes to let the token bucket refill
+      if (body.lastTitle) {
+        console.log('[pdf] waiting 65s before pass 2+ to avoid rate limit...')
+        await new Promise(resolve => setTimeout(resolve, 65000))
+      }
+
       const resp = await callWithRetry(() => anthropic.messages.create({
-        model: 'claude-opus-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 8192,
         system: PDF_SYSTEM,
         messages: [{
