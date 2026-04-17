@@ -174,51 +174,43 @@ export async function POST(request) {
     else if (type === 'pdf') {
       if (!body.pdfUrl) return Response.json({ error: 'Missing PDF URL' }, { status: 400 })
 
-      // Fetch and extract text from PDF — no page limit, more accurate than binary
+      // Fetch and extract ALL text from PDF upfront
       const pdfResponse = await fetch(body.pdfUrl)
       if (!pdfResponse.ok) return Response.json({ error: 'Could not fetch PDF: ' + pdfResponse.status }, { status: 500 })
       const pdfBuffer = await pdfResponse.arrayBuffer()
 
       let pdfText = ''
-      let totalPages = 0
       try {
         const parsed = await pdfParse(Buffer.from(pdfBuffer))
         pdfText = parsed.text
-        totalPages = parsed.numpages
-        console.log('[pdf] extracted', pdfText.length, 'chars from', totalPages, 'pages')
+        console.log('[pdf] extracted', pdfText.length, 'chars from', parsed.numpages, 'pages')
       } catch (parseErr) {
         console.error('[pdf] text extraction failed:', parseErr.message)
         return Response.json({ error: 'Could not read this PDF. Make sure it is a digital PDF with selectable text, not a scanned image.' }, { status: 422 })
       }
 
       if (!pdfText || pdfText.trim().length < 100) {
-        return Response.json({ error: 'This PDF appears to be a scanned image. Only digital PDFs with selectable text are supported for recipe extraction.' }, { status: 422 })
+        return Response.json({ error: 'This PDF appears to be a scanned image. Only digital PDFs with selectable text are supported. Try uploading a photo of the recipe page instead.' }, { status: 422 })
       }
 
-      // Chunk the text — send 15,000 chars (~3,750 tokens) per pass
-      // This keeps each call well under rate limits and works for any PDF size
-      const CHUNK_SIZE = 15000
-      let textToProcess = pdfText
-
-      // On pass 2+, find where we left off in the text
-      if (body.lastTitle) {
-        const lastIdx = pdfText.toLowerCase().indexOf(body.lastTitle.toLowerCase())
-        if (lastIdx > 0) {
-          textToProcess = pdfText.substring(lastIdx + body.lastTitle.length)
-          console.log('[pdf] pass continuing from char', lastIdx, 'of', pdfText.length)
-        }
+      // Split into 40,000 char chunks (~10,000 tokens each)
+      // Haiku limit is 100k tokens/min — this gives plenty of headroom
+      // Each chunk processed sequentially — chunkIndex tells us which one
+      const CHUNK_SIZE = 40000
+      const chunks = []
+      for (let i = 0; i < pdfText.length; i += CHUNK_SIZE) {
+        chunks.push(pdfText.substring(i, i + CHUNK_SIZE))
       }
 
-      const chunk = textToProcess.substring(0, CHUNK_SIZE)
-      const hasMore = textToProcess.length > CHUNK_SIZE
+      const chunkIndex = body.chunkIndex || 0
+      const chunk = chunks[chunkIndex]
+      const hasMore = chunkIndex < chunks.length - 1
 
-      if (!chunk.trim()) {
+      console.log('[pdf] chunk', chunkIndex + 1, 'of', chunks.length, '— chars:', chunk?.length)
+
+      if (!chunk || !chunk.trim()) {
         return Response.json({ recipes: [], truncated: false })
       }
-
-      const instruction = body.lastTitle
-        ? 'Extract ALL recipes from this text. These are from a recipe book — extract every complete recipe you find.'
-        : 'Extract ALL recipes from this text. These are from a recipe book — extract every complete recipe you find.'
 
       const resp = await callWithRetry(() => anthropic.messages.create({
         model: 'claude-haiku-4-5-20251001',
@@ -226,17 +218,19 @@ export async function POST(request) {
         system: PDF_SYSTEM,
         messages: [{
           role: 'user',
-          content: instruction + '\n\nRecipe text:\n' + chunk
+          content: 'Extract ALL recipes from this section of a recipe book. Return every complete recipe you find.\n\nText:\n' + chunk
         }]
       }))
 
       const raw = resp.content[0]?.text?.trim() || ''
       const hitTokenLimit = resp.stop_reason === 'max_tokens'
-      const truncated = hitTokenLimit || hasMore
-      console.log('[pdf] stop:', resp.stop_reason, 'raw len:', raw.length, 'hasMore:', hasMore, 'truncated:', truncated)
+      // truncated = there are more chunks OR Claude hit its output limit
+      const truncated = hasMore || hitTokenLimit
+      console.log('[pdf] chunk', chunkIndex + 1, 'stop:', resp.stop_reason, 'recipes raw len:', raw.length, 'more chunks:', hasMore)
 
       const recipes = parseRaw(raw, hitTokenLimit).map(sanitizeRecipe)
-      return Response.json({ recipes, truncated })
+      // Return nextChunkIndex so client knows what to ask for next
+      return Response.json({ recipes, truncated, nextChunkIndex: hasMore ? chunkIndex + 1 : null })
     }
 
     else {
