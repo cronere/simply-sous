@@ -140,6 +140,8 @@ export default function GroceryPage() {
   const [weeks, setWeeks] = useState([])
   const [activeWeek, setActiveWeek] = useState(null)
   const [expandedMeals, setExpandedMeals] = useState({})
+  // Track staples the user has marked as "actually need to buy"
+  // Stored per week in checkedItems as 'need:{itemName}'
 
   useEffect(() => { setMounted(true) }, [])
   useEffect(() => {
@@ -425,7 +427,17 @@ export default function GroceryPage() {
 
                 {/* ── SHOPPING PHASE ────────────────────────────── */}
                 {activeWeekData.phase === 'confirmed' && (() => {
-                  const { toBuy, youHave } = buildMergedList(activeWeekData.meals, activeWeekData.mealServings, staples, familySize)
+                  // Items user has moved from youHave to toBuy
+                  const stapleOverrides = new Set(
+                    Object.keys(activeWeekData.checkedItems)
+                      .filter(k => k.startsWith('need:'))
+                      .map(k => k.replace('need:', ''))
+                  )
+                  const { toBuy: baseToBuy, youHave: baseYouHave } = buildMergedList(activeWeekData.meals, activeWeekData.mealServings, staples, familySize)
+                  // Apply overrides
+                  const overriddenItems = baseYouHave.filter(i => stapleOverrides.has(i.name))
+                  const toBuy = [...baseToBuy, ...overriddenItems].sort((a,b) => a.name.localeCompare(b.name))
+                  const youHave = baseYouHave.filter(i => !stapleOverrides.has(i.name))
                   const checkedCount = toBuy.filter(i => activeWeekData.checkedItems[i.name]).length
                   const progress = toBuy.length ? Math.round(checkedCount/toBuy.length*100) : 100
 
@@ -493,11 +505,17 @@ export default function GroceryPage() {
                       {youHave.length > 0 && (
                         <>
                           <div className="section-label" style={{marginTop:'1.5rem'}}>You probably have this</div>
+                          <div style={{fontSize:'.78rem',color:'rgba(248,243,236,.3)',marginBottom:'.5rem'}}>Tap any item to move it to your shopping list</div>
                           {youHave.map(item => (
-                            <div key={item.name} className="staple-item">
+                            <div key={item.name} className="staple-item"
+                              style={{cursor:'pointer',borderRadius:'.5rem',padding:'.35rem .25rem',transition:'background .15s'}}
+                              onClick={() => toggleCheck(activeWeek, 'need:' + item.name)}
+                              onMouseOver={e => e.currentTarget.style.background='rgba(255,255,255,.04)'}
+                              onMouseOut={e => e.currentTarget.style.background='transparent'}>
                               <span style={{color:'rgba(143,168,137,.6)',fontSize:'.9rem'}}>✓</span>
                               <span style={{flex:1,fontSize:'.92rem',color:'rgba(248,243,236,.55)'}}>{item.name}</span>
-                              <span style={{fontSize:'.85rem',color:'rgba(248,243,236,.35)'}}>{fmtAmt(item.amount, item.unit)}</span>
+                              <span style={{fontSize:'.85rem',color:'rgba(248,243,236,.35)',marginRight:'.5rem'}}>{fmtAmt(item.amount, item.unit)}</span>
+                              <span style={{fontSize:'.7rem',color:'rgba(248,243,236,.2)',border:'1px solid rgba(255,255,255,.1)',borderRadius:'.4rem',padding:'.15rem .4rem',whiteSpace:'nowrap'}}>+ need it</span>
                             </div>
                           ))}
                         </>
