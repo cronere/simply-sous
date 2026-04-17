@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import pdfParse from 'pdf-parse/lib/pdf-parse.js'
 
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
@@ -173,25 +174,51 @@ export async function POST(request) {
     else if (type === 'pdf') {
       if (!body.pdfUrl) return Response.json({ error: 'Missing PDF URL' }, { status: 400 })
 
+      // Fetch and extract text from PDF — no page limit, more accurate than binary
       const pdfResponse = await fetch(body.pdfUrl)
       if (!pdfResponse.ok) return Response.json({ error: 'Could not fetch PDF: ' + pdfResponse.status }, { status: 500 })
       const pdfBuffer = await pdfResponse.arrayBuffer()
-      const pdfBytes = new Uint8Array(pdfBuffer)
-      let binary = ''
-      pdfBytes.forEach(b => binary += String.fromCharCode(b))
-      const pdfData = btoa(binary)
 
-      // lastTitle is passed on pass 2 to skip already-extracted recipes
-      const instruction = lastTitle
-        ? 'Extract all recipes AFTER "' + lastTitle + '". Skip any recipes before or including that one.'
-        : 'Extract ALL recipes from this PDF.'
-
-      // Haiku for PDF: much higher rate limits + lower cost, quality sufficient for extraction
-      // Delay between passes to let the token bucket refill
-      if (body.lastTitle) {
-        console.log('[pdf] waiting 65s before pass 2+ to avoid rate limit...')
-        await new Promise(resolve => setTimeout(resolve, 65000))
+      let pdfText = ''
+      let totalPages = 0
+      try {
+        const parsed = await pdfParse(Buffer.from(pdfBuffer))
+        pdfText = parsed.text
+        totalPages = parsed.numpages
+        console.log('[pdf] extracted', pdfText.length, 'chars from', totalPages, 'pages')
+      } catch (parseErr) {
+        console.error('[pdf] text extraction failed:', parseErr.message)
+        return Response.json({ error: 'Could not read this PDF. Make sure it is a digital PDF with selectable text, not a scanned image.' }, { status: 422 })
       }
+
+      if (!pdfText || pdfText.trim().length < 100) {
+        return Response.json({ error: 'This PDF appears to be a scanned image. Only digital PDFs with selectable text are supported for recipe extraction.' }, { status: 422 })
+      }
+
+      // Chunk the text — send 15,000 chars (~3,750 tokens) per pass
+      // This keeps each call well under rate limits and works for any PDF size
+      const CHUNK_SIZE = 15000
+      let textToProcess = pdfText
+
+      // On pass 2+, find where we left off in the text
+      if (body.lastTitle) {
+        const lastIdx = pdfText.toLowerCase().indexOf(body.lastTitle.toLowerCase())
+        if (lastIdx > 0) {
+          textToProcess = pdfText.substring(lastIdx + body.lastTitle.length)
+          console.log('[pdf] pass continuing from char', lastIdx, 'of', pdfText.length)
+        }
+      }
+
+      const chunk = textToProcess.substring(0, CHUNK_SIZE)
+      const hasMore = textToProcess.length > CHUNK_SIZE
+
+      if (!chunk.trim()) {
+        return Response.json({ recipes: [], truncated: false })
+      }
+
+      const instruction = body.lastTitle
+        ? 'Extract ALL recipes from this text. These are from a recipe book — extract every complete recipe you find.'
+        : 'Extract ALL recipes from this text. These are from a recipe book — extract every complete recipe you find.'
 
       const resp = await callWithRetry(() => anthropic.messages.create({
         model: 'claude-haiku-4-5-20251001',
@@ -199,18 +226,16 @@ export async function POST(request) {
         system: PDF_SYSTEM,
         messages: [{
           role: 'user',
-          content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfData } },
-            { type: 'text', text: instruction }
-          ]
+          content: instruction + '\n\nRecipe text:\n' + chunk
         }]
       }))
 
       const raw = resp.content[0]?.text?.trim() || ''
-      const truncated = resp.stop_reason === 'max_tokens'
-      console.log('[pdf] stop:', resp.stop_reason, 'len:', raw.length, 'truncated:', truncated)
+      const hitTokenLimit = resp.stop_reason === 'max_tokens'
+      const truncated = hitTokenLimit || hasMore
+      console.log('[pdf] stop:', resp.stop_reason, 'raw len:', raw.length, 'hasMore:', hasMore, 'truncated:', truncated)
 
-      const recipes = parseRaw(raw, truncated).map(sanitizeRecipe)
+      const recipes = parseRaw(raw, hitTokenLimit).map(sanitizeRecipe)
       return Response.json({ recipes, truncated })
     }
 
