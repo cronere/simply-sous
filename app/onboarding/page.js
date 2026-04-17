@@ -859,7 +859,7 @@ export default function OnboardingPage() {
             await sb.from('onboarding_uploads').insert({
               profile_id: userId,
               storage_path: url,
-              file_type: 'image',
+              file_type: 'url',
               original_name: url,
               status: 'pending',
             })
