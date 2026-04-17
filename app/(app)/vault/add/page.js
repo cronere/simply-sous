@@ -252,57 +252,55 @@ export default function AddRecipePage() {
       setPdfChecked(checked1)
       setLoading(false)
 
-      // ── PASSES 2+ (background if truncated) ──────────────────
-      if (data1.truncated && pass1.length > 0) {
+      // ── REMAINING CHUNKS (background if more chunks exist) ────
+      if (data1.truncated && data1.nextChunkIndex != null) {
         setPdfWorking(true)
 
         let currentRecipes = pass1
-        let passNum = 2
-        let stillTruncated = true
+        let nextChunkIndex = data1.nextChunkIndex
+        const seenTitles = new Set(pass1.map(r => r.title.toLowerCase().trim()))
 
-        while (stillTruncated && passNum <= 20) {
-          const lastTitle = currentRecipes[currentRecipes.length - 1]?.title || ''
-          setPdfStatus(`Found ${currentRecipes.length} recipes so far — Dot is still reading (pass ${passNum})...`)
+        while (nextChunkIndex != null) {
+          setPdfStatus(`Found ${currentRecipes.length} recipes so far — reading chunk ${nextChunkIndex + 1}...`)
 
           try {
             const res = await fetch('/api/recipes/extract', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ type: 'pdf', pdfUrl, lastTitle }),
+              body: JSON.stringify({ type: 'pdf', pdfUrl, chunkIndex: nextChunkIndex }),
             })
             const data = await res.json()
 
-            if (!res.ok || !data.recipes?.length) {
-              stillTruncated = false
+            if (!res.ok || data.error) {
+              console.error('Chunk error:', data.error)
               break
             }
 
-            const existingTitles = new Set(currentRecipes.map(r => r.title.toLowerCase().trim()))
-            const newRecipes = data.recipes.filter(r => !existingTitles.has((r.title||'').toLowerCase().trim()))
-
-            if (newRecipes.length === 0) {
-              // No new recipes found — we're done
-              stillTruncated = false
-              break
-            }
-
-            const newWithDups = await filterDuplicates(newRecipes)
-            setPdfRecipes(prev => {
-              const combined = [...prev, ...newWithDups]
-              setPdfChecked(prev2 => {
-                const merged = { ...prev2 }
-                newWithDups.forEach((r, j) => { merged[prev.length + j] = !r._isDuplicate })
-                return merged
-              })
-              return combined
+            const newRecipes = (data.recipes || []).filter(r => {
+              const key = (r.title||'').toLowerCase().trim()
+              if (!key || seenTitles.has(key)) return false
+              seenTitles.add(key)
+              return true
             })
 
-            currentRecipes = [...currentRecipes, ...newRecipes]
-            stillTruncated = data.truncated === true
-            passNum++
+            if (newRecipes.length > 0) {
+              const newWithDups = await filterDuplicates(newRecipes)
+              setPdfRecipes(prev => {
+                const combined = [...prev, ...newWithDups]
+                setPdfChecked(prev2 => {
+                  const merged = { ...prev2 }
+                  newWithDups.forEach((r, j) => { merged[prev.length + j] = !r._isDuplicate })
+                  return merged
+                })
+                return combined
+              })
+              currentRecipes = [...currentRecipes, ...newRecipes]
+            }
+
+            nextChunkIndex = data.nextChunkIndex ?? null
 
           } catch (e) {
-            console.error('Pass ' + passNum + ' error:', e)
-            stillTruncated = false
+            console.error('Chunk error:', e)
+            break
           }
         }
 
