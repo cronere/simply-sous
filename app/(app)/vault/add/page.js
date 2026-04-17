@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
@@ -182,13 +182,13 @@ export default function AddRecipePage() {
     reader.readAsDataURL(file)
   })
 
-  const filterDuplicates = useCallback(async (recipes) => {
+  const filterDuplicates = async (recipes) => {
     if (!userId) return recipes.map(r => ({ ...r, _isDuplicate: false }))
     const sb = getClient()
     const { data: existing } = await sb.from('recipes').select('title').eq('profile_id', userId)
     const existingTitles = new Set((existing || []).map(r => r.title.toLowerCase().trim()))
     return recipes.map(r => ({ ...r, _isDuplicate: existingTitles.has((r.title || '').toLowerCase().trim()) }))
-  }, [userId])
+  }
 
   const extract = async () => {
     setError(''); setRecipe(null); setLoading(true)
