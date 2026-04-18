@@ -75,14 +75,22 @@ Tag guidelines:
 
 Return ONLY the JSON object, no markdown, no explanation.`
 
-const PDF_SYSTEM = `You are a recipe extraction expert. Extract recipes from PDFs VERBATIM.
-Copy ingredient amounts exactly as written — never calculate, scale, or interpret quantities.
-If it says "a pinch" or "to taste" or "light sprinkle", copy those exact words.
-base_servings = what the recipe states, never the user's family size.
-Return a JSON array ONLY — no markdown, no backticks, no explanation.
-Each recipe: {"title":"","description":"","cuisine":"","meal_type":"dinner","difficulty":2,"prep_time_mins":null,"cook_time_mins":null,"base_servings":4,"ingredients":[{"name":"","amount":null,"unit":null,"notes":null}],"instructions":[{"step":1,"text":""}],"tags":[],"dietary_flags":[]}
-meal_type options: breakfast, lunch, dinner, snack, dessert, sauce, drink, bread, side
-Start response with [ and end with ].`
+const PDF_SYSTEM = `You are a recipe extraction expert. Extract ALL recipes from the text provided.
+IMPORTANT: Extract EVERY recipe you find, even if it seems incomplete or spans the edge of the text.
+Copy ingredient amounts VERBATIM — never scale or interpret quantities.
+base_servings = what the recipe explicitly states (default 4 if not mentioned).
+
+Rules:
+- Extract every recipe, including side dishes, sauces, drinks, and desserts
+- If a recipe appears cut off at the end of the text, extract what you have — include whatever ingredients and instructions are present
+- If a recipe appears cut off at the beginning (no title visible), skip it
+- Never merge two different recipes into one
+- Return a JSON array ONLY — no markdown fences, no backticks, no explanation, no preamble
+- Start your response with [ and end with ]
+
+Each recipe object:
+{"title":"","description":"","cuisine":"","meal_type":"dinner","difficulty":2,"prep_time_mins":null,"cook_time_mins":null,"base_servings":4,"ingredients":[{"name":"","amount":null,"unit":null,"notes":null}],"instructions":[{"step":1,"text":""}],"tags":[],"dietary_flags":[]}
+meal_type options: breakfast, lunch, dinner, snack, dessert, sauce, drink, bread, side`
 
 // Sanitize a recipe before saving — ensures valid meal_type, no total_time_mins, etc.
 export function sanitizeRecipe(r) {
@@ -233,16 +241,20 @@ export async function POST(request) {
         return Response.json({ error: 'This PDF appears to be a scanned image. Only digital PDFs with selectable text are supported. Try uploading a photo of the recipe page instead.' }, { status: 422 })
       }
 
-      // Split into overlapping chunks — each chunk includes 2000 char overlap
-      // from the previous chunk so recipes on boundaries don't get missed
-      const CHUNK_SIZE = 25000
-      const OVERLAP = 2000
+      // Split into overlapping chunks
+      // CHUNK_SIZE = 20000 chars (~5000 tokens) — leaves plenty of room for output
+      // OVERLAP = 6000 chars — larger than any single recipe, guarantees no recipe
+      // is ever fully split across a boundary
+      const CHUNK_SIZE = 20000
+      const OVERLAP = 6000
       const chunks = []
       let pos = 0
       while (pos < pdfText.length) {
         chunks.push(pdfText.substring(pos, pos + CHUNK_SIZE))
-        pos += (CHUNK_SIZE - OVERLAP) // step back by overlap for next chunk
+        if (pos + CHUNK_SIZE >= pdfText.length) break
+        pos += (CHUNK_SIZE - OVERLAP)
       }
+      console.log('[pdf] total chunks:', chunks.length, 'for', pdfText.length, 'chars')
 
       const chunkIndex = body.chunkIndex || 0
       const chunk = chunks[chunkIndex]
