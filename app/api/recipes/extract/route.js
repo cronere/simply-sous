@@ -233,13 +233,15 @@ export async function POST(request) {
         return Response.json({ error: 'This PDF appears to be a scanned image. Only digital PDFs with selectable text are supported. Try uploading a photo of the recipe page instead.' }, { status: 422 })
       }
 
-      // Split into 40,000 char chunks (~10,000 tokens each)
-      // Haiku limit is 100k tokens/min — this gives plenty of headroom
-      // Each chunk processed sequentially — chunkIndex tells us which one
-      const CHUNK_SIZE = 25000 // ~6250 tokens in, leaves full 8192 for recipe JSON output
+      // Split into overlapping chunks — each chunk includes 2000 char overlap
+      // from the previous chunk so recipes on boundaries don't get missed
+      const CHUNK_SIZE = 25000
+      const OVERLAP = 2000
       const chunks = []
-      for (let i = 0; i < pdfText.length; i += CHUNK_SIZE) {
-        chunks.push(pdfText.substring(i, i + CHUNK_SIZE))
+      let pos = 0
+      while (pos < pdfText.length) {
+        chunks.push(pdfText.substring(pos, pos + CHUNK_SIZE))
+        pos += (CHUNK_SIZE - OVERLAP) // step back by overlap for next chunk
       }
 
       const chunkIndex = body.chunkIndex || 0
