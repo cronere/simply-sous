@@ -261,7 +261,7 @@ export default function AddRecipePage() {
         const seenTitles = new Set(pass1.map(r => r.title.toLowerCase().trim()))
 
         while (nextChunkIndex != null) {
-          setPdfStatus(`Found ${currentRecipes.length} recipes so far — reading chunk ${nextChunkIndex + 1}...`)
+          setPdfStatus(`Found ${currentRecipes.length} recipes so far — Dot is still reading...`)
 
           try {
             const res = await fetch('/api/recipes/extract', {
